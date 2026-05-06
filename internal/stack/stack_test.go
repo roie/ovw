@@ -72,6 +72,104 @@ func TestDetectNodeFallback(t *testing.T) {
 	}
 }
 
+func TestDetectWorkspaceSvelteKitCloudflare(t *testing.T) {
+	dir := t.TempDir()
+	writePackage(t, dir, `{"devDependencies":{"typescript":"latest","vitest":"latest"}}`)
+	writePackage(t, filepath.Join(dir, "apps", "web"), `{"dependencies":{"@sveltejs/kit":"latest","svelte":"latest"},"devDependencies":{"wrangler":"latest"}}`)
+	touch(t, filepath.Join(dir, "apps", "web", "wrangler.toml"))
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if result.Display != "SvelteKit+Svelte+CF" {
+		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
+	}
+	if has(result.Labels, "Node") {
+		t.Fatalf("Node should not be included with non-Node labels: %#v", result.Labels)
+	}
+}
+
+func TestDetectPackageJSONWorkspaces(t *testing.T) {
+	dir := t.TempDir()
+	writePackage(t, dir, `{"workspaces":["apps/*"]}`)
+	writePackage(t, filepath.Join(dir, "apps", "client"), `{"dependencies":{"react":"latest"}}`)
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if result.Display != "React" {
+		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
+	}
+}
+
+func TestDetectPackageJSONWorkspacesObject(t *testing.T) {
+	dir := t.TempDir()
+	writePackage(t, dir, `{"workspaces":{"packages":["packages/*"]}}`)
+	writePackage(t, filepath.Join(dir, "packages", "api"), `{"dependencies":{"hono":"latest"}}`)
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if result.Display != "Hono" {
+		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
+	}
+}
+
+func TestDetectPNPMWorkspaceSimpleGlobs(t *testing.T) {
+	dir := t.TempDir()
+	writePackage(t, dir, `{"devDependencies":{"typescript":"latest"}}`)
+	if err := os.WriteFile(filepath.Join(dir, "pnpm-workspace.yaml"), []byte("packages:\n  - 'apps/*'\n  - \"packages/*\"\n  - '!**/test/**'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writePackage(t, filepath.Join(dir, "apps", "web"), `{"dependencies":{"vue":"latest"}}`)
+	writePackage(t, filepath.Join(dir, "packages", "ignored-test"), `{"dependencies":{"react":"latest"}}`)
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if result.Display != "React+Vue" {
+		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
+	}
+}
+
+func TestDetectFallbackCommonDirs(t *testing.T) {
+	dir := t.TempDir()
+	writePackage(t, dir, `{"devDependencies":{"typescript":"latest"}}`)
+	writePackage(t, filepath.Join(dir, "extension", "popup"), `{"dependencies":{"wxt":"latest","svelte":"latest"}}`)
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if result.Display != "WXT+Svelte" {
+		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
+	}
+}
+
+func TestDetectDedupesAndOrdersWorkspaceLabels(t *testing.T) {
+	dir := t.TempDir()
+	writePackage(t, dir, `{"dependencies":{"svelte":"latest"},"workspaces":["apps/*"]}`)
+	writePackage(t, filepath.Join(dir, "apps", "web"), `{"dependencies":{"@sveltejs/kit":"latest","svelte":"latest","react":"latest"}}`)
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	want := []string{"SvelteKit", "Svelte", "React"}
+	if len(result.Labels) != len(want) {
+		t.Fatalf("labels = %#v", result.Labels)
+	}
+	for i := range want {
+		if result.Labels[i] != want[i] {
+			t.Fatalf("labels = %#v, want %#v", result.Labels, want)
+		}
+	}
+}
+
 func TestUnknownDisplay(t *testing.T) {
 	dir := t.TempDir()
 	result, err := Detect(dir, config.Default().Stack)

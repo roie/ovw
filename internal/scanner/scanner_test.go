@@ -63,6 +63,23 @@ func TestScanStopsAtProjectWhenNestedDisabled(t *testing.T) {
 	}
 }
 
+func TestScanNestedFalseDoesNotCreateWorkspaceChildRows(t *testing.T) {
+	root := t.TempDir()
+	touch(t, filepath.Join(root, "mono", "package.json"))
+	touch(t, filepath.Join(root, "mono", "apps", "web", "package.json"))
+
+	cfg := configForRoot(root)
+	cfg.ScanNestedProjects = false
+	projects, err := Scan(cfg, metadata.New())
+	if err != nil {
+		t.Fatalf("Scan() error = %v", err)
+	}
+	names := projectNames(projects)
+	if !names["mono"] || names["web"] {
+		t.Fatalf("names = %#v", names)
+	}
+}
+
 func TestScanSupportsMaxDepth(t *testing.T) {
 	root := t.TempDir()
 	touch(t, filepath.Join(root, "level1", "level2", "package.json"))
