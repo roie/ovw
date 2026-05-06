@@ -53,8 +53,13 @@ func TestPhaseOneFixturesScanStackMetadataAndJSON(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 	got := out.String()
-	if !strings.Contains(got, `"stack_display": "SvelteKit+CF"`) {
-		t.Fatalf("json missing stack display: %s", got)
+	for _, want := range []string{`"SvelteKit"`, `"Cloudflare Workers"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("json missing stack value %q: %s", want, got)
+		}
+	}
+	if strings.Contains(got, "stack_display") {
+		t.Fatalf("json included display-only stack field: %s", got)
 	}
 	if strings.Contains(got, "hidden-go") {
 		t.Fatalf("json included hidden project: %s", got)

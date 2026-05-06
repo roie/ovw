@@ -34,7 +34,12 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 	if !strings.HasPrefix(strings.TrimSpace(got), "[") {
 		t.Fatalf("json output has prefix/logs: %q", got)
 	}
-	if !strings.Contains(got, `"name": "app"`) || !strings.Contains(got, `"stack_display": "SvelteKit+CF"`) {
+	for _, want := range []string{`"name": "app"`, `"SvelteKit"`, `"Cloudflare Workers"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("json output missing %q = %s", want, got)
+		}
+	}
+	if strings.Contains(got, "stack_display") {
 		t.Fatalf("json output = %s", got)
 	}
 }

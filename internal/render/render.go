@@ -75,11 +75,56 @@ func headerLabel(column string) string {
 func JSON(w io.Writer, projects []project.Project) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(projects)
+	out := make([]jsonProject, 0, len(projects))
+	for _, project := range projects {
+		out = append(out, newJSONProject(project))
+	}
+	return encoder.Encode(out)
 }
 
 type tableRow struct {
 	values []string
+}
+
+type jsonProject struct {
+	Name     string       `json:"name"`
+	Path     string       `json:"path"`
+	Stack    []string     `json:"stack"`
+	Status   string       `json:"status"`
+	Note     string       `json:"note"`
+	Activity jsonActivity `json:"activity"`
+}
+
+type jsonActivity struct {
+	LastCommitAt      *time.Time `json:"last_commit_at,omitempty"`
+	LastCommitMessage string     `json:"last_commit_message,omitempty"`
+	Branch            string     `json:"branch,omitempty"`
+	Dirty             bool       `json:"dirty"`
+	Unpushed          int        `json:"unpushed"`
+	HasGit            bool       `json:"has_git"`
+	HasCommits        bool       `json:"has_commits"`
+}
+
+func newJSONProject(project project.Project) jsonProject {
+	activity := jsonActivity{
+		LastCommitMessage: project.Activity.LastCommitMessage,
+		Branch:            project.Activity.Branch,
+		Dirty:             project.Activity.Dirty,
+		Unpushed:          project.Activity.Unpushed,
+		HasGit:            project.Activity.HasGit,
+		HasCommits:        project.Activity.HasCommits,
+	}
+	if !project.Activity.LastCommitAt.IsZero() {
+		activity.LastCommitAt = &project.Activity.LastCommitAt
+	}
+	return jsonProject{
+		Name:     project.Name,
+		Path:     project.Path,
+		Stack:    project.Stack,
+		Status:   project.Status,
+		Note:     project.Note.Display,
+		Activity: activity,
+	}
 }
 
 func tableRows(projects []project.Project, cfg config.Config) []tableRow {

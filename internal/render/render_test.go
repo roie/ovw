@@ -98,15 +98,27 @@ func TestTableWidthTruncatesNoteAndSeparator(t *testing.T) {
 }
 
 func TestJSONOutputsPureArray(t *testing.T) {
+	lastCommitAt := time.Date(2026, 5, 6, 18, 10, 35, 0, time.FixedZone("EDT", -4*60*60))
 	projects := []project.Project{{
 		Name:         "eventca",
 		Path:         "/tmp/eventca",
 		Stack:        []string{"Go"},
 		StackDisplay: "Go",
-		Activity:     format.ActivityInfo{Display: "1d"},
-		Status:       "active",
-		Note:         format.NoteInfo{Display: "note", Source: "manual", Manual: "note"},
-		Manual:       true,
+		Activity: format.ActivityInfo{
+			Display:           "1d !",
+			LastCommitAge:     "1d",
+			LastCommitAt:      lastCommitAt,
+			LastCommitMessage: "feat: add overview",
+			Branch:            "main",
+			Dirty:             true,
+			Unpushed:          2,
+			HasGit:            true,
+			HasCommits:        true,
+		},
+		Status: "active",
+		Note:   format.NoteInfo{Display: "note", Source: "manual", Manual: "note"},
+		Manual: true,
+		Hidden: true,
 	}}
 	var out bytes.Buffer
 	if err := JSON(&out, projects); err != nil {
@@ -116,11 +128,37 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	if !strings.HasPrefix(got, "[") || !strings.HasSuffix(got, "]") {
 		t.Fatalf("json is not a pure array: %q", got)
 	}
-	var decoded []project.Project
+	var decoded []map[string]any
 	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
 		t.Fatalf("invalid json: %v\n%s", err, out.String())
 	}
-	if len(decoded) != 1 || decoded[0].Name != "eventca" {
+	if len(decoded) != 1 || decoded[0]["name"] != "eventca" {
 		t.Fatalf("decoded = %#v", decoded)
+	}
+	item := decoded[0]
+	for _, unwanted := range []string{"stack_display", "manual", "hidden"} {
+		if _, ok := item[unwanted]; ok {
+			t.Fatalf("json includes internal field %q:\n%s", unwanted, out.String())
+		}
+	}
+	if note, ok := item["note"].(string); !ok || note != "note" {
+		t.Fatalf("note = %#v, want string note\n%s", item["note"], out.String())
+	}
+	activity, ok := item["activity"].(map[string]any)
+	if !ok {
+		t.Fatalf("activity = %#v", item["activity"])
+	}
+	for _, unwanted := range []string{"display", "last_commit_age"} {
+		if _, ok := activity[unwanted]; ok {
+			t.Fatalf("json includes display field %q:\n%s", unwanted, out.String())
+		}
+	}
+	for _, want := range []string{"last_commit_at", "last_commit_message", "branch", "dirty", "unpushed", "has_git", "has_commits"} {
+		if _, ok := activity[want]; !ok {
+			t.Fatalf("json missing activity field %q:\n%s", want, out.String())
+		}
+	}
+	if activity["last_commit_message"] != "feat: add overview" || activity["branch"] != "main" || activity["dirty"] != true {
+		t.Fatalf("activity = %#v", activity)
 	}
 }
