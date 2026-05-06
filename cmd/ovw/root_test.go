@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"ovw/internal/config"
@@ -143,17 +144,88 @@ func TestScanCommand(t *testing.T) {
 	}
 }
 
+func TestSetUnsetShowCommands(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "manual")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	runCommand(t, []string{"add", project})
+
+	runCommand(t, []string{"set", "manual", "--status", "active", "--note", "fix flow"})
+	show := runCommand(t, []string{"show", "manual"})
+	if !bytes.Contains([]byte(show), []byte("Status    active")) || !bytes.Contains([]byte(show), []byte("Note      fix flow")) {
+		t.Fatalf("show output = %q", show)
+	}
+
+	runCommand(t, []string{"unset", "manual", "--note"})
+	show = runCommand(t, []string{"show", "manual"})
+	if bytes.Contains([]byte(show), []byte("fix flow")) {
+		t.Fatalf("note was not unset: %q", show)
+	}
+
+	runCommand(t, []string{"unset", "manual", "--status"})
+	show = runCommand(t, []string{"show", "manual"})
+	if bytes.Contains([]byte(show), []byte("active")) {
+		t.Fatalf("status was not unset: %q", show)
+	}
+}
+
+func TestSetRejectsUnknownStatus(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "manual")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	runCommand(t, []string{"add", project})
+
+	_, err := executeCommand([]string{"set", "manual", "--status", "building"})
+	if err == nil {
+		t.Fatal("expected unknown status error")
+	}
+	if !strings.Contains(err.Error(), "Unknown status: building") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestSetCanTargetScannedProjectByName(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(root, "scanned"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scanned", "go.mod"), []byte("module scanned"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, root)
+
+	runCommand(t, []string{"set", "scanned", "--status", "active"})
+	show := runCommand(t, []string{"show", "scanned"})
+	if !bytes.Contains([]byte(show), []byte("Status    active")) {
+		t.Fatalf("show output = %q", show)
+	}
+}
+
 func runCommand(t *testing.T, args []string) string {
 	t.Helper()
+	out, err := executeCommand(args)
+	if err != nil {
+		t.Fatalf("Execute(%v) error = %v", args, err)
+	}
+	return out
+}
+
+func executeCommand(args []string) (string, error) {
 	cmd := NewRootCommand()
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
 	cmd.SetArgs(args)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("Execute(%v) error = %v", args, err)
-	}
-	return out.String()
+	err := cmd.Execute()
+	return out.String(), err
 }
 
 func configForTest(t *testing.T, root string) string {

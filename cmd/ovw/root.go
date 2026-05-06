@@ -48,6 +48,9 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(newVisibilityCommand("hide", true))
 	cmd.AddCommand(newVisibilityCommand("remove", true))
 	cmd.AddCommand(newVisibilityCommand("unhide", false))
+	cmd.AddCommand(newSetCommand())
+	cmd.AddCommand(newUnsetCommand())
+	cmd.AddCommand(newShowCommand())
 	return cmd
 }
 
@@ -260,4 +263,175 @@ func displayPath(path string) string {
 		return abs
 	}
 	return path
+}
+
+func newSetCommand() *cobra.Command {
+	var status string
+	var note string
+	cmd := &cobra.Command{
+		Use:   "set <name>",
+		Short: "Set project metadata",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			paths, cfg, store, err := commandState()
+			if err != nil {
+				return err
+			}
+			if status != "" && !statusAllowed(status, cfg.Statuses) {
+				return fmt.Errorf("Unknown status: %s\nAvailable: %s", status, joinStatuses(cfg.Statuses))
+			}
+			path, err := resolveProjectWithConfig(args[0], cfg, store)
+			if err != nil {
+				return err
+			}
+			entry := store.Projects[path]
+			if status != "" {
+				entry.Status = status
+			}
+			if note != "" {
+				entry.Note = note
+			}
+			store.Projects[path] = entry
+			return metadata.Write(paths.Metadata, store)
+		},
+	}
+	cmd.Flags().StringVar(&status, "status", "", "set status")
+	cmd.Flags().StringVar(&note, "note", "", "set note")
+	return cmd
+}
+
+func newUnsetCommand() *cobra.Command {
+	var clearStatus bool
+	var clearNote bool
+	cmd := &cobra.Command{
+		Use:   "unset <name>",
+		Short: "Unset project metadata",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			paths, cfg, store, err := commandState()
+			if err != nil {
+				return err
+			}
+			path, err := resolveProjectWithConfig(args[0], cfg, store)
+			if err != nil {
+				return err
+			}
+			entry := store.Projects[path]
+			if clearStatus {
+				entry.Status = ""
+			}
+			if clearNote {
+				entry.Note = ""
+			}
+			store.Projects[path] = entry
+			return metadata.Write(paths.Metadata, store)
+		},
+	}
+	cmd.Flags().BoolVar(&clearStatus, "status", false, "clear status")
+	cmd.Flags().BoolVar(&clearNote, "note", false, "clear note")
+	return cmd
+}
+
+func newShowCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <name>",
+		Short: "Show project detail",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, cfg, store, err := commandState()
+			if err != nil {
+				return err
+			}
+			path, err := resolveProjectWithConfig(args[0], cfg, store)
+			if err != nil {
+				return err
+			}
+			entry := store.Projects[path]
+			fmt.Fprintf(cmd.OutOrStdout(), "Name      %s\n", filepath.Base(path))
+			fmt.Fprintf(cmd.OutOrStdout(), "Path      %s\n", path)
+			fmt.Fprintf(cmd.OutOrStdout(), "Stack     \n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Branch    \n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Activity  \n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Status    %s\n", entry.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Note      %s\n", entry.Note)
+			fmt.Fprintf(cmd.OutOrStdout(), "Manual    %s\n", yesNo(entry.Manual))
+			return nil
+		},
+	}
+}
+
+func commandState() (config.FilePaths, config.Config, metadata.Store, error) {
+	paths, err := config.Paths()
+	if err != nil {
+		return config.FilePaths{}, config.Config{}, metadata.Store{}, err
+	}
+	cfg, err := config.Load(paths.Config)
+	if err != nil {
+		if os.IsNotExist(err) {
+			cfg = config.Default()
+		} else {
+			return config.FilePaths{}, config.Config{}, metadata.Store{}, err
+		}
+	}
+	store, err := metadata.Load(paths.Metadata)
+	if err != nil {
+		return config.FilePaths{}, config.Config{}, metadata.Store{}, err
+	}
+	return paths, cfg, store, nil
+}
+
+func resolveProjectWithConfig(target string, cfg config.Config, store metadata.Store) (string, error) {
+	path, err := resolveProject(target, store)
+	if err == nil {
+		return path, nil
+	}
+	projects, scanErr := scanner.Scan(cfg, store)
+	if scanErr != nil {
+		return "", err
+	}
+	matches := []string{}
+	for _, project := range projects {
+		if project.Path == target || project.Name == target {
+			matches = append(matches, project.Path)
+		}
+		if expanded, expandErr := config.ExpandPath(target); expandErr == nil {
+			if canonical, canonicalErr := metadata.CanonicalPath(expanded); canonicalErr == nil && canonical == project.Path {
+				matches = append(matches, project.Path)
+			}
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("Project %q is ambiguous; use full path", target)
+	}
+	return "", err
+}
+
+func statusAllowed(status string, statuses []string) bool {
+	for _, value := range statuses {
+		if status == value {
+			return true
+		}
+	}
+	return false
+}
+
+func joinStatuses(statuses []string) string {
+	out := ""
+	for i, status := range statuses {
+		if i > 0 {
+			out += ", "
+		}
+		out += status
+	}
+	return out
+}
+
+func yesNo(value bool) string {
+	if value {
+		return "yes"
+	}
+	return "no"
 }
