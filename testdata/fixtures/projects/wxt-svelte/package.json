@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "wxt": "latest",
+    "svelte": "latest"
+  }
+}
