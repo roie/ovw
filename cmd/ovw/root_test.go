@@ -46,7 +46,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 
 	got := out.String()
 	for _, want := range []string{
-		"ovw scans your project folders and shows each project's stack, Git activity, status, and notes in one clean terminal view.",
+		"A terminal overview for your local projects",
 		"add         Add a project manually",
 		"cache       Manage ovw cache",
 		"config      Manage ovw config",

@@ -24,7 +24,6 @@ func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ovw",
 		Short:   "A terminal overview for your local projects",
-		Long:    "ovw scans your project folders and shows each project's stack, Git activity, status, and notes in one clean terminal view.",
 		Version: version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
