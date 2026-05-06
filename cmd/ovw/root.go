@@ -3,6 +3,7 @@ package ovw
 import (
 	"fmt"
 
+	"ovw/internal/cache"
 	"ovw/internal/config"
 
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ func NewRootCommand() *cobra.Command {
 		},
 	}
 	cmd.AddCommand(newConfigCommand())
+	cmd.AddCommand(newCacheCommand())
 	return cmd
 }
 
@@ -52,4 +54,27 @@ func newConfigCommand() *cobra.Command {
 		},
 	})
 	return configCmd
+}
+
+func newCacheCommand() *cobra.Command {
+	cacheCmd := &cobra.Command{
+		Use:   "cache",
+		Short: "Manage ovw cache",
+	}
+	cacheCmd.AddCommand(&cobra.Command{
+		Use:   "clear",
+		Short: "Clear generated cache",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			paths, err := config.Paths()
+			if err != nil {
+				return err
+			}
+			if err := cache.Clear(paths.Cache); err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "Cache cleared.")
+			return nil
+		},
+	})
+	return cacheCmd
 }
