@@ -282,6 +282,36 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 	}
 }
 
+func TestShowJSONOutputsSingleProject(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(root, "scanned"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scanned", "go.mod"), []byte("module scanned"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, root)
+	runCommand(t, []string{"set", "scanned", "--status", "active", "--note", "working"})
+
+	out := runCommand(t, []string{"show", "scanned", "--json"})
+	trimmed := strings.TrimSpace(out)
+	if !strings.HasPrefix(trimmed, "{") || !strings.HasSuffix(trimmed, "}") {
+		t.Fatalf("show json should be one object: %q", out)
+	}
+	for _, want := range []string{`"name": "scanned"`, `"stack":`, `"Go"`, `"status": "active"`, `"note": "working"`, `"activity":`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("show json missing %q: %s", want, out)
+		}
+	}
+	for _, unwanted := range []string{"stack_display", "manual", "hidden", "last_commit_age"} {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("show json contains internal field %q: %s", unwanted, out)
+		}
+	}
+}
+
 func runCommand(t *testing.T, args []string) string {
 	t.Helper()
 	out, err := executeCommand(args)

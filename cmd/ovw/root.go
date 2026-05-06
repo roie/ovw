@@ -12,6 +12,7 @@ import (
 	"ovw/internal/config"
 	"ovw/internal/metadata"
 	"ovw/internal/project"
+	"ovw/internal/render"
 	"ovw/internal/scanner"
 
 	"github.com/spf13/cobra"
@@ -362,7 +363,8 @@ func newUnsetCommand() *cobra.Command {
 }
 
 func newShowCommand() *cobra.Command {
-	return &cobra.Command{
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "show <name>",
 		Short: "Show project details",
 		Args:  cobra.ExactArgs(1),
@@ -389,6 +391,9 @@ func newShowCommand() *cobra.Command {
 				Note:   entry.Note,
 			}, cfg, cacheStore, time.Now())
 			out := cmd.OutOrStdout()
+			if jsonOutput {
+				return render.ProjectJSON(out, enriched)
+			}
 			fmt.Fprintf(out, "%s\n", filepath.Base(path))
 			fmt.Fprintf(out, "Path      %s\n", path)
 			fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
@@ -404,6 +409,8 @@ func newShowCommand() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON")
+	return cmd
 }
 
 func commandState() (config.FilePaths, config.Config, metadata.Store, error) {

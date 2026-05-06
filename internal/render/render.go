@@ -82,6 +82,12 @@ func JSON(w io.Writer, projects []project.Project) error {
 	return encoder.Encode(out)
 }
 
+func ProjectJSON(w io.Writer, project project.Project) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(newJSONProject(project))
+}
+
 type tableRow struct {
 	values []string
 }
