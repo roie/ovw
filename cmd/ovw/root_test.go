@@ -189,7 +189,7 @@ func TestSetUnsetShowCommands(t *testing.T) {
 
 	runCommand(t, []string{"set", "manual", "--status", "active", "--note", "fix flow"})
 	show := runCommand(t, []string{"show", "manual"})
-	if !bytes.Contains([]byte(show), []byte("Status    active")) || !bytes.Contains([]byte(show), []byte("Note      fix flow")) {
+	if !bytes.Contains([]byte(show), []byte("Status            active")) || !bytes.Contains([]byte(show), []byte("Note              fix flow")) {
 		t.Fatalf("show output = %q", show)
 	}
 
@@ -238,13 +238,28 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 
 	runCommand(t, []string{"set", "scanned", "--status", "active"})
 	show := runCommand(t, []string{"show", "scanned"})
-	if !bytes.Contains([]byte(show), []byte("Status    active")) {
+	if !bytes.Contains([]byte(show), []byte("Status            active")) {
 		t.Fatalf("show output = %q", show)
 	}
-	if !bytes.Contains([]byte(show), []byte("Stack     Go")) {
+	if !bytes.Contains([]byte(show), []byte("Stack             Go")) {
 		t.Fatalf("show output missing stack detail = %q", show)
 	}
-	if !bytes.Contains([]byte(show), []byte("Activity  —")) {
+	for _, want := range []string{
+		"StackRaw",
+		"ActivityDisplay",
+		"LastCommitAge",
+		"LastCommitAt",
+		"LastCommitMessage",
+		"Unpushed",
+		"Dirty",
+		"NoteSource",
+		"Hidden",
+	} {
+		if !bytes.Contains([]byte(show), []byte(want)) {
+			t.Fatalf("show output missing %q = %q", want, show)
+		}
+	}
+	if !bytes.Contains([]byte(show), []byte("Activity          —")) {
 		t.Fatalf("show output missing activity detail = %q", show)
 	}
 }

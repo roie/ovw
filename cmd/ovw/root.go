@@ -368,14 +368,23 @@ func newShowCommand() *cobra.Command {
 				Status: entry.Status,
 				Note:   entry.Note,
 			}, cfg, cacheStore, time.Now())
-			fmt.Fprintf(cmd.OutOrStdout(), "Name      %s\n", filepath.Base(path))
-			fmt.Fprintf(cmd.OutOrStdout(), "Path      %s\n", path)
-			fmt.Fprintf(cmd.OutOrStdout(), "Stack     %s\n", strings.Join(enriched.Stack, ", "))
-			fmt.Fprintf(cmd.OutOrStdout(), "Branch    %s\n", enriched.Activity.Branch)
-			fmt.Fprintf(cmd.OutOrStdout(), "Activity  %s\n", detailActivity(enriched))
-			fmt.Fprintf(cmd.OutOrStdout(), "Status    %s\n", enriched.Status)
-			fmt.Fprintf(cmd.OutOrStdout(), "Note      %s%s\n", enriched.Note.Display, noteSourceSuffix(enriched.Note.Source))
-			fmt.Fprintf(cmd.OutOrStdout(), "Manual    %s\n", yesNo(enriched.Manual))
+			fmt.Fprintf(cmd.OutOrStdout(), "Name              %s\n", filepath.Base(path))
+			fmt.Fprintf(cmd.OutOrStdout(), "Path              %s\n", path)
+			fmt.Fprintf(cmd.OutOrStdout(), "Stack             %s\n", enriched.StackDisplay)
+			fmt.Fprintf(cmd.OutOrStdout(), "StackRaw          %s\n", strings.Join(enriched.Stack, ", "))
+			fmt.Fprintf(cmd.OutOrStdout(), "Activity          %s\n", detailActivity(enriched))
+			fmt.Fprintf(cmd.OutOrStdout(), "ActivityDisplay   %s\n", enriched.Activity.Display)
+			fmt.Fprintf(cmd.OutOrStdout(), "Branch            %s\n", enriched.Activity.Branch)
+			fmt.Fprintf(cmd.OutOrStdout(), "LastCommitAge     %s\n", enriched.Activity.LastCommitAge)
+			fmt.Fprintf(cmd.OutOrStdout(), "LastCommitAt      %s\n", showTime(enriched.Activity.LastCommitAt))
+			fmt.Fprintf(cmd.OutOrStdout(), "LastCommitMessage %s\n", enriched.Activity.LastCommitMessage)
+			fmt.Fprintf(cmd.OutOrStdout(), "Unpushed          %d\n", enriched.Activity.Unpushed)
+			fmt.Fprintf(cmd.OutOrStdout(), "Dirty             %s\n", yesNo(enriched.Activity.Dirty))
+			fmt.Fprintf(cmd.OutOrStdout(), "Status            %s\n", enriched.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Note              %s\n", enriched.Note.Display)
+			fmt.Fprintf(cmd.OutOrStdout(), "NoteSource        %s\n", enriched.Note.Source)
+			fmt.Fprintf(cmd.OutOrStdout(), "Manual            %s\n", yesNo(enriched.Manual))
+			fmt.Fprintf(cmd.OutOrStdout(), "Hidden            %s\n", yesNo(enriched.Hidden))
 			return nil
 		},
 	}
@@ -455,6 +464,13 @@ func yesNo(value bool) string {
 		return "yes"
 	}
 	return "no"
+}
+
+func showTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.Format(time.RFC3339)
 }
 
 func detailActivity(project project.Project) string {
