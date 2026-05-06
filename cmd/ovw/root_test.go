@@ -187,19 +187,30 @@ func TestSetUnsetShowCommands(t *testing.T) {
 	t.Setenv("HOME", home)
 	runCommand(t, []string{"add", project})
 
-	runCommand(t, []string{"set", "manual", "--status", "active", "--note", "fix flow"})
+	out := runCommand(t, []string{"set", "manual", "--status", "active", "--note", "fix flow"})
+	for _, want := range []string{"Updated manual.", "Status  active", "Note    fix flow"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("set output missing %q: %q", want, out)
+		}
+	}
 	show := runCommand(t, []string{"show", "manual"})
 	if !bytes.Contains([]byte(show), []byte("Status            active")) || !bytes.Contains([]byte(show), []byte("Note              fix flow")) {
 		t.Fatalf("show output = %q", show)
 	}
 
-	runCommand(t, []string{"unset", "manual", "--note"})
+	out = runCommand(t, []string{"unset", "manual", "--note"})
+	if !strings.Contains(out, "Updated manual.") || !strings.Contains(out, "Note cleared.") {
+		t.Fatalf("unset note output = %q", out)
+	}
 	show = runCommand(t, []string{"show", "manual"})
 	if bytes.Contains([]byte(show), []byte("fix flow")) {
 		t.Fatalf("note was not unset: %q", show)
 	}
 
-	runCommand(t, []string{"unset", "manual", "--status"})
+	out = runCommand(t, []string{"unset", "manual", "--status"})
+	if !strings.Contains(out, "Updated manual.") || !strings.Contains(out, "Status cleared.") {
+		t.Fatalf("unset status output = %q", out)
+	}
 	show = runCommand(t, []string{"show", "manual"})
 	if bytes.Contains([]byte(show), []byte("active")) {
 		t.Fatalf("status was not unset: %q", show)

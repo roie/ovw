@@ -301,7 +301,17 @@ func newSetCommand() *cobra.Command {
 				entry.Note = note
 			}
 			store.Projects[path] = entry
-			return metadata.Write(paths.Metadata, store)
+			if err := metadata.Write(paths.Metadata, store); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Updated %s.\n", filepath.Base(path))
+			if status != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Status  %s\n", status)
+			}
+			if note != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Note    %s\n", note)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVar(&status, "status", "", "set status")
@@ -333,7 +343,17 @@ func newUnsetCommand() *cobra.Command {
 				entry.Note = ""
 			}
 			store.Projects[path] = entry
-			return metadata.Write(paths.Metadata, store)
+			if err := metadata.Write(paths.Metadata, store); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Updated %s.\n", filepath.Base(path))
+			if clearStatus {
+				fmt.Fprintln(cmd.OutOrStdout(), "Status cleared.")
+			}
+			if clearNote {
+				fmt.Fprintln(cmd.OutOrStdout(), "Note cleared.")
+			}
+			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&clearStatus, "status", false, "clear status")
