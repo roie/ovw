@@ -1,0 +1,88 @@
+package format
+
+import (
+	"testing"
+	"time"
+
+	"ovw/internal/config"
+	"ovw/internal/gitactivity"
+)
+
+func TestActivityDisplayIncludesAgeUnpushedAndDirty(t *testing.T) {
+	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
+	info := gitactivity.Info{
+		HasGit:       true,
+		HasCommits:   true,
+		LastCommitAt: now.Add(-48 * time.Hour),
+		Unpushed:     2,
+		Dirty:        true,
+	}
+	got := Activity(info, config.Default(), now)
+	if got.Display != "2d ↑2 !" || got.LastCommitAge != "2d" {
+		t.Fatalf("activity = %#v", got)
+	}
+}
+
+func TestActivityDisplayHonorsDisabledFlags(t *testing.T) {
+	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
+	cfg := config.Default()
+	cfg.ShowDirty = false
+	cfg.ShowUnpushed = false
+	info := gitactivity.Info{
+		HasGit:       true,
+		HasCommits:   true,
+		LastCommitAt: now.Add(-24 * time.Hour),
+		Unpushed:     3,
+		Dirty:        true,
+	}
+	if got := Activity(info, cfg, now); got.Display != "1d" {
+		t.Fatalf("display = %q", got.Display)
+	}
+}
+
+func TestActivityNoGitAndNoCommits(t *testing.T) {
+	now := time.Now()
+	if got := Activity(gitactivity.Info{}, config.Default(), now); got.Display != "—" {
+		t.Fatalf("no git display = %q", got.Display)
+	}
+	if got := Activity(gitactivity.Info{HasGit: true}, config.Default(), now); got.Display != "no commits" {
+		t.Fatalf("no commits display = %q", got.Display)
+	}
+}
+
+func TestNoteFallbackChain(t *testing.T) {
+	cfg := config.Default()
+	info := gitactivity.Info{Branch: "feat/checkin", LastCommitMessage: "commit msg"}
+
+	got := Note("manual note", "description", info, cfg)
+	if got.Display != "feat/checkin · manual note" || got.Source != "manual" || got.Manual != "manual note" {
+		t.Fatalf("manual note = %#v", got)
+	}
+
+	got = Note("", "description", info, cfg)
+	if got.Display != "feat/checkin · commit msg" || got.Source != "commit" {
+		t.Fatalf("commit note = %#v", got)
+	}
+
+	info.LastCommitMessage = ""
+	got = Note("", "description", info, cfg)
+	if got.Display != "feat/checkin · description" || got.Source != "description" {
+		t.Fatalf("description note = %#v", got)
+	}
+}
+
+func TestNoteHidesDefaultBranchAndDisabledFallbacks(t *testing.T) {
+	cfg := config.Default()
+	info := gitactivity.Info{Branch: "main", LastCommitMessage: "commit msg"}
+	got := Note("", "description", info, cfg)
+	if got.Display != "commit msg" {
+		t.Fatalf("display = %q", got.Display)
+	}
+
+	cfg.NoteFallbackCommit = false
+	cfg.NoteFallbackDescription = false
+	got = Note("", "description", info, cfg)
+	if got.Display != "" || got.Source != "none" {
+		t.Fatalf("note = %#v", got)
+	}
+}
