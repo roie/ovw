@@ -194,7 +194,7 @@ func TestSetUnsetShowCommands(t *testing.T) {
 		}
 	}
 	show := runCommand(t, []string{"show", "manual"})
-	if !bytes.Contains([]byte(show), []byte("Status            active")) || !bytes.Contains([]byte(show), []byte("Note              fix flow")) {
+	if !bytes.Contains([]byte(show), []byte("Status    active")) || !bytes.Contains([]byte(show), []byte("Note      fix flow")) {
 		t.Fatalf("show output = %q", show)
 	}
 
@@ -249,13 +249,19 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 
 	runCommand(t, []string{"set", "scanned", "--status", "active"})
 	show := runCommand(t, []string{"show", "scanned"})
-	if !bytes.Contains([]byte(show), []byte("Status            active")) {
+	if !strings.HasPrefix(show, "scanned\n") {
+		t.Fatalf("show output missing title = %q", show)
+	}
+	if !bytes.Contains([]byte(show), []byte("Path      ")) {
+		t.Fatalf("show output missing path = %q", show)
+	}
+	if !bytes.Contains([]byte(show), []byte("Status    active")) {
 		t.Fatalf("show output = %q", show)
 	}
-	if !bytes.Contains([]byte(show), []byte("Stack             Go")) {
+	if !bytes.Contains([]byte(show), []byte("Stack     Go")) {
 		t.Fatalf("show output missing stack detail = %q", show)
 	}
-	for _, want := range []string{
+	for _, unwanted := range []string{
 		"StackRaw",
 		"ActivityDisplay",
 		"LastCommitAge",
@@ -264,13 +270,14 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 		"Unpushed",
 		"Dirty",
 		"NoteSource",
+		"Manual",
 		"Hidden",
 	} {
-		if !bytes.Contains([]byte(show), []byte(want)) {
-			t.Fatalf("show output missing %q = %q", want, show)
+		if bytes.Contains([]byte(show), []byte(unwanted)) {
+			t.Fatalf("show output contains noisy field %q = %q", unwanted, show)
 		}
 	}
-	if !bytes.Contains([]byte(show), []byte("Activity          —")) {
+	if !bytes.Contains([]byte(show), []byte("Activity  —")) {
 		t.Fatalf("show output missing activity detail = %q", show)
 	}
 }
