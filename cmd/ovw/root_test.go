@@ -30,6 +30,40 @@ func TestHelpIncludesUsage(t *testing.T) {
 	}
 }
 
+func TestHelpTextDescriptions(t *testing.T) {
+	cmd := NewRootCommand()
+	if cmd.Short != "A terminal overview for your local projects" {
+		t.Fatalf("Short = %q", cmd.Short)
+	}
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--help"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	got := out.String()
+	for _, want := range []string{
+		"ovw scans your project folders and shows each project's stack, Git activity, status, and notes in one clean terminal view.",
+		"add         Add a project manually",
+		"cache       Manage ovw cache",
+		"config      Manage ovw config",
+		"hide        Hide a project from ovw",
+		"remove      Hide a project from ovw without deleting files",
+		"scan        Rescan configured roots",
+		"set         Set project status or note",
+		"show        Show project details",
+		"unhide      Show a hidden project again",
+		"unset       Clear project status or note",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("help output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestConfigPathCommand(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -21,7 +21,8 @@ func NewRootCommand() *cobra.Command {
 	opts := app.Options{}
 	cmd := &cobra.Command{
 		Use:     "ovw",
-		Short:   "Fast local project overview",
+		Short:   "A terminal overview for your local projects",
+		Long:    "ovw scans your project folders and shows each project's stack, Git activity, status, and notes in one clean terminal view.",
 		Version: version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
@@ -111,7 +112,7 @@ func newCacheCommand() *cobra.Command {
 func newScanCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "scan",
-		Short: "Scan configured roots",
+		Short: "Rescan configured roots",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			start := time.Now()
 			paths, err := config.Paths()
@@ -153,7 +154,7 @@ func newScanCommand() *cobra.Command {
 func newAddCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "add <path>",
-		Short: "Add a manual project",
+		Short: "Add a project manually",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectPath, err := config.ExpandPath(args[0])
@@ -196,9 +197,16 @@ func newAddCommand() *cobra.Command {
 }
 
 func newVisibilityCommand(name string, hidden bool) *cobra.Command {
+	short := "Hide a project from ovw"
+	if name == "remove" {
+		short = "Hide a project from ovw without deleting files"
+	}
+	if !hidden {
+		short = "Show a hidden project again"
+	}
 	return &cobra.Command{
 		Use:   name + " <name-or-path>",
-		Short: name + " a project",
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths, err := config.Paths()
@@ -270,7 +278,7 @@ func newSetCommand() *cobra.Command {
 	var note string
 	cmd := &cobra.Command{
 		Use:   "set <name>",
-		Short: "Set project metadata",
+		Short: "Set project status or note",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths, cfg, store, err := commandState()
@@ -305,7 +313,7 @@ func newUnsetCommand() *cobra.Command {
 	var clearNote bool
 	cmd := &cobra.Command{
 		Use:   "unset <name>",
-		Short: "Unset project metadata",
+		Short: "Clear project status or note",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths, cfg, store, err := commandState()
@@ -335,7 +343,7 @@ func newUnsetCommand() *cobra.Command {
 func newShowCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <name>",
-		Short: "Show project detail",
+		Short: "Show project details",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_, cfg, store, err := commandState()
