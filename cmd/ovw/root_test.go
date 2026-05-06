@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"ovw/internal/config"
 )
 
 func TestHelpIncludesUsage(t *testing.T) {
@@ -75,4 +77,95 @@ func TestCacheClearCommand(t *testing.T) {
 	if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
 		t.Fatalf("cache still exists or stat failed unexpectedly: %v", err)
 	}
+}
+
+func TestAddHideUnhideRemoveCommands(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "manual")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+
+	runCommand(t, []string{"add", project})
+	metaPath := filepath.Join(home, ".local", "share", "ovw", "projects.json")
+	data, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte(`"manual": true`)) {
+		t.Fatalf("metadata after add = %s", string(data))
+	}
+
+	out := runCommand(t, []string{"hide", project})
+	if !bytes.Contains([]byte(out), []byte("No files were deleted.")) {
+		t.Fatalf("hide output = %q", out)
+	}
+	if _, err := os.Stat(project); err != nil {
+		t.Fatalf("project was deleted: %v", err)
+	}
+
+	runCommand(t, []string{"unhide", project})
+	data, err = os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte(`"hidden": true`)) {
+		t.Fatalf("metadata after unhide = %s", string(data))
+	}
+
+	runCommand(t, []string{"remove", project})
+	data, err = os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte(`"hidden": true`)) {
+		t.Fatalf("metadata after remove = %s", string(data))
+	}
+}
+
+func TestScanCommand(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(root, "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "app", "go.mod"), []byte("module app"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := configForTest(t, root)
+	_ = cfg
+
+	out := runCommand(t, []string{"scan"})
+	if !bytes.Contains([]byte(out), []byte("Scanning")) || !bytes.Contains([]byte(out), []byte("Found 1 projects")) {
+		t.Fatalf("scan output = %q", out)
+	}
+}
+
+func runCommand(t *testing.T, args []string) string {
+	t.Helper()
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(args)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute(%v) error = %v", args, err)
+	}
+	return out.String()
+}
+
+func configForTest(t *testing.T, root string) string {
+	t.Helper()
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	return paths.Config
 }
