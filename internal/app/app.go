@@ -6,6 +6,7 @@ import (
 
 	"ovw/internal/cache"
 	"ovw/internal/config"
+	projectdescription "ovw/internal/description"
 	"ovw/internal/filter"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/gitactivity"
@@ -87,6 +88,9 @@ func Enrich(scanned scanner.Project, cfg config.Config, cacheStore cache.Store, 
 	gitInfo := gitactivity.Detect(scanned.Path)
 	cached := cacheStore.Projects[scanned.Path]
 	description := cached.Description
+	if detectedDescription := projectdescription.Detect(scanned.Path); detectedDescription != "" {
+		description = detectedDescription
+	}
 	activity := ovwformat.Activity(gitInfo, cfg, now)
 	note := ovwformat.Note(scanned.Note, description, gitInfo, cfg)
 	return project.Project{
