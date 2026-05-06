@@ -1,0 +1,262 @@
+package config
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/pelletier/go-toml/v2"
+)
+
+type Config struct {
+	Roots                   []string    `toml:"roots"`
+	MaxDepth                int         `toml:"max_depth"`
+	ScanNestedProjects      bool        `toml:"scan_nested_projects"`
+	IgnoreDirs              []string    `toml:"ignore_dirs"`
+	ProjectMarkers          []string    `toml:"project_markers"`
+	StaleDays               int         `toml:"stale_days"`
+	ShowUnpushed            bool        `toml:"show_unpushed"`
+	ShowDirty               bool        `toml:"show_dirty"`
+	NoteFallbackCommit      bool        `toml:"note_fallback_commit"`
+	NoteFallbackDescription bool        `toml:"note_fallback_description"`
+	NoteShowBranch          bool        `toml:"note_show_branch"`
+	DefaultBranches         []string    `toml:"default_branches"`
+	Statuses                []string    `toml:"statuses"`
+	Columns                 []string    `toml:"columns"`
+	SortBy                  string      `toml:"sort_by"`
+	SortDir                 string      `toml:"sort_dir"`
+	ShowUntagged            bool        `toml:"show_untagged"`
+	RelativeDates           bool        `toml:"relative_dates"`
+	Stack                   StackConfig `toml:"stack"`
+	Cache                   CacheConfig `toml:"cache"`
+	Editor                  string      `toml:"editor"`
+	Shell                   string      `toml:"shell"`
+}
+
+type StackConfig struct {
+	ShowUnknown bool              `toml:"show_unknown"`
+	Aliases     map[string]string `toml:"aliases"`
+}
+
+type CacheConfig struct {
+	Enabled bool `toml:"enabled"`
+}
+
+type FilePaths struct {
+	Config   string
+	Metadata string
+	Cache    string
+}
+
+func Default() Config {
+	return Config{
+		Roots:              []string{"~/Code", "~/Projects"},
+		MaxDepth:           0,
+		ScanNestedProjects: false,
+		IgnoreDirs: []string{
+			"node_modules", ".git", "dist", "build", "target", ".next", ".nuxt",
+			".svelte-kit", ".turbo", ".cache", "coverage", "vendor", ".venv",
+			"venv", "__pycache__",
+		},
+		ProjectMarkers: []string{
+			".git", "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "deno.json", "bun.lock",
+		},
+		StaleDays:               30,
+		ShowUnpushed:            true,
+		ShowDirty:               true,
+		NoteFallbackCommit:      true,
+		NoteFallbackDescription: true,
+		NoteShowBranch:          true,
+		DefaultBranches:         []string{"main", "master", "trunk"},
+		Statuses:                []string{"active", "parked", "shipped", "idea"},
+		Columns:                 []string{"name", "stack", "activity", "status", "note"},
+		SortBy:                  "activity",
+		SortDir:                 "desc",
+		ShowUntagged:            true,
+		RelativeDates:           true,
+		Stack: StackConfig{
+			ShowUnknown: true,
+			Aliases: map[string]string{
+				"Cloudflare Workers": "CF",
+				"React Native":       "RN",
+				"TypeScript":         "TS",
+				"JavaScript":         "JS",
+			},
+		},
+		Cache:  CacheConfig{Enabled: true},
+		Editor: "code",
+		Shell:  "",
+	}
+}
+
+func Paths() (FilePaths, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return FilePaths{}, err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return FilePaths{}, err
+	}
+	if runtime.GOOS == "windows" {
+		local := os.Getenv("LocalAppData")
+		if local == "" {
+			local = filepath.Join(home, "AppData", "Local")
+		}
+		return FilePaths{
+			Config:   filepath.Join(configDir, "ovw", "config.toml"),
+			Metadata: filepath.Join(local, "ovw", "projects.json"),
+			Cache:    filepath.Join(local, "ovw", "cache.json"),
+		}, nil
+	}
+	dataDir := os.Getenv("XDG_DATA_HOME")
+	if dataDir == "" {
+		dataDir = filepath.Join(home, ".local", "share")
+	}
+	cacheDir := os.Getenv("XDG_CACHE_HOME")
+	if cacheDir == "" {
+		cacheDir = filepath.Join(home, ".cache")
+	}
+	return FilePaths{
+		Config:   filepath.Join(configDir, "ovw", "config.toml"),
+		Metadata: filepath.Join(dataDir, "ovw", "projects.json"),
+		Cache:    filepath.Join(cacheDir, "ovw", "projects.json"),
+	}, nil
+}
+
+func Load(path string) (Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg := Default()
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+func Write(path string, cfg Config) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
+func Ensure(path, cwd string, in io.Reader, out io.Writer) (Config, bool, error) {
+	cfg, err := Load(path)
+	if err == nil {
+		return cfg, false, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return Config{}, false, err
+	}
+	cfg = Default()
+	root, err := DetectRoot(cwd)
+	if err != nil {
+		return Config{}, false, err
+	}
+	if root == "" {
+		fmt.Fprintln(out, "No config found.")
+		fmt.Fprint(out, "Where are your projects? [~/Projects]: ")
+		line, readErr := bufio.NewReader(in).ReadString('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return Config{}, false, readErr
+		}
+		root = strings.TrimSpace(line)
+		if root == "" {
+			root = "~/Projects"
+		}
+	}
+	expanded, err := ExpandPath(root)
+	if err != nil {
+		return Config{}, false, err
+	}
+	info, err := os.Stat(expanded)
+	if err != nil {
+		return Config{}, false, err
+	}
+	if !info.IsDir() {
+		return Config{}, false, fmt.Errorf("%s is not a directory", root)
+	}
+	cfg.Roots = []string{root}
+	if err := Write(path, cfg); err != nil {
+		return Config{}, false, err
+	}
+	return cfg, true, nil
+}
+
+func DetectRoot(cwd string) (string, error) {
+	if cwd != "" && cwdHasTwoProjectChildren(cwd, Default().ProjectMarkers) {
+		return cwd, nil
+	}
+	for _, candidate := range []string{"~/Code", "~/Projects", "~/Developer", "~/dev"} {
+		expanded, err := ExpandPath(candidate)
+		if err == nil {
+			if info, statErr := os.Stat(expanded); statErr == nil && info.IsDir() {
+				return candidate, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+func Edit(path string) error {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	cmd := exec.Command(editor, path)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func ExpandPath(path string) (string, error) {
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		if path == "~" {
+			return home, nil
+		}
+		return filepath.Join(home, path[2:]), nil
+	}
+	return filepath.Abs(path)
+}
+
+func cwdHasTwoProjectChildren(cwd string, markers []string) bool {
+	entries, err := os.ReadDir(cwd)
+	if err != nil {
+		return false
+	}
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		child := filepath.Join(cwd, entry.Name())
+		for _, marker := range markers {
+			if _, err := os.Stat(filepath.Join(child, marker)); err == nil {
+				count++
+				break
+			}
+		}
+		if count >= 2 {
+			return true
+		}
+	}
+	return false
+}
