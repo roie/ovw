@@ -57,7 +57,7 @@ func Run(opts Options) error {
 	projects := make([]project.Project, 0, len(scanned))
 	now := time.Now()
 	for _, scannedProject := range scanned {
-		enriched, cacheProject := enrich(scannedProject, cfg, cacheStore, now)
+		enriched, cacheProject := Enrich(scannedProject, cfg, cacheStore, now)
 		projects = append(projects, enriched)
 		cacheStore.Projects[enriched.Path] = cacheProject
 	}
@@ -82,7 +82,7 @@ func Run(opts Options) error {
 	return render.Table(opts.Out, filtered, cfg, time.Since(start))
 }
 
-func enrich(scanned scanner.Project, cfg config.Config, cacheStore cache.Store, now time.Time) (project.Project, cache.Project) {
+func Enrich(scanned scanner.Project, cfg config.Config, cacheStore cache.Store, now time.Time) (project.Project, cache.Project) {
 	stackResult, _ := stack.Detect(scanned.Path, cfg.Stack)
 	gitInfo := gitactivity.Detect(scanned.Path)
 	cached := cacheStore.Projects[scanned.Path]

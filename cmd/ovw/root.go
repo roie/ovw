@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"ovw/internal/app"
 	"ovw/internal/cache"
 	"ovw/internal/config"
 	"ovw/internal/metadata"
+	"ovw/internal/project"
 	"ovw/internal/scanner"
 
 	"github.com/spf13/cobra"
@@ -346,7 +348,7 @@ func newShowCommand() *cobra.Command {
 		Short: "Show project details",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, cfg, store, err := commandState()
+			paths, cfg, store, err := commandState()
 			if err != nil {
 				return err
 			}
@@ -354,15 +356,27 @@ func newShowCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			cacheStore, err := cache.Load(paths.Cache)
+			if err != nil {
+				return err
+			}
 			entry := store.Projects[path]
+			enriched, _ := app.Enrich(scanner.Project{
+				Name:   filepath.Base(path),
+				Path:   path,
+				Manual: entry.Manual,
+				Hidden: entry.Hidden,
+				Status: entry.Status,
+				Note:   entry.Note,
+			}, cfg, cacheStore, time.Now())
 			fmt.Fprintf(cmd.OutOrStdout(), "Name      %s\n", filepath.Base(path))
 			fmt.Fprintf(cmd.OutOrStdout(), "Path      %s\n", path)
-			fmt.Fprintf(cmd.OutOrStdout(), "Stack     \n")
-			fmt.Fprintf(cmd.OutOrStdout(), "Branch    \n")
-			fmt.Fprintf(cmd.OutOrStdout(), "Activity  \n")
-			fmt.Fprintf(cmd.OutOrStdout(), "Status    %s\n", entry.Status)
-			fmt.Fprintf(cmd.OutOrStdout(), "Note      %s\n", entry.Note)
-			fmt.Fprintf(cmd.OutOrStdout(), "Manual    %s\n", yesNo(entry.Manual))
+			fmt.Fprintf(cmd.OutOrStdout(), "Stack     %s\n", strings.Join(enriched.Stack, ", "))
+			fmt.Fprintf(cmd.OutOrStdout(), "Branch    %s\n", enriched.Activity.Branch)
+			fmt.Fprintf(cmd.OutOrStdout(), "Activity  %s\n", detailActivity(enriched))
+			fmt.Fprintf(cmd.OutOrStdout(), "Status    %s\n", enriched.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Note      %s%s\n", enriched.Note.Display, noteSourceSuffix(enriched.Note.Source))
+			fmt.Fprintf(cmd.OutOrStdout(), "Manual    %s\n", yesNo(enriched.Manual))
 			return nil
 		},
 	}
@@ -442,4 +456,26 @@ func yesNo(value bool) string {
 		return "yes"
 	}
 	return "no"
+}
+
+func detailActivity(project project.Project) string {
+	activity := project.Activity
+	if !activity.HasGit || !activity.HasCommits {
+		return activity.Display
+	}
+	parts := []string{activity.LastCommitAge + " ago"}
+	if activity.Unpushed > 0 {
+		parts = append(parts, fmt.Sprintf("%d unpushed", activity.Unpushed))
+	}
+	if activity.Dirty {
+		parts = append(parts, "dirty")
+	}
+	return strings.Join(parts, " · ")
+}
+
+func noteSourceSuffix(source string) string {
+	if source == "" || source == "none" {
+		return ""
+	}
+	return " (" + source + ")"
 }

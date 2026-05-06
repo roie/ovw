@@ -241,6 +241,12 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 	if !bytes.Contains([]byte(show), []byte("Status    active")) {
 		t.Fatalf("show output = %q", show)
 	}
+	if !bytes.Contains([]byte(show), []byte("Stack     Go")) {
+		t.Fatalf("show output missing stack detail = %q", show)
+	}
+	if !bytes.Contains([]byte(show), []byte("Activity  —")) {
+		t.Fatalf("show output missing activity detail = %q", show)
+	}
 }
 
 func runCommand(t *testing.T, args []string) string {
