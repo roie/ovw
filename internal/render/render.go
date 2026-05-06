@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -14,8 +17,19 @@ import (
 	"ovw/internal/project"
 )
 
+const fallbackTableWidth = 120
+
 func Table(w io.Writer, projects []project.Project, cfg config.Config, elapsed time.Duration) error {
+	return TableWithWidth(w, projects, cfg, elapsed, terminalWidth())
+}
+
+func TableWithWidth(w io.Writer, projects []project.Project, cfg config.Config, elapsed time.Duration, width int) error {
+	if width <= 0 {
+		width = fallbackTableWidth
+	}
 	fmt.Fprintf(w, "ovw — %d projects · scanned in %.1fs\n\n", len(projects), elapsed.Seconds())
+	rows := tableRows(projects, cfg)
+	applyWidth(rows, cfg.Columns, width)
 	var table bytes.Buffer
 	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	headers := make([]string, 0, len(cfg.Columns))
@@ -23,13 +37,8 @@ func Table(w io.Writer, projects []project.Project, cfg config.Config, elapsed t
 		headers = append(headers, headerLabel(column))
 	}
 	fmt.Fprintln(tw, strings.Join(headers, "\t"))
-	displayNames := disambiguatedNames(projects)
-	for _, project := range projects {
-		values := make([]string, 0, len(cfg.Columns))
-		for _, column := range cfg.Columns {
-			values = append(values, value(project, column, displayNames[project.Path]))
-		}
-		fmt.Fprintln(tw, strings.Join(values, "\t"))
+	for _, row := range rows {
+		fmt.Fprintln(tw, strings.Join(row.values, "\t"))
 	}
 	if err := tw.Flush(); err != nil {
 		return err
@@ -41,13 +50,14 @@ func Table(w io.Writer, projects []project.Project, cfg config.Config, elapsed t
 	if _, err := io.WriteString(w, lines[0]); err != nil {
 		return err
 	}
-	separatorWidth := len(strings.TrimRight(lines[0], "\n"))
+	separatorWidth := width
 	if separatorWidth > 0 {
 		if _, err := fmt.Fprintln(w, strings.Repeat("-", separatorWidth)); err != nil {
 			return err
 		}
 	}
 	for _, line := range lines[1:] {
+		line = trimLineWidth(line, width)
 		if _, err := io.WriteString(w, line); err != nil {
 			return err
 		}
@@ -68,6 +78,23 @@ func JSON(w io.Writer, projects []project.Project) error {
 	return encoder.Encode(projects)
 }
 
+type tableRow struct {
+	values []string
+}
+
+func tableRows(projects []project.Project, cfg config.Config) []tableRow {
+	displayNames := disambiguatedNames(projects)
+	rows := make([]tableRow, 0, len(projects))
+	for _, project := range projects {
+		values := make([]string, 0, len(cfg.Columns))
+		for _, column := range cfg.Columns {
+			values = append(values, value(project, column, displayNames[project.Path]))
+		}
+		rows = append(rows, tableRow{values: values})
+	}
+	return rows
+}
+
 func value(p project.Project, column, displayName string) string {
 	switch column {
 	case "name":
@@ -83,6 +110,93 @@ func value(p project.Project, column, displayName string) string {
 	default:
 		return ""
 	}
+}
+
+func applyWidth(rows []tableRow, columns []string, width int) {
+	noteIndex := -1
+	for i, column := range columns {
+		if column == "note" {
+			noteIndex = i
+			break
+		}
+	}
+	if noteIndex < 0 {
+		return
+	}
+	maxNoteWidth := width - nonNoteWidth(rows, columns, noteIndex)
+	if maxNoteWidth < 8 {
+		maxNoteWidth = 8
+	}
+	for i := range rows {
+		if noteIndex < len(rows[i].values) {
+			rows[i].values[noteIndex] = truncate(rows[i].values[noteIndex], maxNoteWidth)
+		}
+	}
+}
+
+func nonNoteWidth(rows []tableRow, columns []string, noteIndex int) int {
+	widths := map[int]int{}
+	for i, column := range columns {
+		widths[i] = len(headerLabel(column))
+	}
+	for _, row := range rows {
+		for i, value := range row.values {
+			if i == noteIndex {
+				continue
+			}
+			if len(value) > widths[i] {
+				widths[i] = len(value)
+			}
+		}
+	}
+	total := 0
+	for i, width := range widths {
+		if i == noteIndex {
+			continue
+		}
+		total += width
+	}
+	total += 2 * (len(widths) - 1)
+	return total
+}
+
+func truncate(value string, maxWidth int) string {
+	if len(value) <= maxWidth {
+		return value
+	}
+	if maxWidth <= len("…") {
+		return ""
+	}
+	return value[:maxWidth-len("…")] + "…"
+}
+
+func trimLineWidth(line string, width int) string {
+	hasNewline := strings.HasSuffix(line, "\n")
+	line = strings.TrimRight(line, "\n")
+	if len(line) > width {
+		line = truncate(line, width)
+	}
+	if hasNewline {
+		return line + "\n"
+	}
+	return line
+}
+
+func terminalWidth() int {
+	if columns := os.Getenv("COLUMNS"); columns != "" {
+		if width, err := strconv.Atoi(columns); err == nil && width > 0 {
+			return width
+		}
+	}
+	cmd := exec.Command("sh", "-c", "stty size 2>/dev/null | awk '{print $2}'")
+	cmd.Stdin = os.Stdin
+	out, err := cmd.Output()
+	if err == nil {
+		if width, parseErr := strconv.Atoi(strings.TrimSpace(string(out))); parseErr == nil && width > 0 {
+			return width
+		}
+	}
+	return fallbackTableWidth
 }
 
 func disambiguatedNames(projects []project.Project) map[string]string {
