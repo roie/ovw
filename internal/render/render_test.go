@@ -40,6 +40,33 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 	}
 }
 
+func TestTableDisambiguatesDuplicateNames(t *testing.T) {
+	projects := []project.Project{
+		{
+			Name:         "vibe-oke",
+			Path:         "/home/roie/dev/web/vibe-oke",
+			StackDisplay: "Node",
+			Activity:     format.ActivityInfo{Display: "1d"},
+		},
+		{
+			Name:         "vibe-oke",
+			Path:         "/home/roie/dev/playground/vibe-oke",
+			StackDisplay: "Hono+Bun",
+			Activity:     format.ActivityInfo{Display: "2d"},
+		},
+	}
+	var out bytes.Buffer
+	if err := Table(&out, projects, config.Default(), 100*time.Millisecond); err != nil {
+		t.Fatalf("Table() error = %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"web/vibe-oke", "playground/vibe-oke"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("table missing disambiguated name %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestJSONOutputsPureArray(t *testing.T) {
 	projects := []project.Project{{
 		Name:         "eventca",

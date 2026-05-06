@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -22,10 +23,11 @@ func Table(w io.Writer, projects []project.Project, cfg config.Config, elapsed t
 		headers = append(headers, headerLabel(column))
 	}
 	fmt.Fprintln(tw, strings.Join(headers, "\t"))
+	displayNames := disambiguatedNames(projects)
 	for _, project := range projects {
 		values := make([]string, 0, len(cfg.Columns))
 		for _, column := range cfg.Columns {
-			values = append(values, value(project, column))
+			values = append(values, value(project, column, displayNames[project.Path]))
 		}
 		fmt.Fprintln(tw, strings.Join(values, "\t"))
 	}
@@ -66,10 +68,10 @@ func JSON(w io.Writer, projects []project.Project) error {
 	return encoder.Encode(projects)
 }
 
-func value(p project.Project, column string) string {
+func value(p project.Project, column, displayName string) string {
 	switch column {
 	case "name":
-		return p.Name
+		return displayName
 	case "stack":
 		return p.StackDisplay
 	case "activity":
@@ -81,4 +83,25 @@ func value(p project.Project, column string) string {
 	default:
 		return ""
 	}
+}
+
+func disambiguatedNames(projects []project.Project) map[string]string {
+	counts := map[string]int{}
+	for _, project := range projects {
+		counts[project.Name]++
+	}
+	names := map[string]string{}
+	for _, project := range projects {
+		if counts[project.Name] < 2 {
+			names[project.Path] = project.Name
+			continue
+		}
+		parent := filepath.Base(filepath.Dir(project.Path))
+		if parent == "." || parent == string(filepath.Separator) || parent == "" {
+			names[project.Path] = project.Name
+			continue
+		}
+		names[project.Path] = filepath.ToSlash(filepath.Join(parent, project.Name))
+	}
+	return names
 }
