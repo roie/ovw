@@ -82,7 +82,7 @@ func TestDetectWorkspaceSvelteKitCloudflare(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Detect() error = %v", err)
 	}
-	if result.Display != "SvelteKit+Svelte+CF" {
+	if result.Display != "SvelteKit+CF" {
 		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
 	}
 	if has(result.Labels, "Node") {
@@ -159,7 +159,7 @@ func TestDetectDedupesAndOrdersWorkspaceLabels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Detect() error = %v", err)
 	}
-	want := []string{"SvelteKit", "Svelte", "React"}
+	want := []string{"SvelteKit", "React"}
 	if len(result.Labels) != len(want) {
 		t.Fatalf("labels = %#v", result.Labels)
 	}
@@ -167,6 +167,19 @@ func TestDetectDedupesAndOrdersWorkspaceLabels(t *testing.T) {
 		if result.Labels[i] != want[i] {
 			t.Fatalf("labels = %#v, want %#v", result.Labels, want)
 		}
+	}
+}
+
+func TestDetectSuppressesRedundantReactNativeReact(t *testing.T) {
+	dir := t.TempDir()
+	writePackage(t, dir, `{"dependencies":{"react-native":"latest","react":"latest"}}`)
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if result.Display != "RN" {
+		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
 	}
 }
 

@@ -40,6 +40,28 @@ func TestActivityDisplayHonorsDisabledFlags(t *testing.T) {
 	}
 }
 
+func TestRelativeAgeUsesMinutesAndHours(t *testing.T) {
+	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
+	cases := []struct {
+		name string
+		then time.Time
+		want string
+	}{
+		{name: "now", then: now.Add(-30 * time.Second), want: "now"},
+		{name: "minutes", then: now.Add(-40 * time.Minute), want: "40m"},
+		{name: "hours", then: now.Add(-3 * time.Hour), want: "3h"},
+		{name: "days", then: now.Add(-49 * time.Hour), want: "2d"},
+		{name: "weeks", then: now.AddDate(0, 0, -14), want: "2w"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := RelativeAge(tc.then, now); got != tc.want {
+				t.Fatalf("RelativeAge() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestActivityNoGitAndNoCommits(t *testing.T) {
 	now := time.Now()
 	if got := Activity(gitactivity.Info{}, config.Default(), now); got.Display != "—" {

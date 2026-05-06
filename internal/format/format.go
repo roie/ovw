@@ -64,10 +64,17 @@ func RelativeAge(then, now time.Time) string {
 	if then.After(now) {
 		then = now
 	}
-	days := int(now.Sub(then).Hours() / 24)
+	elapsed := now.Sub(then)
+	minutes := int(elapsed.Minutes())
+	hours := int(elapsed.Hours())
+	days := hours / 24
 	switch {
-	case days < 1:
-		return "0d"
+	case minutes < 1:
+		return "now"
+	case minutes < 60:
+		return fmt.Sprintf("%dm", minutes)
+	case hours < 24:
+		return fmt.Sprintf("%dh", hours)
 	case days < 7:
 		return fmt.Sprintf("%dd", days)
 	case days < 30:

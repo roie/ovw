@@ -62,7 +62,7 @@ func Detect(path string, cfg config.StackConfig) (Result, error) {
 			matched[label] = true
 		}
 	}
-	labels := orderedLabels(matched)
+	labels := suppressRedundantLabels(orderedLabels(matched))
 	if len(labels) == 0 && nodeFallback {
 		labels = append(labels, "Node")
 	}
@@ -315,6 +315,24 @@ func orderedLabels(matched map[string]bool) []string {
 		}
 	}
 	return labels
+}
+
+func suppressRedundantLabels(labels []string) []string {
+	present := map[string]bool{}
+	for _, label := range labels {
+		present[label] = true
+	}
+	out := []string{}
+	for _, label := range labels {
+		if label == "Svelte" && present["SvelteKit"] {
+			continue
+		}
+		if label == "React" && present["React Native"] {
+			continue
+		}
+		out = append(out, label)
+	}
+	return out
 }
 
 func dedupeStrings(values []string) []string {
