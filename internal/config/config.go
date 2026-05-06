@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -153,6 +154,20 @@ func Write(path string, cfg Config) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+func WriteDefault(path string, roots []string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(DefaultTemplate(roots)), 0o644)
+}
+
+func DefaultTemplate(roots []string) string {
+	if len(roots) == 0 {
+		roots = Default().Roots
+	}
+	return strings.Replace(defaultConfigTemplate, "{{ROOTS}}", formatStringList(roots, "  "), 1)
+}
+
 func Ensure(path, cwd string, in io.Reader, out io.Writer) (Config, bool, error) {
 	cfg, err := Load(path)
 	if err == nil {
@@ -190,7 +205,7 @@ func Ensure(path, cwd string, in io.Reader, out io.Writer) (Config, bool, error)
 		return Config{}, false, fmt.Errorf("%s is not a directory", root)
 	}
 	cfg.Roots = []string{root}
-	if err := Write(path, cfg); err != nil {
+	if err := WriteDefault(path, cfg.Roots); err != nil {
 		return Config{}, false, err
 	}
 	return cfg, true, nil
@@ -260,3 +275,156 @@ func cwdHasTwoProjectChildren(cwd string, markers []string) bool {
 	}
 	return false
 }
+
+func formatStringList(values []string, indent string) string {
+	lines := make([]string, 0, len(values))
+	for _, value := range values {
+		lines = append(lines, indent+strconv.Quote(value))
+	}
+	return strings.Join(lines, ",\n")
+}
+
+const defaultConfigTemplate = `# ovw — local project overview
+# Config location:
+#   Linux/macOS: ~/.config/ovw/config.toml
+#   Windows:     %AppData%\ovw\config.toml
+
+# ─────────────────────────────────────────
+# Roots
+# ─────────────────────────────────────────
+
+# Folders ovw will scan for projects.
+# Auto-detected on first run if not set.
+roots = [
+{{ROOTS}}
+]
+
+# ─────────────────────────────────────────
+# Scanning
+# ─────────────────────────────────────────
+
+# Maximum folder depth. 0 = no limit.
+max_depth = 0
+
+# Stop scanning inside a folder once it is detected as a project.
+# Prevents monorepo packages from exploding into separate rows.
+scan_nested_projects = false
+
+# Folders to never scan inside.
+ignore_dirs = [
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  "target",
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
+  ".turbo",
+  ".cache",
+  "coverage",
+  "vendor",
+  ".venv",
+  "venv",
+  "__pycache__"
+]
+
+# Files or folders that mark a directory as a project.
+project_markers = [
+  ".git",
+  "package.json",
+  "Cargo.toml",
+  "go.mod",
+  "pyproject.toml",
+  "deno.json",
+  "bun.lock"
+]
+
+# ─────────────────────────────────────────
+# Activity
+# ─────────────────────────────────────────
+
+# Days before a project is considered stale.
+stale_days = 30
+
+# Show unpushed commit count in activity column.
+show_unpushed = true
+
+# Show dirty flag in activity column.
+show_dirty = true
+
+# ─────────────────────────────────────────
+# Note column
+# ─────────────────────────────────────────
+
+# Fallback chain for note column:
+# [branch ·] manual note OR last commit msg OR project description OR ""
+note_fallback_commit = true
+note_fallback_description = true
+
+# Prefix branch name when not on a default branch.
+note_show_branch = true
+
+# Branch names considered default. Branch prefix hidden for these.
+default_branches = ["main", "master", "trunk"]
+
+# ─────────────────────────────────────────
+# Status
+# ─────────────────────────────────────────
+
+# Available statuses. First is the default.
+statuses = ["active", "parked", "shipped", "idea"]
+
+# ─────────────────────────────────────────
+# Display
+# ─────────────────────────────────────────
+
+# Columns to show and their order.
+columns = ["name", "stack", "activity", "status", "note"]
+
+# Default sort column. Options: activity, name, status
+sort_by = "activity"
+
+# Sort direction: asc or desc
+sort_dir = "desc"
+
+# Show projects with no status set.
+show_untagged = true
+
+# Use relative dates. true = 2d, 1w, 3mo. false = 2024-01-15
+relative_dates = true
+
+# ─────────────────────────────────────────
+# Stack
+# ─────────────────────────────────────────
+
+[stack]
+show_unknown = true
+
+[stack.aliases]
+"Cloudflare Workers" = "CF"
+"React Native"       = "RN"
+"TypeScript"         = "TS"
+"JavaScript"         = "JS"
+
+# Phase 2: user-defined stack rules
+# [[stack.rules]]
+# name = "SvelteKit"
+# packages = ["@sveltejs/kit"]
+# files = ["svelte.config.js", "svelte.config.ts"]
+
+# ─────────────────────────────────────────
+# Cache
+# ─────────────────────────────────────────
+
+[cache]
+enabled = true
+
+# ─────────────────────────────────────────
+# Editor and Shell
+# ─────────────────────────────────────────
+
+# Used by future TUI actions.
+editor = "code"
+shell = ""
+`

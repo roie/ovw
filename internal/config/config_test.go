@@ -1,9 +1,11 @@
 package config
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -86,5 +88,64 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("config not written: %v", err)
+	}
+}
+
+func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	root := t.TempDir()
+	path := filepath.Join(t.TempDir(), "config.toml")
+
+	_, created, err := Ensure(path, "", strings.NewReader(root+"\n"), io.Discard)
+	if err != nil {
+		t.Fatalf("Ensure() error = %v", err)
+	}
+	if !created {
+		t.Fatal("created = false")
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "# ovw — local project overview") {
+		t.Fatalf("default config missing comments:\n%s", text)
+	}
+	if !strings.Contains(text, `"Cloudflare Workers" = "CF"`) {
+		t.Fatalf("stack alias key is not a quoted string:\n%s", text)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() generated config error = %v\n%s", err, text)
+	}
+	if !reflect.DeepEqual(loaded.Roots, []string{root}) {
+		t.Fatalf("Roots = %#v", loaded.Roots)
+	}
+}
+
+func TestEnsureExistingConfigDoesNotRewriteComments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	original := strings.Replace(DefaultTemplate([]string{"~/Projects"}), "# ovw — local project overview", "# custom user comment", 1)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, created, err := Ensure(path, t.TempDir(), strings.NewReader("\n"), io.Discard)
+	if err != nil {
+		t.Fatalf("Ensure() error = %v", err)
+	}
+	if created {
+		t.Fatal("created = true")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != original {
+		t.Fatalf("existing config was rewritten:\n%s", string(after))
 	}
 }
