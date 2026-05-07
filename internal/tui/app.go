@@ -27,6 +27,7 @@ const (
 	screenNote
 	screenStatus
 	screenStatusInput
+	screenHelp
 )
 
 type Model struct {
@@ -105,7 +106,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenStatusInput {
 			return m.updateStatusInput(msg)
 		}
-		if isEscapeKey(msg.String()) && m.screen == screenDetail {
+		if isEscapeKey(msg.String()) && (m.screen == screenDetail || m.screen == screenHelp) {
 			m.screen = screenTable
 			return m, nil
 		}
@@ -150,6 +151,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isOpenKey(msg.String()) && m.canOpenDetail() {
 			return m, m.openSelectedProject()
+		}
+		if isHelpKey(msg.String()) {
+			m.screen = screenHelp
+			return m, nil
 		}
 		if isDownKey(msg.String()) {
 			m.moveSelection(1)
@@ -510,6 +515,8 @@ func renderShell(m Model) string {
 		}
 		if m.screen == screenDetail {
 			body += "\n\n" + detailView(m.currentProject())
+		} else if m.screen == screenHelp {
+			body += "\n\n" + helpView()
 		} else if m.screen == screenFilter {
 			body += "\n\n" + filterView(m.filterOptions(), m.filterSelected)
 		} else if m.screen == screenSort {

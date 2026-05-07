@@ -415,6 +415,29 @@ func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 	}
 }
 
+func TestModelMetadataWriteErrorIsVisible(t *testing.T) {
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			return app.MetadataUpdateResult{}, errors.New("disk full")
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		screen:   screenNote,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected metadata command")
+	}
+	model = updateMsg(t, model, cmd())
+	if !strings.Contains(model.message, "Failed to write metadata: disk full") {
+		t.Fatalf("message = %q", model.message)
+	}
+}
+
 func TestModelStatusPickerSavesConfiguredStatus(t *testing.T) {
 	var savedStatus string
 	cfg := config.Default()
@@ -619,6 +642,30 @@ func TestModelOpenEditorShowsError(t *testing.T) {
 	model = updateMsg(t, model, cmd())
 	if !strings.Contains(model.message, "Editor failed: no editor") {
 		t.Fatalf("message = %q", model.message)
+	}
+}
+
+func TestModelHelpOpensAndCloses(t *testing.T) {
+	model := updateKey(t, Model{}, "?")
+	if model.screen != screenHelp {
+		t.Fatalf("screen = %v, want help", model.screen)
+	}
+	view := model.View()
+	for _, want := range []string{"Help", "search", "filter", "sort", "reload", "quit"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("help view missing %q:\n%s", want, view)
+		}
+	}
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
+	}
+}
+
+func TestModelNoProjectsState(t *testing.T) {
+	model := Model{}
+	if !strings.Contains(model.View(), "No projects found") {
+		t.Fatalf("View() missing no projects state:\n%s", model.View())
 	}
 }
 
