@@ -234,6 +234,18 @@ func TestModelSearchEmptyShowsCursor(t *testing.T) {
 	}
 }
 
+func TestModelSearchCursorBlinks(t *testing.T) {
+	model := Model{
+		projects:  []project.Project{{Name: "api"}},
+		searching: true,
+	}
+
+	view := model.View()
+	if !strings.Contains(view, "\x1b[5m▌\x1b[25m") {
+		t.Fatalf("search cursor should use ANSI blink:\n%q", view)
+	}
+}
+
 func TestModelSearchEscClearsSearch(t *testing.T) {
 	model := Model{
 		projects: []project.Project{
@@ -613,6 +625,14 @@ func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
 	}
 	if !strings.Contains(got, "enter save") {
 		t.Fatalf("status input action hint missing:\n%s", got)
+	}
+}
+
+func TestModalInputCursorBlinks(t *testing.T) {
+	got := noteView("")
+
+	if !strings.Contains(got, "\x1b[5;38;5;252;48;5;236m▌\x1b[25;22;39;48;5;236m") {
+		t.Fatalf("modal cursor should use ANSI blink:\n%q", got)
 	}
 }
 

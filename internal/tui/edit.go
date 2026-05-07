@@ -62,9 +62,9 @@ func inputModalView(title, value, placeholder string, width int) string {
 
 func searchInputLine(value, placeholder string) string {
 	if value == "" {
-		return placeholder + "▌"
+		return placeholder + activeCursor()
 	}
-	return value + "▌"
+	return value + activeCursor()
 }
 
 func inputModalLines(value, placeholder string, width int) []string {
@@ -154,7 +154,11 @@ func modalHintKey(value string) string {
 }
 
 func modalCursor() string {
-	return modalANSI("38;5;252", "▌")
+	return modalANSI("5;38;5;252", "▌")
+}
+
+func activeCursor() string {
+	return "\x1b[5m▌\x1b[25m"
 }
 
 func modalSelected(value string) string {
@@ -162,7 +166,7 @@ func modalSelected(value string) string {
 }
 
 func modalANSI(code, value string) string {
-	return "\x1b[" + code + ";48;5;" + modalSurfaceColor + "m" + value + "\x1b[22;39;48;5;" + modalSurfaceColor + "m"
+	return "\x1b[" + code + ";48;5;" + modalSurfaceColor + "m" + value + "\x1b[25;22;39;48;5;" + modalSurfaceColor + "m"
 }
 
 func overlayModal(base, modal string, width int) string {
