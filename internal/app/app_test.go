@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"ovw/internal/config"
+	"ovw/internal/metadata"
 )
 
 func TestOverviewJSONScansAndRendersProject(t *testing.T) {
@@ -119,6 +120,98 @@ func TestOverviewCanFilterHiddenProjects(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "hidden") || strings.Contains(got, "app") {
 		t.Fatalf("table output = %s", got)
+	}
+}
+
+func TestLoadOverviewReturnsFilteredProjects(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	writePackage(t, filepath.Join(root, "other"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	appPath, err := filepath.Abs(filepath.Join(root, "app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.Write(paths.Metadata, metadata.Store{
+		Projects: map[string]metadata.Entry{
+			appPath: {Status: "active"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := LoadOverview(Options{Status: "active", Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if len(result.Projects) != 1 || result.Projects[0].Name != "app" {
+		t.Fatalf("projects = %#v", result.Projects)
+	}
+	if result.Config.Roots[0] != root {
+		t.Fatalf("config roots = %#v", result.Config.Roots)
+	}
+}
+
+func TestResolveProjectFindsScannedProjectByName(t *testing.T) {
+	root := t.TempDir()
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+
+	got, err := ResolveProject("app", cfg, metadata.New())
+	if err != nil {
+		t.Fatalf("ResolveProject() error = %v", err)
+	}
+	want, err := metadata.CanonicalPath(filepath.Join(root, "app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("ResolveProject() = %q, want %q", got, want)
+	}
+}
+
+func TestUpdateProjectMetadataWritesStore(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	status := "parked"
+	note := "manual note"
+	result, err := UpdateProjectMetadata("app", MetadataUpdate{Status: &status, Note: &note})
+	if err != nil {
+		t.Fatalf("UpdateProjectMetadata() error = %v", err)
+	}
+	if result.Entry.Status != status || result.Entry.Note != note {
+		t.Fatalf("entry = %#v", result.Entry)
+	}
+	store, err := metadata.Load(paths.Metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := store.Projects[result.Path]
+	if got.Status != status || got.Note != note {
+		t.Fatalf("stored entry = %#v", got)
 	}
 }
 

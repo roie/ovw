@@ -13,7 +13,6 @@ import (
 	"ovw/internal/metadata"
 	"ovw/internal/project"
 	"ovw/internal/render"
-	"ovw/internal/scanner"
 
 	"github.com/spf13/cobra"
 )
@@ -188,21 +187,11 @@ func newVisibilityCommand(name string, hidden bool) *cobra.Command {
 		Hidden: hideFromHelp,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths, cfg, store, err := commandState()
+			result, err := app.SetProjectHidden(args[0], hidden)
 			if err != nil {
 				return err
 			}
-			path, err := resolveProjectWithConfig(args[0], cfg, store)
-			if err != nil {
-				return err
-			}
-			entry := store.Projects[path]
-			entry.Hidden = hidden
-			store.Projects[path] = entry
-			if err := metadata.Write(paths.Metadata, store); err != nil {
-				return err
-			}
-			label := filepath.Base(path)
+			label := filepath.Base(result.Path)
 			if hidden {
 				fmt.Fprintf(cmd.OutOrStdout(), "Hidden %s from ovw.\nNo files were deleted.\n", label)
 			} else {
@@ -211,34 +200,6 @@ func newVisibilityCommand(name string, hidden bool) *cobra.Command {
 			return nil
 		},
 	}
-}
-
-func resolveProject(target string, store metadata.Store) (string, error) {
-	if expanded, err := config.ExpandPath(target); err == nil {
-		if filepath.IsAbs(expanded) || target == "." || target == "~" || filepath.Clean(expanded) != filepath.Clean(target) {
-			if canonical, err := metadata.CanonicalPath(expanded); err == nil {
-				if _, ok := store.Projects[canonical]; ok {
-					return canonical, nil
-				}
-				if _, err := os.Stat(canonical); err == nil {
-					return canonical, nil
-				}
-			}
-		}
-	}
-	matches := []string{}
-	for path := range store.Projects {
-		if filepath.Base(path) == target {
-			matches = append(matches, path)
-		}
-	}
-	if len(matches) == 1 {
-		return matches[0], nil
-	}
-	if len(matches) > 1 {
-		return "", fmt.Errorf("Project %q is ambiguous; use full path", target)
-	}
-	return "", fmt.Errorf("project not found: %s", target)
 }
 
 func displayPath(path string) string {
@@ -268,26 +229,18 @@ func newSetCommand() *cobra.Command {
 			if status == "" && note == "" {
 				return fmt.Errorf("nothing to set; pass --status or --note")
 			}
-			paths, cfg, store, err := commandState()
-			if err != nil {
-				return err
-			}
-			path, err := resolveProjectWithConfig(args[0], cfg, store)
-			if err != nil {
-				return err
-			}
-			entry := store.Projects[path]
+			update := app.MetadataUpdate{}
 			if status != "" {
-				entry.Status = status
+				update.Status = &status
 			}
 			if note != "" {
-				entry.Note = note
+				update.Note = &note
 			}
-			store.Projects[path] = entry
-			if err := metadata.Write(paths.Metadata, store); err != nil {
+			result, err := app.UpdateProjectMetadata(args[0], update)
+			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Updated %s.\n", filepath.Base(path))
+			fmt.Fprintf(cmd.OutOrStdout(), "Updated %s.\n", filepath.Base(result.Path))
 			if status != "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "Status  %s\n", status)
 			}
@@ -313,26 +266,20 @@ func newUnsetCommand() *cobra.Command {
 			if !clearStatus && !clearNote {
 				return fmt.Errorf("nothing to unset; pass --status or --note")
 			}
-			paths, cfg, store, err := commandState()
-			if err != nil {
-				return err
-			}
-			path, err := resolveProjectWithConfig(args[0], cfg, store)
-			if err != nil {
-				return err
-			}
-			entry := store.Projects[path]
+			update := app.MetadataUpdate{}
 			if clearStatus {
-				entry.Status = ""
+				empty := ""
+				update.Status = &empty
 			}
 			if clearNote {
-				entry.Note = ""
+				empty := ""
+				update.Note = &empty
 			}
-			store.Projects[path] = entry
-			if err := metadata.Write(paths.Metadata, store); err != nil {
+			result, err := app.UpdateProjectMetadata(args[0], update)
+			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Updated %s.\n", filepath.Base(path))
+			fmt.Fprintf(cmd.OutOrStdout(), "Updated %s.\n", filepath.Base(result.Path))
 			if clearStatus {
 				fmt.Fprintln(cmd.OutOrStdout(), "Status cleared.")
 			}
@@ -363,23 +310,15 @@ func newShowCommand() *cobra.Command {
 }
 
 func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
-	_, cfg, store, err := commandState()
+	state, err := app.LoadState()
 	if err != nil {
 		return err
 	}
-	path, err := resolveProjectWithConfig(target, cfg, store)
+	path, err := app.ResolveProject(target, state.Config, state.Store)
 	if err != nil {
 		return err
 	}
-	entry := store.Projects[path]
-	enriched := app.Enrich(scanner.Project{
-		Name:   filepath.Base(path),
-		Path:   path,
-		Manual: entry.Manual,
-		Hidden: entry.Hidden,
-		Status: entry.Status,
-		Note:   entry.Note,
-	}, cfg, time.Now())
+	enriched := app.ProjectFromPath(path, state.Config, state.Store, time.Now())
 	out := cmd.OutOrStdout()
 	if jsonOutput {
 		return render.ProjectJSON(out, enriched)
@@ -398,55 +337,6 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 		fmt.Fprintf(out, "Updated   %s\n", showTime(enriched.Activity.LastCommitAt))
 	}
 	return nil
-}
-
-func commandState() (config.FilePaths, config.Config, metadata.Store, error) {
-	paths, err := config.Paths()
-	if err != nil {
-		return config.FilePaths{}, config.Config{}, metadata.Store{}, err
-	}
-	cfg, err := config.Load(paths.Config)
-	if err != nil {
-		if os.IsNotExist(err) {
-			cfg = config.Default()
-		} else {
-			return config.FilePaths{}, config.Config{}, metadata.Store{}, err
-		}
-	}
-	store, err := metadata.Load(paths.Metadata)
-	if err != nil {
-		return config.FilePaths{}, config.Config{}, metadata.Store{}, err
-	}
-	return paths, cfg, store, nil
-}
-
-func resolveProjectWithConfig(target string, cfg config.Config, store metadata.Store) (string, error) {
-	path, err := resolveProject(target, store)
-	if err == nil {
-		return path, nil
-	}
-	projects, scanErr := scanner.Scan(cfg, store)
-	if scanErr != nil {
-		return "", err
-	}
-	matches := []string{}
-	for _, project := range projects {
-		if project.Path == target || project.Name == target {
-			matches = append(matches, project.Path)
-		}
-		if expanded, expandErr := config.ExpandPath(target); expandErr == nil {
-			if canonical, canonicalErr := metadata.CanonicalPath(expanded); canonicalErr == nil && canonical == project.Path {
-				matches = append(matches, project.Path)
-			}
-		}
-	}
-	if len(matches) == 1 {
-		return matches[0], nil
-	}
-	if len(matches) > 1 {
-		return "", fmt.Errorf("Project %q is ambiguous; use full path", target)
-	}
-	return "", err
 }
 
 func showTime(value time.Time) string {

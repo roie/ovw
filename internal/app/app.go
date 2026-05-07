@@ -2,6 +2,8 @@ package app
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"time"
 
 	"ovw/internal/config"
@@ -31,22 +33,59 @@ type Options struct {
 	Out      io.Writer
 }
 
+type OverviewResult struct {
+	Paths    config.FilePaths
+	Config   config.Config
+	Projects []project.Project
+	Elapsed  time.Duration
+}
+
+type State struct {
+	Paths  config.FilePaths
+	Config config.Config
+	Store  metadata.Store
+}
+
+type MetadataUpdate struct {
+	Status *string
+	Note   *string
+}
+
+type MetadataUpdateResult struct {
+	Path  string
+	Entry metadata.Entry
+}
+
 func Run(opts Options) error {
+	if opts.Out == nil {
+		opts.Out = io.Discard
+	}
+	overview, err := LoadOverview(opts)
+	if err != nil {
+		return err
+	}
+	if opts.JSON {
+		return render.JSON(opts.Out, overview.Projects)
+	}
+	return render.Table(opts.Out, overview.Projects, overview.Config, overview.Elapsed)
+}
+
+func LoadOverview(opts Options) (OverviewResult, error) {
 	start := time.Now()
 	if opts.Out == nil {
 		opts.Out = io.Discard
 	}
 	paths, err := config.Paths()
 	if err != nil {
-		return err
+		return OverviewResult{}, err
 	}
 	cfg, _, err := config.Ensure(paths.Config, opts.Cwd, opts.In, firstRunWriter(opts))
 	if err != nil {
-		return err
+		return OverviewResult{}, err
 	}
 	meta, err := metadata.Load(paths.Metadata)
 	if err != nil {
-		return err
+		return OverviewResult{}, err
 	}
 	var scanned []scanner.Project
 	if opts.Hidden {
@@ -55,7 +94,7 @@ func Run(opts Options) error {
 		scanned, err = scanner.Scan(cfg, meta)
 	}
 	if err != nil {
-		return err
+		return OverviewResult{}, err
 	}
 	projects := make([]project.Project, 0, len(scanned))
 	now := time.Now()
@@ -71,13 +110,161 @@ func Run(opts Options) error {
 		Hidden:   opts.Hidden,
 	}, cfg, now)
 	if err != nil {
-		return err
+		return OverviewResult{}, err
 	}
 	filtered = filter.Sort(filtered, opts.Sort, cfg)
-	if opts.JSON {
-		return render.JSON(opts.Out, filtered)
+	return OverviewResult{
+		Paths:    paths,
+		Config:   cfg,
+		Projects: filtered,
+		Elapsed:  time.Since(start),
+	}, nil
+}
+
+func LoadState() (State, error) {
+	paths, err := config.Paths()
+	if err != nil {
+		return State{}, err
 	}
-	return render.Table(opts.Out, filtered, cfg, time.Since(start))
+	cfg, err := config.Load(paths.Config)
+	if err != nil {
+		if os.IsNotExist(err) {
+			cfg = config.Default()
+		} else {
+			return State{}, err
+		}
+	}
+	store, err := metadata.Load(paths.Metadata)
+	if err != nil {
+		return State{}, err
+	}
+	return State{Paths: paths, Config: cfg, Store: store}, nil
+}
+
+func ResolveProject(target string, cfg config.Config, store metadata.Store) (string, error) {
+	path, err := resolveKnownProject(target, store)
+	if err == nil {
+		return path, nil
+	}
+	projects, scanErr := scanner.Scan(cfg, store)
+	if scanErr != nil {
+		return "", err
+	}
+	matches := []string{}
+	for _, project := range projects {
+		if project.Path == target || project.Name == target {
+			matches = append(matches, project.Path)
+		}
+		if expanded, expandErr := config.ExpandPath(target); expandErr == nil {
+			if canonical, canonicalErr := metadata.CanonicalPath(expanded); canonicalErr == nil && canonical == project.Path {
+				matches = append(matches, project.Path)
+			}
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		return "", &AmbiguousProjectError{Target: target}
+	}
+	return "", err
+}
+
+type AmbiguousProjectError struct {
+	Target string
+}
+
+func (err *AmbiguousProjectError) Error() string {
+	return "Project " + quoteProject(err.Target) + " is ambiguous; use full path"
+}
+
+func ProjectFromPath(path string, cfg config.Config, store metadata.Store, now time.Time) project.Project {
+	entry := store.Projects[path]
+	return Enrich(scanner.Project{
+		Name:   filepath.Base(path),
+		Path:   path,
+		Manual: entry.Manual,
+		Hidden: entry.Hidden,
+		Status: entry.Status,
+		Note:   entry.Note,
+	}, cfg, now)
+}
+
+func UpdateProjectMetadata(target string, update MetadataUpdate) (MetadataUpdateResult, error) {
+	state, err := LoadState()
+	if err != nil {
+		return MetadataUpdateResult{}, err
+	}
+	path, err := ResolveProject(target, state.Config, state.Store)
+	if err != nil {
+		return MetadataUpdateResult{}, err
+	}
+	entry := state.Store.Projects[path]
+	if update.Status != nil {
+		entry.Status = *update.Status
+	}
+	if update.Note != nil {
+		entry.Note = *update.Note
+	}
+	state.Store.Projects[path] = entry
+	if err := metadata.Write(state.Paths.Metadata, state.Store); err != nil {
+		return MetadataUpdateResult{}, err
+	}
+	return MetadataUpdateResult{Path: path, Entry: entry}, nil
+}
+
+func SetProjectHidden(target string, hidden bool) (MetadataUpdateResult, error) {
+	state, err := LoadState()
+	if err != nil {
+		return MetadataUpdateResult{}, err
+	}
+	path, err := ResolveProject(target, state.Config, state.Store)
+	if err != nil {
+		return MetadataUpdateResult{}, err
+	}
+	entry := state.Store.Projects[path]
+	entry.Hidden = hidden
+	state.Store.Projects[path] = entry
+	if err := metadata.Write(state.Paths.Metadata, state.Store); err != nil {
+		return MetadataUpdateResult{}, err
+	}
+	return MetadataUpdateResult{Path: path, Entry: entry}, nil
+}
+
+func resolveKnownProject(target string, store metadata.Store) (string, error) {
+	if expanded, err := config.ExpandPath(target); err == nil {
+		if filepath.IsAbs(expanded) || target == "." || target == "~" || filepath.Clean(expanded) != filepath.Clean(target) {
+			if canonical, err := metadata.CanonicalPath(expanded); err == nil {
+				if _, ok := store.Projects[canonical]; ok {
+					return canonical, nil
+				}
+				if _, err := os.Stat(canonical); err == nil {
+					return canonical, nil
+				}
+			}
+		}
+	}
+	matches := []string{}
+	for path := range store.Projects {
+		if filepath.Base(path) == target {
+			matches = append(matches, path)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		return "", &AmbiguousProjectError{Target: target}
+	}
+	return "", &ProjectNotFoundError{Target: target}
+}
+
+type ProjectNotFoundError struct {
+	Target string
+}
+
+func (err *ProjectNotFoundError) Error() string {
+	return "project not found: " + err.Target
 }
 
 func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.Project {
@@ -109,4 +296,8 @@ func firstRunWriter(opts Options) io.Writer {
 		return io.Discard
 	}
 	return opts.Out
+}
+
+func quoteProject(value string) string {
+	return `"` + value + `"`
 }
