@@ -507,9 +507,6 @@ func (errNoProjectSelected) Error() string {
 
 func renderShell(m Model) string {
 	body := titleStyle.Render("ovw")
-	if m.width > 0 && m.height > 0 {
-		body += "\n" + mutedStyle.Render(fmt.Sprintf("%dx%d", m.width, m.height))
-	}
 	switch {
 	case m.loading:
 		body += "\n\n" + mutedStyle.Render("Loading projects...")
@@ -529,9 +526,6 @@ func renderShell(m Model) string {
 		}
 		if m.search != "" || m.searching {
 			body += " " + mutedStyle.Render("search: "+m.searchDisplay())
-		}
-		if m.width > 0 && m.height > 0 {
-			body += "\n" + mutedStyle.Render(fmt.Sprintf("%dx%d", m.width, m.height))
 		}
 		if m.screen == screenDetail {
 			body += "\n\n" + detailView(m.currentProject())
@@ -557,7 +551,7 @@ func renderShell(m Model) string {
 		}
 	}
 	body += "\n\n" + footerView()
-	return appStyle.Render(body)
+	return body
 }
 
 func (m Model) tablePanel(visible []project.Project) string {
@@ -594,17 +588,14 @@ func (m Model) isTableLayoutScreen() bool {
 }
 
 func (m Model) contentWidth() int {
-	if m.width <= 4 {
-		return m.width
-	}
-	return m.width - 4
+	return m.width
 }
 
 func (m Model) tableHeight() int {
 	if m.height <= 0 {
 		return 0
 	}
-	height := m.height - 8
+	height := m.height - 4
 	if height < 4 {
 		return 4
 	}

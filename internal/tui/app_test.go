@@ -32,6 +32,30 @@ func TestModelStoresWindowSize(t *testing.T) {
 	}
 }
 
+func TestModelUsesFullTerminalFrame(t *testing.T) {
+	model := Model{
+		width:  100,
+		height: 30,
+		projects: []project.Project{
+			{Name: "app", StackDisplay: "Go"},
+		},
+	}
+
+	view := stripANSI(model.View())
+	if strings.HasPrefix(view, " ") || strings.HasPrefix(view, "\n") {
+		t.Fatalf("View() should start at terminal origin:\n%q", view[:min(len(view), 20)])
+	}
+	if strings.Contains(view, "100x30") {
+		t.Fatalf("View() should not render debug dimensions:\n%s", view)
+	}
+	if model.contentWidth() != 100 {
+		t.Fatalf("contentWidth() = %d, want 100", model.contentWidth())
+	}
+	if model.tableHeight() != 26 {
+		t.Fatalf("tableHeight() = %d, want 26", model.tableHeight())
+	}
+}
+
 func TestModelLoadsOverviewData(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{
