@@ -85,3 +85,57 @@ func TestModelStoresLoadError(t *testing.T) {
 		t.Fatalf("View() missing error state:\n%s", got.View())
 	}
 }
+
+func TestModelMovesSelectionWithArrowAndVimKeys(t *testing.T) {
+	model := Model{
+		projects: []project.Project{
+			{Name: "one"},
+			{Name: "two"},
+			{Name: "three"},
+		},
+	}
+
+	model = updateKey(t, model, "j")
+	if model.selected != 1 {
+		t.Fatalf("selected after j = %d, want 1", model.selected)
+	}
+	model = updateSpecialKey(t, model, tea.KeyDown)
+	if model.selected != 2 {
+		t.Fatalf("selected after down = %d, want 2", model.selected)
+	}
+	model = updateKey(t, model, "j")
+	if model.selected != 2 {
+		t.Fatalf("selected after bottom j = %d, want 2", model.selected)
+	}
+	model = updateKey(t, model, "k")
+	if model.selected != 1 {
+		t.Fatalf("selected after k = %d, want 1", model.selected)
+	}
+	model = updateSpecialKey(t, model, tea.KeyUp)
+	if model.selected != 0 {
+		t.Fatalf("selected after up = %d, want 0", model.selected)
+	}
+	model = updateKey(t, model, "k")
+	if model.selected != 0 {
+		t.Fatalf("selected after top k = %d, want 0", model.selected)
+	}
+}
+
+func TestModelNavigationHandlesEmptyProjects(t *testing.T) {
+	model := updateKey(t, Model{}, "j")
+	if model.selected != 0 {
+		t.Fatalf("selected = %d, want 0", model.selected)
+	}
+}
+
+func updateKey(t *testing.T, model Model, value string) Model {
+	t.Helper()
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
+	return updated.(Model)
+}
+
+func updateSpecialKey(t *testing.T, model Model, key tea.KeyType) Model {
+	t.Helper()
+	updated, _ := model.Update(tea.KeyMsg{Type: key})
+	return updated.(Model)
+}

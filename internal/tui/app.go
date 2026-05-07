@@ -57,6 +57,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isQuitKey(msg.String()) {
 			return m, tea.Quit
 		}
+		if isDownKey(msg.String()) {
+			m.moveSelection(1)
+			return m, nil
+		}
+		if isUpKey(msg.String()) {
+			m.moveSelection(-1)
+			return m, nil
+		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -81,6 +89,21 @@ func (m Model) View() string {
 
 func (m Model) Size() (int, int) {
 	return m.width, m.height
+}
+
+func (m *Model) moveSelection(delta int) {
+	if len(m.projects) == 0 {
+		m.selected = 0
+		return
+	}
+	m.selected += delta
+	if m.selected < 0 {
+		m.selected = 0
+	}
+	last := len(m.projects) - 1
+	if m.selected > last {
+		m.selected = last
+	}
 }
 
 func Run() error {

@@ -5,6 +5,8 @@ import "github.com/charmbracelet/bubbles/key"
 type keyMap struct {
 	Quit key.Binding
 	Help key.Binding
+	Up   key.Binding
+	Down key.Binding
 }
 
 func defaultKeyMap() keyMap {
@@ -17,6 +19,14 @@ func defaultKeyMap() keyMap {
 			key.WithKeys("?"),
 			key.WithHelp("?", "help"),
 		),
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "move up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "move down"),
+		),
 	}
 }
 
@@ -24,7 +34,15 @@ func isQuitKey(value string) bool {
 	return value == "q" || value == "ctrl+c"
 }
 
+func isUpKey(value string) bool {
+	return value == "up" || value == "k"
+}
+
+func isDownKey(value string) bool {
+	return value == "down" || value == "j"
+}
+
 func footerView() string {
 	keys := defaultKeyMap()
-	return mutedStyle.Render(keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
+	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
 }
