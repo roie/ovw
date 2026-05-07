@@ -71,21 +71,30 @@ func rootUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}} [project] [flags]
   {{.CommandPath}} [command]
-{{if .HasAvailableSubCommands}}
-Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}
-{{end}}{{if .HasAvailableLocalFlags}}
+
+Commands:
+  add       Add a project manually
+  hide      Hide a project from ovw
+  unhide    Show a hidden project again
+  set       Set project status or note
+  unset     Clear project status or note
+  scan      Rescan configured roots
+  config    Manage ovw config
+  cache     Manage ovw cache
+
 Flags:
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
-{{end}}{{if .HasAvailableInheritedFlags}}
-Global Flags:
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
-{{end}}{{if .HasHelpSubCommands}}
-Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
-  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}
-{{end}}{{if .HasAvailableSubCommands}}
+  --json            output JSON for overview or project
+  --plain           force plain table output
+  --status string   filter by manual status
+  --dirty           show dirty projects
+  --stale           show stale projects
+  --untagged        show projects without manual status
+  --sort string     sort by activity, name, or status
+  -h, --help        help for ovw
+  -v, --version     version for ovw
+
 Use "{{.CommandPath}} [command] --help" for more information about a command.
-{{end}}`
+`
 }
 
 func newConfigCommand() *cobra.Command {

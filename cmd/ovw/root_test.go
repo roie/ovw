@@ -51,14 +51,14 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"A terminal overview for your local projects",
 		"ovw [project] [flags]",
 		"Commands:",
-		"add         Add a project manually",
-		"hide        Hide a project from ovw",
-		"unhide      Show a hidden project again",
-		"set         Set project status or note",
-		"unset       Clear project status or note",
-		"scan        Rescan configured roots",
-		"config      Manage ovw config",
-		"cache       Manage ovw cache",
+		"add       Add a project manually",
+		"hide      Hide a project from ovw",
+		"unhide    Show a hidden project again",
+		"set       Set project status or note",
+		"unset     Clear project status or note",
+		"scan      Rescan configured roots",
+		"config    Manage ovw config",
+		"cache     Manage ovw cache",
 		"--json            output JSON for overview or project",
 		"--status string   filter by manual status",
 	} {
@@ -75,18 +75,32 @@ func TestHelpTextDescriptions(t *testing.T) {
 	if strings.Contains(got, "completion  Generate") {
 		t.Fatalf("help output should hide completion command:\n%s", got)
 	}
+	if strings.Contains(got, "help        Help about any command") {
+		t.Fatalf("help output should not list help command:\n%s", got)
+	}
 	if strings.Contains(got, "Examples:") || strings.Contains(got, "ovw myproject") {
 		t.Fatalf("help output should not include examples:\n%s", got)
 	}
 	mustAppearInOrder(t, got, []string{
-		"add         Add a project manually",
-		"hide        Hide a project from ovw",
-		"unhide      Show a hidden project again",
-		"set         Set project status or note",
-		"unset       Clear project status or note",
-		"scan        Rescan configured roots",
-		"config      Manage ovw config",
-		"cache       Manage ovw cache",
+		"add       Add a project manually",
+		"hide      Hide a project from ovw",
+		"unhide    Show a hidden project again",
+		"set       Set project status or note",
+		"unset     Clear project status or note",
+		"scan      Rescan configured roots",
+		"config    Manage ovw config",
+		"cache     Manage ovw cache",
+	})
+	mustAppearInOrder(t, got, []string{
+		"--json            output JSON for overview or project",
+		"--plain           force plain table output",
+		"--status string   filter by manual status",
+		"--dirty           show dirty projects",
+		"--stale           show stale projects",
+		"--untagged        show projects without manual status",
+		"--sort string     sort by activity, name, or status",
+		"-h, --help        help for ovw",
+		"-v, --version     version for ovw",
 	})
 }
 
