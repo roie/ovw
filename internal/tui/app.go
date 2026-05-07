@@ -19,6 +19,7 @@ type Model struct {
 
 	width    int
 	height   int
+	selected int
 	loading  bool
 	loadErr  error
 	config   config.Config
@@ -64,6 +65,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		if m.selected >= len(m.projects) {
+			m.selected = 0
+		}
 	case overviewLoadFailedMsg:
 		m.loading = false
 		m.loadErr = msg.err
@@ -114,7 +118,11 @@ func renderShell(m Model) string {
 	case m.loadErr != nil:
 		body += "\n\n" + errorStyle.Render("Failed to load projects: "+m.loadErr.Error())
 	default:
-		body += "\n\n" + mutedStyle.Render(formatProjectCount(len(m.projects))+" loaded")
+		body = titleStyle.Render("ovw") + " " + mutedStyle.Render("- "+formatProjectCount(len(m.projects)))
+		if m.width > 0 && m.height > 0 {
+			body += "\n" + mutedStyle.Render(fmt.Sprintf("%dx%d", m.width, m.height))
+		}
+		body += "\n\n" + tableView(m.projects, m.selected, m.width)
 	}
 	body += "\n\n" + footerView()
 	return appStyle.Render(body)

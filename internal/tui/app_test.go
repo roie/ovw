@@ -7,6 +7,7 @@ import (
 
 	"ovw/internal/app"
 	"ovw/internal/config"
+	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,7 +36,13 @@ func TestModelLoadsOverviewData(t *testing.T) {
 		return app.OverviewResult{
 			Config: config.Default(),
 			Projects: []project.Project{
-				{Name: "app"},
+				{
+					Name:         "app",
+					StackDisplay: "Go",
+					Activity:     ovwformat.ActivityInfo{Display: "12m"},
+					Tags:         []string{"dirty"},
+					Note:         ovwformat.NoteInfo{Display: "manual note"},
+				},
 			},
 		}, nil
 	})
@@ -52,8 +59,11 @@ func TestModelLoadsOverviewData(t *testing.T) {
 	if len(got.projects) != 1 || got.projects[0].Name != "app" {
 		t.Fatalf("projects = %#v", got.projects)
 	}
-	if !strings.Contains(got.View(), "1 project loaded") {
-		t.Fatalf("View() missing loaded state:\n%s", got.View())
+	view := got.View()
+	for _, want := range []string{"ovw", "1 project", "Name", "Stack", "Activity", "Status", "Note", "app", "Go", "12m", "dirty", "manual note"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("View() missing %q:\n%s", want, view)
+		}
 	}
 }
 
