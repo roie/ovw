@@ -94,34 +94,6 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 }
 
-func TestLoadIgnoresDeprecatedShowDirty(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	data := strings.Replace(DefaultTemplate([]string{"~/Projects"}), "show_unpushed = true", "show_unpushed = true\nshow_dirty = true", 1)
-	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := Load(path); err != nil {
-		t.Fatalf("Load() with deprecated show_dirty error = %v", err)
-	}
-}
-
-func TestLoadNormalizesDeprecatedStateColumn(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	data := strings.Replace(DefaultTemplate([]string{"~/Projects"}), `columns = ["name", "stack", "activity", "status", "note"]`, `columns = ["name", "stack", "activity", "state", "note"]`, 1)
-	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-	if !reflect.DeepEqual(cfg.Columns, []string{"name", "stack", "activity", "status", "note"}) {
-		t.Fatalf("Columns = %#v", cfg.Columns)
-	}
-}
-
 func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()

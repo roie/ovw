@@ -138,16 +138,7 @@ func Load(path string) (Config, error) {
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
-	normalizeColumns(&cfg)
 	return cfg, nil
-}
-
-func normalizeColumns(cfg *Config) {
-	for i, column := range cfg.Columns {
-		if column == "state" {
-			cfg.Columns[i] = "status"
-		}
-	}
 }
 
 func Write(path string, cfg Config) error {
