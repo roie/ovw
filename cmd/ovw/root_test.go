@@ -53,13 +53,13 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"ovw myproject",
 		"ovw myproject --json",
 		"add         Add a project manually",
-		"cache       Manage ovw cache",
-		"config      Manage ovw config",
 		"hide        Hide a project from ovw",
-		"scan        Rescan configured roots",
-		"set         Set project status or note",
 		"unhide      Show a hidden project again",
+		"set         Set project status or note",
 		"unset       Clear project status or note",
+		"scan        Rescan configured roots",
+		"config      Manage ovw config",
+		"cache       Manage ovw cache",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("help output missing %q:\n%s", want, got)
@@ -71,6 +71,19 @@ func TestHelpTextDescriptions(t *testing.T) {
 	if strings.Contains(got, "remove      Hide a project from ovw without deleting files") {
 		t.Fatalf("help output should hide remove alias:\n%s", got)
 	}
+	if strings.Contains(got, "completion  Generate") {
+		t.Fatalf("help output should hide completion command:\n%s", got)
+	}
+	mustAppearInOrder(t, got, []string{
+		"add         Add a project manually",
+		"hide        Hide a project from ovw",
+		"unhide      Show a hidden project again",
+		"set         Set project status or note",
+		"unset       Clear project status or note",
+		"scan        Rescan configured roots",
+		"config      Manage ovw config",
+		"cache       Manage ovw cache",
+	})
 }
 
 func TestConfigPathCommand(t *testing.T) {
@@ -401,6 +414,18 @@ func executeCommand(args []string) (string, error) {
 	cmd.SetArgs(args)
 	err := cmd.Execute()
 	return out.String(), err
+}
+
+func mustAppearInOrder(t *testing.T, text string, values []string) {
+	t.Helper()
+	offset := 0
+	for _, value := range values {
+		index := strings.Index(text[offset:], value)
+		if index < 0 {
+			t.Fatalf("value %q not found after offset %d:\n%s", value, offset, text)
+		}
+		offset += index + len(value)
+	}
 }
 
 func configForTest(t *testing.T, root string) string {

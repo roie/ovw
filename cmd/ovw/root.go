@@ -23,12 +23,16 @@ const version = "0.1.0"
 
 func NewRootCommand() *cobra.Command {
 	opts := app.Options{}
+	cobra.EnableCommandSorting = false
 	cmd := &cobra.Command{
 		Use:     "ovw",
 		Short:   "A terminal overview for your local projects",
 		Example: "  ovw\n  ovw myproject\n  ovw myproject --json",
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
+		CompletionOptions: cobra.CompletionOptions{
+			HiddenDefaultCmd: true,
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
 				return runShow(cmd, args[0], opts.JSON)
@@ -51,15 +55,15 @@ func NewRootCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Stale, "stale", false, "show stale projects")
 	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show untagged projects")
 	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, name, or status")
-	cmd.AddCommand(newConfigCommand())
-	cmd.AddCommand(newCacheCommand())
-	cmd.AddCommand(newScanCommand())
 	cmd.AddCommand(newAddCommand())
 	cmd.AddCommand(newVisibilityCommand("hide", true))
 	cmd.AddCommand(newVisibilityCommand("remove", true))
 	cmd.AddCommand(newVisibilityCommand("unhide", false))
 	cmd.AddCommand(newSetCommand())
 	cmd.AddCommand(newUnsetCommand())
+	cmd.AddCommand(newScanCommand())
+	cmd.AddCommand(newConfigCommand())
+	cmd.AddCommand(newCacheCommand())
 	cmd.AddCommand(newShowCommand())
 	return cmd
 }
