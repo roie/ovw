@@ -10,7 +10,6 @@ import (
 
 	"ovw/internal/app"
 	"ovw/internal/config"
-	"ovw/internal/metadata"
 	"ovw/internal/project"
 	"ovw/internal/projectview"
 	"ovw/internal/render"
@@ -170,34 +169,13 @@ func newAddCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			info, err := os.Stat(projectPath)
+			result, err := app.AddProject(args[0])
 			if err != nil {
 				return err
 			}
-			if !info.IsDir() {
-				return fmt.Errorf("%s is not a directory", args[0])
-			}
-			paths, err := config.Paths()
-			if err != nil {
-				return err
-			}
-			store, err := metadata.Load(paths.Metadata)
-			if err != nil {
-				return err
-			}
-			canonical, err := metadata.CanonicalPath(projectPath)
-			if err != nil {
-				return err
-			}
-			if store.Projects[canonical].Manual {
+			if result.AlreadyTracked {
 				fmt.Fprintf(cmd.OutOrStdout(), "%s is already tracked by ovw.\n", displayPath(projectPath))
 				return nil
-			}
-			entry := store.Projects[canonical]
-			entry.Manual = true
-			store.Projects[canonical] = entry
-			if err := metadata.Write(paths.Metadata, store); err != nil {
-				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Added %s to ovw.\n", displayPath(projectPath))
 			return nil

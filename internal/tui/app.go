@@ -19,6 +19,7 @@ import (
 type overviewLoader func(app.Options) (app.OverviewResult, error)
 type metadataUpdater func(string, app.MetadataUpdate) (app.MetadataUpdateResult, error)
 type visibilityUpdater func(string, bool) (app.MetadataUpdateResult, error)
+type projectAdder func(string) (app.AddProjectResult, error)
 type editorRunner func(string, string) error
 type terminalRunner func(string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
@@ -28,6 +29,7 @@ type screenMode int
 const (
 	screenTable screenMode = iota
 	screenDetail
+	screenAdd
 	screenFilter
 	screenSort
 	screenNote
@@ -41,6 +43,7 @@ type Model struct {
 	loader   overviewLoader
 	updater  metadataUpdater
 	visible  visibilityUpdater
+	adder    projectAdder
 	editor   editorRunner
 	terminal terminalRunner
 	recent   recentLoader
@@ -56,6 +59,8 @@ type Model struct {
 	sortSelected   int
 	activeSort     string
 	noteInput      string
+	addInput       string
+	addErr         string
 	statusSelected int
 	statusInput    string
 	message        string
@@ -79,6 +84,7 @@ func NewWithOptions(opts app.Options) Model {
 		loader:       app.LoadOverview,
 		updater:      app.UpdateProjectMetadata,
 		visible:      app.SetProjectHidden,
+		adder:        app.AddProject,
 		editor:       runEditor,
 		terminal:     runTerminal,
 		recent:       loadRecentCommits,
@@ -123,6 +129,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenDetail {
 			return m.updateDetail(msg)
 		}
+		if m.screen == screenAdd {
+			return m.updateAdd(msg)
+		}
 		if isEscapeKey(msg.String()) && m.screen == screenHelp {
 			m.screen = screenTable
 			return m, nil
@@ -137,6 +146,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isSearchKey(msg.String()) {
 			m.screen = screenTable
 			m.searching = true
+			return m, nil
+		}
+		if isAddKey(msg.String()) && !m.loading {
+			m.screen = screenAdd
+			m.addInput = ""
+			m.addErr = ""
 			return m, nil
 		}
 		if isFilterKey(msg.String()) {
@@ -222,6 +237,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case metadataFailedMsg:
 		m.loading = false
 		m.message = "Failed to write metadata: " + msg.err.Error()
+	case addProjectSavedMsg:
+		m.loading = false
+		m.loadErr = nil
+		m.config = msg.result.Config
+		m.projects = msg.result.Projects
+		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.screen = screenTable
+		m.message = msg.message
+		m.addInput = ""
+		m.addErr = ""
+		m.selectProjectPath(msg.preservePath)
+		return m, m.loadSelectedRecent()
+	case addProjectFailedMsg:
+		m.loading = false
+		m.screen = screenAdd
+		m.addErr = msg.err.Error()
 	case editorOpenedMsg:
 		m.message = msg.message
 	case editorFailedMsg:
@@ -249,6 +280,27 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenTable
 		m.loading = true
 		return m, m.toggleVisibility()
+	}
+	return m, nil
+}
+
+func (m Model) updateAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+		m.addInput = ""
+		m.addErr = ""
+	case isEnterKey(value):
+		m.loading = true
+		m.addErr = ""
+		return m, m.addProject()
+	case isBackspaceKey(value):
+		runes := []rune(m.addInput)
+		if len(runes) > 0 {
+			m.addInput = string(runes[:len(runes)-1])
+		}
+	default:
+		m.addInput += inputText(msg)
 	}
 	return m, nil
 }
@@ -475,6 +527,16 @@ type metadataFailedMsg struct {
 	err error
 }
 
+type addProjectSavedMsg struct {
+	message      string
+	result       app.OverviewResult
+	preservePath string
+}
+
+type addProjectFailedMsg struct {
+	err error
+}
+
 type editorOpenedMsg struct {
 	message string
 }
@@ -576,6 +638,36 @@ func (m Model) toggleVisibility() tea.Cmd {
 	}
 }
 
+func (m Model) addProject() tea.Cmd {
+	path := strings.TrimSpace(m.addInput)
+	return func() tea.Msg {
+		if path == "" {
+			return addProjectFailedMsg{err: errEmptyProjectPath{}}
+		}
+		adder := m.adder
+		if adder == nil {
+			adder = app.AddProject
+		}
+		added, err := adder(path)
+		if err != nil {
+			return addProjectFailedMsg{err: err}
+		}
+		loader := m.loader
+		if loader == nil {
+			loader = app.LoadOverview
+		}
+		result, err := loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		message := "Project added"
+		if added.AlreadyTracked {
+			message = "Project already tracked"
+		}
+		return addProjectSavedMsg{message: message, result: result, preservePath: added.Path}
+	}
+}
+
 func (m Model) openSelectedProject() tea.Cmd {
 	project, ok := m.currentProject()
 	editor := m.config.Editor
@@ -640,6 +732,12 @@ func (errNoProjectSelected) Error() string {
 	return "no project selected"
 }
 
+type errEmptyProjectPath struct{}
+
+func (errEmptyProjectPath) Error() string {
+	return "enter a project path"
+}
+
 func renderShell(m Model) string {
 	body := titleStyle.Render("ovw")
 	switch {
@@ -661,6 +759,8 @@ func renderShell(m Model) string {
 			case screenDetail:
 				project, ok := m.currentProject()
 				content = overlayModal(content, detailModalView(project, ok, m.contentWidth()), m.contentWidth())
+			case screenAdd:
+				content = overlayModal(content, addProjectView(m.addInput, m.addErr), m.contentWidth())
 			case screenHelp:
 				content = overlayModal(content, helpView(), m.contentWidth())
 			case screenFilter:
@@ -746,7 +846,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenHelp, screenFilter, screenSort, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenFilter, screenSort, screenNote, screenStatus, screenStatusInput:
 		return true
 	default:
 		return false

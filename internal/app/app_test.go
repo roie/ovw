@@ -238,6 +238,53 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 	}
 }
 
+func TestAddProjectWritesManualMetadata(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "manual")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+
+	result, err := AddProject(project)
+	if err != nil {
+		t.Fatalf("AddProject() error = %v", err)
+	}
+	if result.AlreadyTracked {
+		t.Fatal("AlreadyTracked = true, want false")
+	}
+	if !result.Entry.Manual {
+		t.Fatalf("entry = %#v, want manual", result.Entry)
+	}
+	store, err := metadata.Load(filepath.Join(home, ".local", "share", "ovw", "projects.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !store.Projects[result.Path].Manual {
+		t.Fatalf("stored entry = %#v, want manual", store.Projects[result.Path])
+	}
+}
+
+func TestAddProjectReportsAlreadyTrackedManualProject(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "manual")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+
+	if _, err := AddProject(project); err != nil {
+		t.Fatalf("AddProject() first error = %v", err)
+	}
+	result, err := AddProject(project)
+	if err != nil {
+		t.Fatalf("AddProject() second error = %v", err)
+	}
+	if !result.AlreadyTracked {
+		t.Fatal("AlreadyTracked = false, want true")
+	}
+}
+
 func writePackage(t *testing.T, dir, data string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -13,6 +13,16 @@ func noteView(value, placeholder string) string {
 	return inputModalView("Note", value, placeholder, 56)
 }
 
+func addProjectView(value, err string) string {
+	inputWidth := 52
+	lines := inputModalLines(value, "~/dev/my-project", inputWidth)
+	if err != "" {
+		lines = append(lines, "", errorStyle.Render(err))
+	}
+	lines = append(lines, "", actionHint("enter", "save"))
+	return modalView("Add project", lines, 56)
+}
+
 type statusOptionKind int
 
 const (

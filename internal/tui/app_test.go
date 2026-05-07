@@ -1071,6 +1071,82 @@ func TestModelStatusPickerClearSavesEmptyStatus(t *testing.T) {
 	}
 }
 
+func TestModelAddProjectModalSavesPath(t *testing.T) {
+	var addedPath string
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config:   config.Default(),
+				Projects: []project.Project{{Name: "manual", Path: "/tmp/manual", Manual: true}},
+			}, nil
+		},
+		adder: func(path string) (app.AddProjectResult, error) {
+			addedPath = path
+			return app.AddProjectResult{Path: "/tmp/manual"}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	model = updateKey(t, model, "a")
+	if model.screen != screenAdd {
+		t.Fatalf("screen = %v, want add", model.screen)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"Add project", "~/dev/my-project▌", "enter save", "esc"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("add modal missing %q:\n%s", want, view)
+		}
+	}
+	for _, value := range []string{"/", "t", "m", "p", "/", "m", "a", "n", "u", "a", "l"} {
+		model = updateKey(t, model, value)
+	}
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected add command")
+	}
+	model = updateMsg(t, model, cmd())
+	if addedPath != "/tmp/manual" {
+		t.Fatalf("addedPath = %q, want /tmp/manual", addedPath)
+	}
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
+	}
+	if model.message != "Project added" {
+		t.Fatalf("message = %q, want Project added", model.message)
+	}
+	if len(model.projects) != 1 || model.projects[0].Path != "/tmp/manual" {
+		t.Fatalf("projects = %#v", model.projects)
+	}
+}
+
+func TestModelAddProjectModalShowsErrorsInline(t *testing.T) {
+	model := Model{
+		adder: func(path string) (app.AddProjectResult, error) {
+			return app.AddProjectResult{}, errors.New("missing directory")
+		},
+		screen:   screenAdd,
+		addInput: "/tmp/missing",
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected add command")
+	}
+	model = updateMsg(t, model, cmd())
+	if model.screen != screenAdd {
+		t.Fatalf("screen = %v, want add", model.screen)
+	}
+	if model.loading {
+		t.Fatal("model should not stay loading")
+	}
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "missing directory") {
+		t.Fatalf("add modal missing inline error:\n%s", view)
+	}
+}
+
 func TestModelReloadPreservesSelectionByPath(t *testing.T) {
 	reloaded := false
 	model := Model{

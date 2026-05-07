@@ -57,6 +57,12 @@ type MetadataUpdateResult struct {
 	Entry metadata.Entry
 }
 
+type AddProjectResult struct {
+	Path           string
+	Entry          metadata.Entry
+	AlreadyTracked bool
+}
+
 func Run(opts Options) error {
 	if opts.Out == nil {
 		opts.Out = io.Discard
@@ -223,6 +229,50 @@ func UpdateProjectMetadata(target string, update MetadataUpdate) (MetadataUpdate
 		return MetadataUpdateResult{}, err
 	}
 	return MetadataUpdateResult{Path: path, Entry: entry}, nil
+}
+
+func AddProject(path string) (AddProjectResult, error) {
+	projectPath, err := config.ExpandPath(path)
+	if err != nil {
+		return AddProjectResult{}, err
+	}
+	info, err := os.Stat(projectPath)
+	if err != nil {
+		return AddProjectResult{}, err
+	}
+	if !info.IsDir() {
+		return AddProjectResult{}, &NotDirectoryError{Path: path}
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		return AddProjectResult{}, err
+	}
+	store, err := metadata.Load(paths.Metadata)
+	if err != nil {
+		return AddProjectResult{}, err
+	}
+	canonical, err := metadata.CanonicalPath(projectPath)
+	if err != nil {
+		return AddProjectResult{}, err
+	}
+	entry := store.Projects[canonical]
+	if entry.Manual {
+		return AddProjectResult{Path: canonical, Entry: entry, AlreadyTracked: true}, nil
+	}
+	entry.Manual = true
+	store.Projects[canonical] = entry
+	if err := metadata.Write(paths.Metadata, store); err != nil {
+		return AddProjectResult{}, err
+	}
+	return AddProjectResult{Path: canonical, Entry: entry}, nil
+}
+
+type NotDirectoryError struct {
+	Path string
+}
+
+func (err *NotDirectoryError) Error() string {
+	return err.Path + " is not a directory"
 }
 
 func SetProjectHidden(target string, hidden bool) (MetadataUpdateResult, error) {
