@@ -193,8 +193,20 @@ func TestModelSearchFiltersVisibleProjects(t *testing.T) {
 		t.Fatalf("visible projects = %#v", visible)
 	}
 	view := model.View()
-	if !strings.Contains(view, "search: web") || !strings.Contains(view, "web") || strings.Contains(view, "api") {
+	if !strings.Contains(view, "search: web▌") || !strings.Contains(view, "web") || strings.Contains(view, "api") {
 		t.Fatalf("search view = %s", view)
+	}
+}
+
+func TestModelSearchEmptyShowsCursor(t *testing.T) {
+	model := Model{
+		projects:  []project.Project{{Name: "api"}},
+		searching: true,
+	}
+
+	view := model.View()
+	if !strings.Contains(view, "search: ▌") {
+		t.Fatalf("search view missing cursor:\n%s", view)
 	}
 }
 

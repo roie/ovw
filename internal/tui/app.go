@@ -528,7 +528,7 @@ func renderShell(m Model) string {
 			body += " " + mutedStyle.Render(m.message)
 		}
 		if m.search != "" || m.searching {
-			body += " " + mutedStyle.Render("search: "+m.search)
+			body += " " + mutedStyle.Render("search: "+m.searchDisplay())
 		}
 		if m.width > 0 && m.height > 0 {
 			body += "\n" + mutedStyle.Render(fmt.Sprintf("%dx%d", m.width, m.height))
@@ -686,6 +686,13 @@ func (m Model) selectedProjectPath() string {
 		return ""
 	}
 	return project.Path
+}
+
+func (m Model) searchDisplay() string {
+	if m.searching {
+		return textInputLine(m.search, "")
+	}
+	return m.search
 }
 
 func (m *Model) selectProjectPath(path string) {
