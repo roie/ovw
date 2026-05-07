@@ -46,6 +46,7 @@ func NewRootCommand() *cobra.Command {
 			return app.Run(opts)
 		},
 	}
+	cmd.SetVersionTemplate("{{.Name}} {{.Version}}\n")
 	cmd.SetUsageTemplate(rootUsageTemplate())
 	cmd.Flags().BoolVar(&opts.Plain, "plain", false, "force plain table output")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "output JSON for overview or project")

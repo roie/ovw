@@ -104,6 +104,16 @@ func TestHelpTextDescriptions(t *testing.T) {
 	})
 }
 
+func TestVersionOutput(t *testing.T) {
+	out, err := executeCommand([]string{"-v"})
+	if err != nil {
+		t.Fatalf("Execute(-v) error = %v", err)
+	}
+	if out != "ovw 0.1.0\n" {
+		t.Fatalf("version output = %q", out)
+	}
+}
+
 func TestConfigPathCommand(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
