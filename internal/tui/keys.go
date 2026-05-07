@@ -74,11 +74,15 @@ func isReloadKey(value string) bool {
 	return value == "r"
 }
 
+func isOpenKey(value string) bool {
+	return value == "o"
+}
+
 func isBackspaceKey(value string) bool {
 	return value == "backspace" || value == "ctrl+h"
 }
 
 func footerView() string {
 	keys := defaultKeyMap()
-	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · / search · f filter · s sort · n note · m status · r reload · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
+	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · / search · f filter · s sort · n note · m status · r reload · o open · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
 }

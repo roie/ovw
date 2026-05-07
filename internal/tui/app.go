@@ -15,6 +15,7 @@ import (
 
 type overviewLoader func(app.Options) (app.OverviewResult, error)
 type metadataUpdater func(string, app.MetadataUpdate) (app.MetadataUpdateResult, error)
+type editorRunner func(string, string) error
 
 type screenMode int
 
@@ -32,6 +33,7 @@ type Model struct {
 	request app.Options
 	loader  overviewLoader
 	updater metadataUpdater
+	editor  editorRunner
 
 	width          int
 	height         int
@@ -65,6 +67,7 @@ func NewWithOptions(opts app.Options) Model {
 		request:      opts,
 		loader:       app.LoadOverview,
 		updater:      app.UpdateProjectMetadata,
+		editor:       runEditor,
 		activeFilter: optionsFromRequest(opts),
 		activeSort:   sortFromRequest(opts),
 		loading:      true,
@@ -145,6 +148,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			return m, m.reloadOverview(path, "Reloaded")
 		}
+		if isOpenKey(msg.String()) && m.canOpenDetail() {
+			return m, m.openSelectedProject()
+		}
 		if isDownKey(msg.String()) {
 			m.moveSelection(1)
 			return m, nil
@@ -182,6 +188,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case metadataFailedMsg:
 		m.loading = false
 		m.message = "Failed to write metadata: " + msg.err.Error()
+	case editorOpenedMsg:
+		m.message = msg.message
+	case editorFailedMsg:
+		m.message = "Editor failed: " + msg.err.Error()
 	}
 	return m, nil
 }
@@ -393,6 +403,14 @@ type metadataFailedMsg struct {
 	err error
 }
 
+type editorOpenedMsg struct {
+	message string
+}
+
+type editorFailedMsg struct {
+	err error
+}
+
 func (m Model) loadOverview() tea.Cmd {
 	return m.reloadOverview("", "")
 }
@@ -439,6 +457,20 @@ func (m Model) saveStatus(status, message string) tea.Cmd {
 			return overviewLoadFailedMsg{err: err}
 		}
 		return metadataSavedMsg{message: message, result: result}
+	}
+}
+
+func (m Model) openSelectedProject() tea.Cmd {
+	project, ok := m.currentProject()
+	editor := m.config.Editor
+	return func() tea.Msg {
+		if !ok {
+			return editorFailedMsg{err: errNoProjectSelected{}}
+		}
+		if err := m.editor(editor, project.Path); err != nil {
+			return editorFailedMsg{err: err}
+		}
+		return editorOpenedMsg{message: "Opened " + project.Name}
 	}
 }
 

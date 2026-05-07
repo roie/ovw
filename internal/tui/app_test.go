@@ -566,6 +566,62 @@ func TestModelReloadPreservesSelectionByPath(t *testing.T) {
 	}
 }
 
+func TestModelOpenEditorUsesSelectedProject(t *testing.T) {
+	cfg := config.Default()
+	cfg.Editor = "code --reuse-window"
+	var gotEditor string
+	var gotPath string
+	model := Model{
+		config: cfg,
+		editor: func(editor, path string) error {
+			gotEditor = editor
+			gotPath = path
+			return nil
+		},
+		projects: []project.Project{
+			{Name: "one", Path: "/tmp/one"},
+			{Name: "two", Path: "/tmp/two"},
+		},
+		selected: 1,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected editor command")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotEditor != "code --reuse-window" {
+		t.Fatalf("editor = %q", gotEditor)
+	}
+	if gotPath != "/tmp/two" {
+		t.Fatalf("path = %q, want /tmp/two", gotPath)
+	}
+	if model.message != "Opened two" {
+		t.Fatalf("message = %q, want Opened two", model.message)
+	}
+}
+
+func TestModelOpenEditorShowsError(t *testing.T) {
+	model := Model{
+		config: config.Default(),
+		editor: func(editor, path string) error {
+			return errors.New("no editor")
+		},
+		projects: []project.Project{{Name: "one", Path: "/tmp/one"}},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected editor command")
+	}
+	model = updateMsg(t, model, cmd())
+	if !strings.Contains(model.message, "Editor failed: no editor") {
+		t.Fatalf("message = %q", model.message)
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
