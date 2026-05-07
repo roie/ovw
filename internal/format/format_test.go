@@ -85,7 +85,9 @@ func TestTagsBuildAutomaticAndManualStatusTags(t *testing.T) {
 		{name: "no commits", info: ActivityInfo{HasGit: true}, status: "parked", want: []string{"no commits", "parked"}},
 		{name: "dirty stale manual", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "stale", "parked"}},
 		{name: "dirty unpushed stale manual", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "unpushed", "stale", "parked"}},
-		{name: "unpushed active", info: ActivityInfo{HasGit: true, HasCommits: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"unpushed", "active"}},
+		{name: "dirty recent", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"dirty"}},
+		{name: "unpushed recent", info: ActivityInfo{HasGit: true, HasCommits: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"unpushed"}},
+		{name: "dirty unpushed recent", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"dirty", "unpushed"}},
 		{name: "stale", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -60)}, want: []string{"stale"}},
 		{name: "active dedupes manual active", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -2)}, status: "active", want: []string{"active"}},
 	}
