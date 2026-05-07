@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"ovw/internal/app"
 	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
+	"ovw/internal/gitactivity"
 	"ovw/internal/project"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,6 +19,7 @@ import (
 type overviewLoader func(app.Options) (app.OverviewResult, error)
 type metadataUpdater func(string, app.MetadataUpdate) (app.MetadataUpdateResult, error)
 type editorRunner func(string, string) error
+type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
 
 type screenMode int
 
@@ -36,6 +39,7 @@ type Model struct {
 	loader  overviewLoader
 	updater metadataUpdater
 	editor  editorRunner
+	recent  recentLoader
 
 	width          int
 	height         int
@@ -55,6 +59,7 @@ type Model struct {
 	loadErr        error
 	config         config.Config
 	projects       []project.Project
+	recentByPath   map[string][]ovwformat.RecentCommit
 }
 
 func New() Model {
@@ -70,9 +75,11 @@ func NewWithOptions(opts app.Options) Model {
 		loader:       app.LoadOverview,
 		updater:      app.UpdateProjectMetadata,
 		editor:       runEditor,
+		recent:       loadRecentCommits,
 		activeFilter: optionsFromRequest(opts),
 		activeSort:   sortFromRequest(opts),
 		loading:      true,
+		recentByPath: map[string][]ovwformat.RecentCommit{},
 	}
 }
 
@@ -159,20 +166,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isDownKey(msg.String()) {
 			m.moveSelection(1)
-			return m, nil
+			return m, m.loadSelectedRecent()
 		}
 		if isUpKey(msg.String()) {
 			m.moveSelection(-1)
-			return m, nil
+			return m, m.loadSelectedRecent()
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		return m, m.loadSelectedRecent()
 	case overviewLoadedMsg:
 		m.loading = false
 		m.loadErr = nil
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		if msg.message != "" {
 			m.message = msg.message
 		}
@@ -181,6 +190,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if m.selected >= len(m.projects) {
 			m.selected = 0
 		}
+		return m, m.loadSelectedRecent()
 	case overviewLoadFailedMsg:
 		m.loading = false
 		m.loadErr = msg.err
@@ -189,12 +199,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.message = msg.message
 		if msg.preservePath != "" {
 			m.selectProjectPath(msg.preservePath)
 		} else {
 			m.clampSelection()
 		}
+		return m, m.loadSelectedRecent()
 	case metadataFailedMsg:
 		m.loading = false
 		m.message = "Failed to write metadata: " + msg.err.Error()
@@ -202,6 +214,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.message = msg.message
 	case editorFailedMsg:
 		m.message = "Editor failed: " + msg.err.Error()
+	case recentLoadedMsg:
+		if m.recentByPath == nil {
+			m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		}
+		if msg.err == nil {
+			m.recentByPath[msg.path] = msg.commits
+		}
 	}
 	return m, nil
 }
@@ -223,7 +242,7 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.search += string(msg.Runes)
 	}
 	m.clampSelection()
-	return m, nil
+	return m, m.loadSelectedRecent()
 }
 
 func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -436,6 +455,12 @@ type editorFailedMsg struct {
 	err error
 }
 
+type recentLoadedMsg struct {
+	path    string
+	commits []ovwformat.RecentCommit
+	err     error
+}
+
 func (m Model) loadOverview() tea.Cmd {
 	return m.reloadOverview("", "")
 }
@@ -497,6 +522,36 @@ func (m Model) openSelectedProject() tea.Cmd {
 		}
 		return editorOpenedMsg{message: "Opened " + project.Name}
 	}
+}
+
+func (m Model) loadSelectedRecent() tea.Cmd {
+	if !m.showInlineDetail() {
+		return nil
+	}
+	project, ok := m.currentProject()
+	if !ok || !project.Activity.HasGit || !project.Activity.HasCommits {
+		return nil
+	}
+	if _, ok := m.recentByPath[project.Path]; ok {
+		return nil
+	}
+	path := project.Path
+	loader := m.recent
+	if loader == nil {
+		loader = loadRecentCommits
+	}
+	return func() tea.Msg {
+		commits, err := loader(path, time.Now())
+		return recentLoadedMsg{path: path, commits: commits, err: err}
+	}
+}
+
+func loadRecentCommits(path string, now time.Time) ([]ovwformat.RecentCommit, error) {
+	commits, err := gitactivity.Recent(path, 3)
+	if err != nil {
+		return nil, err
+	}
+	return ovwformat.RecentCommits(commits, now), nil
 }
 
 type errNoProjectSelected struct{}
@@ -564,6 +619,9 @@ func (m Model) tablePanel(visible []project.Project) string {
 			tableWidth = contentWidth
 		} else {
 			detail, _ := m.currentProject()
+			if commits, ok := m.recentByPath[detail.Path]; ok {
+				detail.Activity.RecentCommits = commits
+			}
 			return joinColumns(
 				tableView(visible, m.selected, tableWidth, tableHeight),
 				detailSummaryView(detail, detailWidth),

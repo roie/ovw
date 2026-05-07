@@ -17,6 +17,12 @@ type Info struct {
 	HasCommits        bool
 }
 
+type CommitInfo struct {
+	Hash    string
+	Subject string
+	At      time.Time
+}
+
 func Detect(path string) Info {
 	info := Info{}
 	if _, err := run(path, "rev-parse", "--git-dir"); err != nil {
@@ -48,6 +54,41 @@ func Detect(path string) Info {
 		}
 	}
 	return info
+}
+
+func Recent(path string, limit int) ([]CommitInfo, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	commits, err := run(path, "log", "-"+strconv.Itoa(limit), "--format=%h%x09%ct%x09%s")
+	if err != nil {
+		return nil, err
+	}
+	return parseRecentCommits(commits), nil
+}
+
+func parseRecentCommits(value string) []CommitInfo {
+	lines := strings.Split(strings.TrimSpace(value), "\n")
+	commits := []CommitInfo{}
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		seconds, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			continue
+		}
+		commits = append(commits, CommitInfo{
+			Hash:    strings.TrimSpace(parts[0]),
+			Subject: strings.TrimSpace(parts[2]),
+			At:      time.Unix(seconds, 0),
+		})
+	}
+	return commits
 }
 
 func run(path string, args ...string) (string, error) {

@@ -78,6 +78,7 @@ func detailSummaryView(project project.Project, width int) string {
 		addSummaryLine("Manager", strings.Join(project.Managers, ", "))
 	}
 	addSummaryNote(&lines, project.Note.Display, width)
+	addRecentCommits(&lines, project.Activity.RecentCommits, width)
 	return strings.Join(lines, "\n")
 }
 
@@ -90,6 +91,32 @@ func addSummaryNote(lines *[]string, note string, width int) {
 	}
 	*lines = append(*lines, truncateText("Note", width))
 	*lines = append(*lines, wrapText(note, width)...)
+}
+
+func addRecentCommits(lines *[]string, commits []ovwformat.RecentCommit, width int) {
+	if len(commits) == 0 {
+		return
+	}
+	if len(*lines) > 1 {
+		*lines = append(*lines, "")
+	}
+	*lines = append(*lines, truncateText("Recent", width))
+	for _, commit := range commits {
+		*lines = append(*lines, recentCommitLine(commit, width))
+	}
+}
+
+func recentCommitLine(commit ovwformat.RecentCommit, width int) string {
+	if width <= 0 {
+		return commit.Hash + "  " + commit.Subject + "  " + commit.Age
+	}
+	fixedWidth := len([]rune(commit.Hash)) + len([]rune(commit.Age)) + 4
+	subjectWidth := width - fixedWidth
+	if subjectWidth < 4 {
+		return truncateText(commit.Hash+"  "+commit.Subject+"  "+commit.Age, width)
+	}
+	subject := truncateText(commit.Subject, subjectWidth)
+	return fmt.Sprintf("%s  %-*s  %s", commit.Hash, subjectWidth, subject, commit.Age)
 }
 
 func shortPath(path string) string {

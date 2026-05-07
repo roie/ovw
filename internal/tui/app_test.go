@@ -92,6 +92,79 @@ func TestModelLoadsOverviewData(t *testing.T) {
 	}
 }
 
+func TestModelLoadsRecentCommitsOnlyForWideSidepane(t *testing.T) {
+	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
+		return app.OverviewResult{
+			Config: config.Default(),
+			Projects: []project.Project{
+				{
+					Name:         "app",
+					Path:         "/tmp/app",
+					StackDisplay: "Go",
+					Activity: ovwformat.ActivityInfo{
+						Display:    "12m",
+						HasGit:     true,
+						HasCommits: true,
+					},
+				},
+			},
+		}, nil
+	})
+	model.width = 140
+	model.height = 24
+	model.recent = func(path string, now time.Time) ([]ovwformat.RecentCommit, error) {
+		if path != "/tmp/app" {
+			t.Fatalf("recent path = %q, want /tmp/app", path)
+		}
+		return []ovwformat.RecentCommit{{Hash: "abc1234", Subject: "fix lazy recent", Age: "2m"}}, nil
+	}
+
+	updated, cmd := model.Update(model.Init()())
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected lazy recent commit command for wide sidepane")
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+
+	view := stripANSI(model.View())
+	for _, want := range []string{"Recent", "abc1234", "fix lazy recent", "2m"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("wide sidepane missing %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestModelDoesNotLoadRecentCommitsForNarrowLayout(t *testing.T) {
+	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
+		return app.OverviewResult{
+			Config: config.Default(),
+			Projects: []project.Project{
+				{
+					Name: "app",
+					Path: "/tmp/app",
+					Activity: ovwformat.ActivityInfo{
+						Display:    "12m",
+						HasGit:     true,
+						HasCommits: true,
+					},
+				},
+			},
+		}, nil
+	})
+	model.width = 80
+	model.height = 24
+	model.recent = func(path string, now time.Time) ([]ovwformat.RecentCommit, error) {
+		t.Fatalf("recent loader should not run for narrow layout")
+		return nil, nil
+	}
+
+	_, cmd := model.Update(model.Init()())
+	if cmd != nil {
+		t.Fatal("expected no lazy recent command for narrow layout")
+	}
+}
+
 func TestModelStoresLoadError(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{}, errors.New("boom")

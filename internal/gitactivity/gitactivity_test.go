@@ -80,6 +80,37 @@ func TestDetectUnpushed(t *testing.T) {
 	}
 }
 
+func TestDetectRecentCommitsCapsAtThree(t *testing.T) {
+	dir := gitRepo(t)
+	for _, subject := range []string{"first", "second", "third", "fourth"} {
+		if err := os.WriteFile(filepath.Join(dir, subject+".txt"), []byte(subject), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git(t, dir, "add", subject+".txt")
+		git(t, dir, "commit", "-m", subject)
+	}
+
+	commits, err := Recent(dir, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) != 3 {
+		t.Fatalf("Recent len = %d commits=%#v", len(commits), commits)
+	}
+	for index, want := range []string{"fourth", "third", "second"} {
+		got := commits[index]
+		if got.Subject != want {
+			t.Fatalf("RecentCommits[%d].Subject = %q, want %q", index, got.Subject, want)
+		}
+		if got.Hash == "" {
+			t.Fatalf("RecentCommits[%d].Hash is empty", index)
+		}
+		if got.At.IsZero() {
+			t.Fatalf("RecentCommits[%d].At is zero", index)
+		}
+	}
+}
+
 func gitRepo(t *testing.T) string {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {

@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 	"testing"
+
+	ovwformat "ovw/internal/format"
 )
 
 func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
@@ -63,6 +65,37 @@ func TestDetailSummaryPreservesNoteNewlines(t *testing.T) {
 	}
 	if !strings.Contains(got, "check after deploy\n\nsecond paragraph") {
 		t.Fatalf("detail summary did not preserve blank line:\n%s", got)
+	}
+}
+
+func TestDetailSummaryShowsRecentCommits(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.Activity.RecentCommits = []ovwformat.RecentCommit{
+		{Hash: "abc1234", Subject: "fix modal surface", Age: "12m"},
+		{Hash: "def5678", Subject: "add recent sidepane", Age: "2h"},
+	}
+
+	got := stripANSI(detailSummaryView(project, 60))
+	for _, want := range []string{
+		"Recent",
+		"abc1234  fix modal surface",
+		"12m",
+		"def5678  add recent sidepane",
+		"2h",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("detail summary missing recent commit %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestDetailSummaryHidesRecentCommitsWhenEmpty(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.Activity.RecentCommits = nil
+
+	got := stripANSI(detailSummaryView(project, 60))
+	if strings.Contains(got, "Recent") {
+		t.Fatalf("detail summary should hide empty recent commits:\n%s", got)
 	}
 }
 

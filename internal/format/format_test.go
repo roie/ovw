@@ -39,6 +39,25 @@ func TestActivityDisplayHonorsDisabledFlags(t *testing.T) {
 	}
 }
 
+func TestActivityFormatsRecentCommits(t *testing.T) {
+	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
+	commits := []gitactivity.CommitInfo{
+		{Hash: "abc1234", Subject: "fix modal", At: now.Add(-10 * time.Minute)},
+		{Hash: "def5678", Subject: "add sidepane", At: now.Add(-2 * time.Hour)},
+	}
+
+	got := RecentCommits(commits, now)
+	if len(got) != 2 {
+		t.Fatalf("RecentCommits len = %d", len(got))
+	}
+	if got[0].Hash != "abc1234" || got[0].Subject != "fix modal" || got[0].Age != "10m" {
+		t.Fatalf("RecentCommits[0] = %#v", got[0])
+	}
+	if got[1].Age != "2h" {
+		t.Fatalf("RecentCommits[1] = %#v", got[1])
+	}
+}
+
 func TestRelativeAgeUsesMinutesAndHours(t *testing.T) {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
 	cases := []struct {

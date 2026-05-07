@@ -10,15 +10,22 @@ import (
 )
 
 type ActivityInfo struct {
-	Display           string    `json:"display"`
-	LastCommitAge     string    `json:"last_commit_age"`
-	LastCommitAt      time.Time `json:"last_commit_at"`
-	LastCommitMessage string    `json:"last_commit_message"`
-	Unpushed          int       `json:"unpushed"`
-	Dirty             bool      `json:"dirty"`
-	Branch            string    `json:"branch"`
-	HasGit            bool      `json:"has_git"`
-	HasCommits        bool      `json:"has_commits"`
+	Display           string         `json:"display"`
+	LastCommitAge     string         `json:"last_commit_age"`
+	LastCommitAt      time.Time      `json:"last_commit_at"`
+	LastCommitMessage string         `json:"last_commit_message"`
+	RecentCommits     []RecentCommit `json:"-"`
+	Unpushed          int            `json:"unpushed"`
+	Dirty             bool           `json:"dirty"`
+	Branch            string         `json:"branch"`
+	HasGit            bool           `json:"has_git"`
+	HasCommits        bool           `json:"has_commits"`
+}
+
+type RecentCommit struct {
+	Hash    string
+	Subject string
+	Age     string
 }
 
 type NoteInfo struct {
@@ -51,6 +58,18 @@ func Activity(info gitactivity.Info, cfg config.Config, now time.Time) ActivityI
 		parts = append(parts, fmt.Sprintf("↑%d", info.Unpushed))
 	}
 	out.Display = strings.Join(parts, " ")
+	return out
+}
+
+func RecentCommits(commits []gitactivity.CommitInfo, now time.Time) []RecentCommit {
+	out := make([]RecentCommit, 0, len(commits))
+	for _, commit := range commits {
+		out = append(out, RecentCommit{
+			Hash:    commit.Hash,
+			Subject: commit.Subject,
+			Age:     RelativeAge(commit.At, now),
+		})
+	}
 	return out
 }
 
