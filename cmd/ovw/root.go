@@ -2,6 +2,7 @@ package ovw
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,11 +14,17 @@ import (
 	"ovw/internal/metadata"
 	"ovw/internal/project"
 	"ovw/internal/render"
+	"ovw/internal/tui"
 
 	"github.com/spf13/cobra"
 )
 
 const version = "0.1.0"
+
+var (
+	interactiveTerminal = streamsAreTerminal
+	runTUI              = tui.Run
+)
 
 func NewRootCommand() *cobra.Command {
 	opts := app.Options{}
@@ -43,6 +50,12 @@ func NewRootCommand() *cobra.Command {
 			opts.Cwd = cwd
 			opts.In = cmd.InOrStdin()
 			opts.Out = cmd.OutOrStdout()
+			if !opts.Plain && !opts.JSON && interactiveTerminal(opts.In, opts.Out) {
+				if _, _, err := app.EnsureConfig(opts); err != nil {
+					return err
+				}
+				return runTUI()
+			}
 			return app.Run(opts)
 		},
 	}
@@ -65,6 +78,26 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(newConfigCommand())
 	cmd.AddCommand(newShowCommand())
 	return cmd
+}
+
+func streamsAreTerminal(in io.Reader, out io.Writer) bool {
+	inFile, ok := in.(*os.File)
+	if !ok {
+		return false
+	}
+	outFile, ok := out.(*os.File)
+	if !ok {
+		return false
+	}
+	return isTerminalFile(inFile) && isTerminalFile(outFile)
+}
+
+func isTerminalFile(file *os.File) bool {
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
 }
 
 func rootUsageTemplate() string {

@@ -75,11 +75,7 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	if opts.Out == nil {
 		opts.Out = io.Discard
 	}
-	paths, err := config.Paths()
-	if err != nil {
-		return OverviewResult{}, err
-	}
-	cfg, _, err := config.Ensure(paths.Config, opts.Cwd, opts.In, firstRunWriter(opts))
+	paths, cfg, err := EnsureConfig(opts)
 	if err != nil {
 		return OverviewResult{}, err
 	}
@@ -119,6 +115,21 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 		Projects: filtered,
 		Elapsed:  time.Since(start),
 	}, nil
+}
+
+func EnsureConfig(opts Options) (config.FilePaths, config.Config, error) {
+	if opts.Out == nil {
+		opts.Out = io.Discard
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		return config.FilePaths{}, config.Config{}, err
+	}
+	cfg, _, err := config.Ensure(paths.Config, opts.Cwd, opts.In, firstRunWriter(opts))
+	if err != nil {
+		return config.FilePaths{}, config.Config{}, err
+	}
+	return paths, cfg, nil
 }
 
 func LoadState() (State, error) {

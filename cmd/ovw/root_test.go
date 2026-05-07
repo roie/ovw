@@ -2,6 +2,7 @@ package ovw
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -124,6 +125,71 @@ func TestRuntimeErrorsDoNotPrintUsage(t *testing.T) {
 	}
 	if strings.Contains(out, "Usage:") || strings.Contains(out, "Commands:") {
 		t.Fatalf("runtime error printed usage:\n%s", out)
+	}
+}
+
+func TestInteractiveBareCommandRunsTUI(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	configForTest(t, root)
+	tuiCalled := false
+	withTerminalRouting(t, true, func() error {
+		tuiCalled = true
+		return nil
+	})
+
+	out, err := executeCommand(nil)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !tuiCalled {
+		t.Fatal("expected TUI runner to be called")
+	}
+	if out != "" {
+		t.Fatalf("interactive TUI route wrote plain output: %q", out)
+	}
+}
+
+func TestNonInteractiveBareCommandUsesPlainTable(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	configForTest(t, root)
+	withTerminalRouting(t, false, func() error {
+		t.Fatal("TUI runner should not be called")
+		return nil
+	})
+
+	out, err := executeCommand(nil)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(out, "app") {
+		t.Fatalf("plain output missing project: %q", out)
+	}
+}
+
+func TestInteractivePlainJSONAndProjectSkipTUI(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	configForTest(t, root)
+	withTerminalRouting(t, true, func() error {
+		t.Fatal("TUI runner should not be called")
+		return nil
+	})
+
+	for _, args := range [][]string{
+		{"--plain"},
+		{"--json"},
+		{"app"},
+	} {
+		if _, err := executeCommand(args); err != nil {
+			t.Fatalf("Execute(%v) error = %v", args, err)
+		}
 	}
 }
 
@@ -570,6 +636,20 @@ func executeCommand(args []string) (string, error) {
 	return out.String(), err
 }
 
+func withTerminalRouting(t *testing.T, interactive bool, runner func() error) {
+	t.Helper()
+	previousTerminal := interactiveTerminal
+	previousRunner := runTUI
+	interactiveTerminal = func(_ io.Reader, _ io.Writer) bool {
+		return interactive
+	}
+	runTUI = runner
+	t.Cleanup(func() {
+		interactiveTerminal = previousTerminal
+		runTUI = previousRunner
+	})
+}
+
 func mustAppearInOrder(t *testing.T, text string, values []string) {
 	t.Helper()
 	offset := 0
@@ -594,4 +674,14 @@ func configForTest(t *testing.T, root string) string {
 		t.Fatal(err)
 	}
 	return paths.Config
+}
+
+func writePackage(t *testing.T, dir, data string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
