@@ -117,6 +117,16 @@ func TestVersionOutput(t *testing.T) {
 	}
 }
 
+func TestRuntimeErrorsDoNotPrintUsage(t *testing.T) {
+	out, err := executeCommand([]string{"missing-project"})
+	if err == nil {
+		t.Fatal("expected missing project error")
+	}
+	if strings.Contains(out, "Usage:") || strings.Contains(out, "Commands:") {
+		t.Fatalf("runtime error printed usage:\n%s", out)
+	}
+}
+
 func TestConfigPathCommand(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -349,6 +359,9 @@ func TestSetRequiresStatusOrNote(t *testing.T) {
 	_, err := executeCommand([]string{"set", "manual"})
 	if err == nil || !strings.Contains(err.Error(), "pass --status or --note") {
 		t.Fatalf("set without fields error = %v", err)
+	}
+	if out, _ := executeCommand([]string{"set", "manual"}); strings.Contains(out, "Usage:") {
+		t.Fatalf("set without fields printed usage:\n%s", out)
 	}
 }
 

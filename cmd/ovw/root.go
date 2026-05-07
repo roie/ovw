@@ -24,10 +24,12 @@ func NewRootCommand() *cobra.Command {
 	opts := app.Options{}
 	cobra.EnableCommandSorting = false
 	cmd := &cobra.Command{
-		Use:     "ovw",
-		Short:   "A terminal overview for your local projects",
-		Version: version,
-		Args:    cobra.MaximumNArgs(1),
+		Use:           "ovw",
+		Short:         "A terminal overview for your local projects",
+		Version:       version,
+		Args:          cobra.MaximumNArgs(1),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		CompletionOptions: cobra.CompletionOptions{
 			HiddenDefaultCmd: true,
 		},
