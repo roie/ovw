@@ -98,6 +98,29 @@ func TestTableWidthTruncatesNoteAndSeparator(t *testing.T) {
 	}
 }
 
+func TestTableSupportsManagerColumn(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "stack", "manager", "activity", "status", "note"}
+	projects := []project.Project{{
+		Name:         "desktop",
+		Path:         "/tmp/desktop",
+		StackDisplay: "SvelteKit",
+		Managers:     []string{"pnpm", "cargo"},
+		Activity:     format.ActivityInfo{Display: "1h"},
+	}}
+
+	var out bytes.Buffer
+	if err := TableWithWidth(&out, projects, cfg, 100*time.Millisecond, 120); err != nil {
+		t.Fatalf("TableWithWidth() error = %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"Manager", "desktop", "pnpm, cargo"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("table missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestJSONOutputsPureArray(t *testing.T) {
 	lastCommitAt := time.Date(2026, 5, 6, 18, 10, 35, 0, time.FixedZone("EDT", -4*60*60))
 	projects := []project.Project{{
@@ -105,6 +128,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		Path:         "/tmp/eventca",
 		Stack:        []string{"Go"},
 		StackDisplay: "Go",
+		Managers:     []string{"go modules"},
 		Activity: format.ActivityInfo{
 			Display:           "1d !",
 			LastCommitAge:     "1d",
@@ -145,6 +169,10 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	}
 	if note, ok := item["note"].(string); !ok || note != "note" {
 		t.Fatalf("note = %#v, want string note\n%s", item["note"], out.String())
+	}
+	managers, ok := item["managers"].([]any)
+	if !ok || len(managers) != 1 || managers[0] != "go modules" {
+		t.Fatalf("managers = %#v, want go modules\n%s", item["managers"], out.String())
 	}
 	tags, ok := item["tags"].([]any)
 	if !ok || len(tags) != 3 || tags[0] != "dirty" || tags[1] != "unpushed" || tags[2] != "active" {

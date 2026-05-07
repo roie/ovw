@@ -59,6 +59,19 @@ func TestDetectLanguageFiles(t *testing.T) {
 	}
 }
 
+func TestDetectDoesNotTreatBunAsStack(t *testing.T) {
+	dir := t.TempDir()
+	touch(t, filepath.Join(dir, "bun.lock"))
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if result.Display != "Unknown" {
+		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
+	}
+}
+
 func TestDetectNodeFallback(t *testing.T) {
 	dir := t.TempDir()
 	writePackage(t, dir, `{"dependencies":{"left-pad":"latest"}}`)

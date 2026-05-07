@@ -10,6 +10,7 @@ import (
 	"ovw/internal/filter"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/gitactivity"
+	"ovw/internal/manager"
 	"ovw/internal/metadata"
 	"ovw/internal/project"
 	"ovw/internal/render"
@@ -92,6 +93,7 @@ func Run(opts Options) error {
 
 func Enrich(scanned scanner.Project, cfg config.Config, cacheStore cache.Store, now time.Time) (project.Project, cache.Project) {
 	stackResult, _ := stack.Detect(scanned.Path, cfg.Stack)
+	managers := manager.Detect(scanned.Path)
 	gitInfo := gitactivity.Detect(scanned.Path)
 	cached := cacheStore.Projects[scanned.Path]
 	description := cached.Description
@@ -106,6 +108,7 @@ func Enrich(scanned scanner.Project, cfg config.Config, cacheStore cache.Store, 
 			Path:         scanned.Path,
 			Stack:        stackResult.Labels,
 			StackDisplay: stackResult.Display,
+			Managers:     managers,
 			Activity:     activity,
 			Tags:         tags,
 			Status:       scanned.Status,

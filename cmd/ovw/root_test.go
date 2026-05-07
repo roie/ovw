@@ -397,6 +397,7 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 	for _, unwanted := range []string{
 		"State",
 		"StackRaw",
+		"Managers",
 		"ActivityDisplay",
 		"LastCommitAge",
 		"LastCommitAt",
@@ -463,7 +464,7 @@ func TestRootArgShowsSingleProject(t *testing.T) {
 	if !strings.HasPrefix(out, "scanned\n") {
 		t.Fatalf("root project output missing title = %q", out)
 	}
-	for _, want := range []string{"Stack     Go", "Status    active", "Note      working"} {
+	for _, want := range []string{"Stack     Go", "Manager   go modules", "Status    active", "Note      working"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("root project output missing %q: %s", want, out)
 		}
@@ -494,6 +495,9 @@ func TestRootArgShowsSingleProjectJSON(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("root project json missing %q: %s", want, out)
 		}
+	}
+	if !strings.Contains(out, `"managers":`) || !strings.Contains(out, `"go modules"`) {
+		t.Fatalf("root project json missing managers: %s", out)
 	}
 	if !strings.Contains(out, `"path": "`+filepath.Join(root, "scanned")+`"`) {
 		t.Fatalf("root project json should keep absolute path: %s", out)

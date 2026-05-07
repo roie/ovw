@@ -453,6 +453,7 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 	fmt.Fprintf(out, "%s\n", filepath.Base(path))
 	fmt.Fprintf(out, "Path      %s\n", displayPath(path))
 	fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
+	fmt.Fprintf(out, "Manager   %s\n", managerDisplay(enriched.Managers))
 	fmt.Fprintf(out, "Status    %s\n", ovwformat.TagDisplay(enriched.Tags))
 	fmt.Fprintf(out, "Note      %s\n", enriched.Note.Display)
 	if enriched.Activity.HasGit && enriched.Activity.Branch != "" {
@@ -526,6 +527,13 @@ func showTime(value time.Time) string {
 		return ""
 	}
 	return value.Format("2006-01-02 15:04")
+}
+
+func managerDisplay(managers []string) string {
+	if len(managers) == 0 {
+		return "—"
+	}
+	return strings.Join(managers, ", ")
 }
 
 func detailActivity(project project.Project) string {

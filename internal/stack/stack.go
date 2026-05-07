@@ -40,7 +40,6 @@ var Rules = []Rule{
 	{Name: "Go", Files: []string{"go.mod"}},
 	{Name: "Python", Files: []string{"pyproject.toml", "requirements.txt"}},
 	{Name: "Deno", Files: []string{"deno.json", "deno.jsonc"}},
-	{Name: "Bun", Files: []string{"bun.lock"}},
 }
 
 func Detect(path string, cfg config.StackConfig) (Result, error) {
