@@ -42,6 +42,30 @@ func TestDetailSummaryWrapsNote(t *testing.T) {
 	}
 }
 
+func TestDetailSummaryPreservesNoteNewlines(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.Note.Display = "blocked by API auth\ncheck after deploy\n\nsecond paragraph wraps here"
+
+	got := stripANSI(detailSummaryView(project, 24))
+
+	for _, want := range []string{
+		"blocked by API auth",
+		"check after deploy",
+		"second paragraph wraps",
+		"here",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("detail summary note missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "auth check") {
+		t.Fatalf("detail summary collapsed explicit newline:\n%s", got)
+	}
+	if !strings.Contains(got, "check after deploy\n\nsecond paragraph") {
+		t.Fatalf("detail summary did not preserve blank line:\n%s", got)
+	}
+}
+
 func TestShortPathUsesHomePrefix(t *testing.T) {
 	t.Setenv("HOME", "/home/roie")
 

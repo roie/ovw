@@ -113,7 +113,19 @@ func detailLine(label, value string) string {
 }
 
 func wrapText(value string, width int) []string {
-	if width <= 0 || len([]rune(value)) <= width {
+	if width <= 0 {
+		return []string{value}
+	}
+	paragraphs := strings.Split(value, "\n")
+	lines := []string{}
+	for _, paragraph := range paragraphs {
+		lines = append(lines, wrapTextLine(paragraph, width)...)
+	}
+	return lines
+}
+
+func wrapTextLine(value string, width int) []string {
+	if len([]rune(value)) <= width {
 		return []string{value}
 	}
 	words := strings.Fields(value)
