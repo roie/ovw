@@ -94,14 +94,15 @@ type tableRow struct {
 }
 
 type jsonProject struct {
-	Name     string       `json:"name"`
-	Path     string       `json:"path"`
-	Stack    []string     `json:"stack"`
-	Managers []string     `json:"managers"`
-	Tags     []string     `json:"tags"`
-	Status   string       `json:"status"`
-	Note     string       `json:"note"`
-	Activity jsonActivity `json:"activity"`
+	Name        string       `json:"name"`
+	Path        string       `json:"path"`
+	Stack       []string     `json:"stack"`
+	Managers    []string     `json:"managers"`
+	Activity    jsonActivity `json:"activity"`
+	Tags        []string     `json:"tags"`
+	Status      string       `json:"status"`
+	Description string       `json:"description,omitempty"`
+	Note        string       `json:"note"`
 }
 
 type jsonActivity struct {
@@ -127,14 +128,15 @@ func newJSONProject(project project.Project) jsonProject {
 		activity.LastCommitAt = &project.Activity.LastCommitAt
 	}
 	return jsonProject{
-		Name:     project.Name,
-		Path:     project.Path,
-		Stack:    project.Stack,
-		Managers: project.Managers,
-		Tags:     project.Status.Tags,
-		Status:   project.Status.Value,
-		Note:     project.Note.Display,
-		Activity: activity,
+		Name:        project.Name,
+		Path:        project.Path,
+		Stack:       project.Stack,
+		Managers:    project.Managers,
+		Activity:    activity,
+		Tags:        project.Status.Tags,
+		Status:      project.Status.Value,
+		Description: project.Description,
+		Note:        project.Note.Display,
 	}
 }
 

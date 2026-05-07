@@ -511,6 +511,13 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 	if !bytes.Contains([]byte(show), []byte("Stack     Go")) {
 		t.Fatalf("show output missing stack detail = %q", show)
 	}
+	mustAppearInOrder(t, show, []string{
+		"Path",
+		"Stack",
+		"Manager",
+		"Activity",
+		"Status",
+	})
 	for _, unwanted := range []string{
 		"State",
 		"StackRaw",
@@ -519,8 +526,10 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 		"LastCommitAge",
 		"LastCommitAt",
 		"LastCommitMessage",
+		"Last commit",
 		"Unpushed",
 		"Dirty",
+		"Git",
 		"NoteSource",
 		"Manual",
 		"Hidden",

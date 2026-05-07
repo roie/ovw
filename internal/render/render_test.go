@@ -161,10 +161,11 @@ func TestJSONOutputsPureArray(t *testing.T) {
 			HasGit:            true,
 			HasCommits:        true,
 		},
-		Status: format.StatusFromTags("active", []string{"dirty", "unpushed", "active"}),
-		Note:   format.NoteInfo{Display: "note", Source: "user", Value: "note"},
-		Manual: true,
-		Hidden: true,
+		Status:      format.StatusFromTags("active", []string{"dirty", "unpushed", "active"}),
+		Description: "Project description",
+		Note:        format.NoteInfo{Display: "note", Source: "user", Value: "note"},
+		Manual:      true,
+		Hidden:      true,
 	}}
 	var out bytes.Buffer
 	if err := JSON(&out, projects); err != nil {
@@ -190,6 +191,9 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	if note, ok := item["note"].(string); !ok || note != "note" {
 		t.Fatalf("note = %#v, want string note\n%s", item["note"], out.String())
 	}
+	if description, ok := item["description"].(string); !ok || description != "Project description" {
+		t.Fatalf("description = %#v, want Project description\n%s", item["description"], out.String())
+	}
 	managers, ok := item["managers"].([]any)
 	if !ok || len(managers) != 1 || managers[0] != "go modules" {
 		t.Fatalf("managers = %#v, want go modules\n%s", item["managers"], out.String())
@@ -214,5 +218,28 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	}
 	if activity["last_commit_message"] != "feat: add overview" || activity["branch"] != "main" || activity["dirty"] != true {
 		t.Fatalf("activity = %#v", activity)
+	}
+	mustAppearInOrder(t, out.String(), []string{
+		`"name":`,
+		`"path":`,
+		`"stack":`,
+		`"managers":`,
+		`"activity":`,
+		`"tags":`,
+		`"status":`,
+		`"description":`,
+		`"note":`,
+	})
+}
+
+func mustAppearInOrder(t *testing.T, text string, values []string) {
+	t.Helper()
+	offset := 0
+	for _, value := range values {
+		index := strings.Index(text[offset:], value)
+		if index < 0 {
+			t.Fatalf("value %q not found after offset %d:\n%s", value, offset, text)
+		}
+		offset += index + len(value)
 	}
 }

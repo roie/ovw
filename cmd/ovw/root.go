@@ -12,6 +12,7 @@ import (
 	"ovw/internal/config"
 	"ovw/internal/metadata"
 	"ovw/internal/project"
+	"ovw/internal/projectview"
 	"ovw/internal/render"
 	"ovw/internal/tui"
 
@@ -356,17 +357,13 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 		return render.ProjectJSON(out, enriched)
 	}
 	fmt.Fprintf(out, "%s\n", filepath.Base(path))
-	fmt.Fprintf(out, "Path      %s\n", displayPath(path))
-	fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
-	fmt.Fprintf(out, "Manager   %s\n", managerDisplay(enriched.Managers))
-	fmt.Fprintf(out, "Status    %s\n", enriched.Status.Display)
-	fmt.Fprintf(out, "Note      %s\n", enriched.Note.Display)
-	if enriched.Activity.HasGit && enriched.Activity.Branch != "" {
-		fmt.Fprintf(out, "Branch    %s\n", enriched.Activity.Branch)
-	}
-	fmt.Fprintf(out, "Activity  %s\n", detailActivity(enriched))
-	if enriched.Activity.HasGit && !enriched.Activity.LastCommitAt.IsZero() {
-		fmt.Fprintf(out, "Updated   %s\n", showTime(enriched.Activity.LastCommitAt))
+	fields := projectview.Fields(enriched, projectview.Options{
+		Path:     displayPath,
+		Time:     showTime,
+		Activity: projectview.DetailActivity,
+	})
+	for _, field := range fields {
+		fmt.Fprintf(out, "%-9s %s\n", field.Label, field.Value)
 	}
 	return nil
 }
@@ -378,25 +375,6 @@ func showTime(value time.Time) string {
 	return value.Format("2006-01-02 15:04")
 }
 
-func managerDisplay(managers []string) string {
-	if len(managers) == 0 {
-		return "—"
-	}
-	return strings.Join(managers, ", ")
-}
-
 func detailActivity(project project.Project) string {
-	activity := project.Activity
-	if !activity.HasGit || !activity.HasCommits {
-		return activity.Display
-	}
-	age := activity.LastCommitAge
-	if age != "now" {
-		age += " ago"
-	}
-	parts := []string{age}
-	if activity.Unpushed > 0 {
-		parts = append(parts, fmt.Sprintf("%d unpushed", activity.Unpushed))
-	}
-	return strings.Join(parts, " · ")
+	return projectview.DetailActivity(project)
 }
