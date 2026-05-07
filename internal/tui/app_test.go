@@ -694,6 +694,33 @@ func TestModelWideViewShowsInlineDetailPane(t *testing.T) {
 	}
 }
 
+func TestSplitDividerAlignsOnSelectedRows(t *testing.T) {
+	got := joinColumns(
+		strings.Join([]string{
+			"Name",
+			"\x1b[38;5;229;48;5;57mselected row\x1b[0m",
+			"next row",
+		}, "\n"),
+		strings.Join([]string{
+			"detail",
+			"Stack Go",
+			"Status dirty",
+		}, "\n"),
+		3,
+	)
+
+	lines := strings.Split(stripANSI(got), "\n")
+	want := strings.Index(lines[0], "│")
+	if want < 0 {
+		t.Fatalf("missing divider:\n%s", got)
+	}
+	for _, line := range lines[1:] {
+		if index := strings.Index(line, "│"); index != want {
+			t.Fatalf("divider index = %d, want %d:\n%s", index, want, got)
+		}
+	}
+}
+
 func TestModelNarrowViewKeepsDetailPaneHidden(t *testing.T) {
 	model := Model{
 		width:  80,

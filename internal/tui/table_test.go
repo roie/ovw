@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -106,3 +107,9 @@ func TestCompactTableViewDoesNotConsumeAllAvailableWidth(t *testing.T) {
 		t.Fatalf("compact separator width = %d, want <= 78:\n%s", len([]rune(lines[1])), got)
 	}
 }
+
+func stripANSI(value string) string {
+	return ansiPattern.ReplaceAllString(value, "")
+}
+
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)

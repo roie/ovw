@@ -11,6 +11,7 @@ import (
 	"ovw/internal/project"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type overviewLoader func(app.Options) (app.OverviewResult, error)
@@ -627,7 +628,7 @@ func joinColumns(left, right string, gap int) string {
 func maxLineWidth(lines []string) int {
 	width := 0
 	for _, line := range lines {
-		if lineWidth := len([]rune(line)); lineWidth > width {
+		if lineWidth := lipgloss.Width(line); lineWidth > width {
 			width = lineWidth
 		}
 	}
@@ -635,11 +636,11 @@ func maxLineWidth(lines []string) int {
 }
 
 func padRight(value string, width int) string {
-	runes := []rune(value)
-	if len(runes) >= width {
+	valueWidth := lipgloss.Width(value)
+	if valueWidth >= width {
 		return value
 	}
-	return value + strings.Repeat(" ", width-len(runes))
+	return value + strings.Repeat(" ", width-valueWidth)
 }
 
 func (m Model) currentProject() (project.Project, bool) {
