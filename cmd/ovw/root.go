@@ -27,7 +27,6 @@ func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ovw",
 		Short:   "A terminal overview for your local projects",
-		Example: "  ovw\n  ovw myproject\n  ovw myproject --json",
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		CompletionOptions: cobra.CompletionOptions{
@@ -49,11 +48,11 @@ func NewRootCommand() *cobra.Command {
 	}
 	cmd.SetUsageTemplate(rootUsageTemplate())
 	cmd.Flags().BoolVar(&opts.Plain, "plain", false, "force plain table output")
-	cmd.Flags().BoolVar(&opts.JSON, "json", false, "output JSON")
-	cmd.Flags().StringVar(&opts.Status, "status", "", "filter by status")
+	cmd.Flags().BoolVar(&opts.JSON, "json", false, "output JSON for overview or project")
+	cmd.Flags().StringVar(&opts.Status, "status", "", "filter by manual status")
 	cmd.Flags().BoolVar(&opts.Dirty, "dirty", false, "show dirty projects")
 	cmd.Flags().BoolVar(&opts.Stale, "stale", false, "show stale projects")
-	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show untagged projects")
+	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show projects without manual status")
 	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, name, or status")
 	cmd.AddCommand(newAddCommand())
 	cmd.AddCommand(newVisibilityCommand("hide", true))
@@ -72,11 +71,8 @@ func rootUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}} [project] [flags]
   {{.CommandPath}} [command]
-{{if .HasExample}}
-Examples:
-{{.Example}}
-{{end}}{{if .HasAvailableSubCommands}}
-Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+{{if .HasAvailableSubCommands}}
+Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}
 {{end}}{{if .HasAvailableLocalFlags}}
 Flags:

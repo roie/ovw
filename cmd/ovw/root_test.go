@@ -50,8 +50,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 	for _, want := range []string{
 		"A terminal overview for your local projects",
 		"ovw [project] [flags]",
-		"ovw myproject",
-		"ovw myproject --json",
+		"Commands:",
 		"add         Add a project manually",
 		"hide        Hide a project from ovw",
 		"unhide      Show a hidden project again",
@@ -60,6 +59,8 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"scan        Rescan configured roots",
 		"config      Manage ovw config",
 		"cache       Manage ovw cache",
+		"--json            output JSON for overview or project",
+		"--status string   filter by manual status",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("help output missing %q:\n%s", want, got)
@@ -73,6 +74,9 @@ func TestHelpTextDescriptions(t *testing.T) {
 	}
 	if strings.Contains(got, "completion  Generate") {
 		t.Fatalf("help output should hide completion command:\n%s", got)
+	}
+	if strings.Contains(got, "Examples:") || strings.Contains(got, "ovw myproject") {
+		t.Fatalf("help output should not include examples:\n%s", got)
 	}
 	mustAppearInOrder(t, got, []string{
 		"add         Add a project manually",
