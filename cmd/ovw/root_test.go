@@ -54,13 +54,15 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"remove      Hide a project from ovw without deleting files",
 		"scan        Rescan configured roots",
 		"set         Set project status or note",
-		"show        Show project details",
 		"unhide      Show a hidden project again",
 		"unset       Clear project status or note",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("help output missing %q:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "show        Show project details") {
+		t.Fatalf("help output should hide show alias:\n%s", got)
 	}
 }
 
@@ -308,6 +310,54 @@ func TestShowJSONOutputsSingleProject(t *testing.T) {
 	for _, unwanted := range []string{"stack_display", "manual", "hidden", "last_commit_age"} {
 		if strings.Contains(out, unwanted) {
 			t.Fatalf("show json contains internal field %q: %s", unwanted, out)
+		}
+	}
+}
+
+func TestRootArgShowsSingleProject(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(root, "scanned"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scanned", "go.mod"), []byte("module scanned"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, root)
+	runCommand(t, []string{"set", "scanned", "--status", "active", "--note", "working"})
+
+	out := runCommand(t, []string{"scanned"})
+	if !strings.HasPrefix(out, "scanned\n") {
+		t.Fatalf("root project output missing title = %q", out)
+	}
+	for _, want := range []string{"Stack     Go", "Status    active", "Note      working"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("root project output missing %q: %s", want, out)
+		}
+	}
+}
+
+func TestRootArgShowsSingleProjectJSON(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(root, "scanned"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scanned", "go.mod"), []byte("module scanned"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, root)
+
+	out := runCommand(t, []string{"--json", "scanned"})
+	trimmed := strings.TrimSpace(out)
+	if !strings.HasPrefix(trimmed, "{") || !strings.HasSuffix(trimmed, "}") {
+		t.Fatalf("root project json should be one object: %q", out)
+	}
+	for _, want := range []string{`"name": "scanned"`, `"stack":`, `"Go"`, `"activity":`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("root project json missing %q: %s", want, out)
 		}
 	}
 }

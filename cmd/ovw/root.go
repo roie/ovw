@@ -26,7 +26,11 @@ func NewRootCommand() *cobra.Command {
 		Use:     "ovw",
 		Short:   "A terminal overview for your local projects",
 		Version: version,
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				return runShow(cmd, args[0], opts.JSON)
+			}
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -365,52 +369,57 @@ func newUnsetCommand() *cobra.Command {
 func newShowCommand() *cobra.Command {
 	var jsonOutput bool
 	cmd := &cobra.Command{
-		Use:   "show <name>",
-		Short: "Show project details",
-		Args:  cobra.ExactArgs(1),
+		Use:    "show <name>",
+		Short:  "Show project details",
+		Hidden: true,
+		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths, cfg, store, err := commandState()
-			if err != nil {
-				return err
-			}
-			path, err := resolveProjectWithConfig(args[0], cfg, store)
-			if err != nil {
-				return err
-			}
-			cacheStore, err := cache.Load(paths.Cache)
-			if err != nil {
-				return err
-			}
-			entry := store.Projects[path]
-			enriched, _ := app.Enrich(scanner.Project{
-				Name:   filepath.Base(path),
-				Path:   path,
-				Manual: entry.Manual,
-				Hidden: entry.Hidden,
-				Status: entry.Status,
-				Note:   entry.Note,
-			}, cfg, cacheStore, time.Now())
-			out := cmd.OutOrStdout()
-			if jsonOutput {
-				return render.ProjectJSON(out, enriched)
-			}
-			fmt.Fprintf(out, "%s\n", filepath.Base(path))
-			fmt.Fprintf(out, "Path      %s\n", path)
-			fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
-			fmt.Fprintf(out, "Status    %s\n", enriched.Status)
-			fmt.Fprintf(out, "Note      %s\n", enriched.Note.Display)
-			if enriched.Activity.HasGit && enriched.Activity.Branch != "" {
-				fmt.Fprintf(out, "Branch    %s\n", enriched.Activity.Branch)
-			}
-			fmt.Fprintf(out, "Activity  %s\n", detailActivity(enriched))
-			if enriched.Activity.HasGit && !enriched.Activity.LastCommitAt.IsZero() {
-				fmt.Fprintf(out, "Updated   %s\n", showTime(enriched.Activity.LastCommitAt))
-			}
-			return nil
+			return runShow(cmd, args[0], jsonOutput)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON")
 	return cmd
+}
+
+func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
+	paths, cfg, store, err := commandState()
+	if err != nil {
+		return err
+	}
+	path, err := resolveProjectWithConfig(target, cfg, store)
+	if err != nil {
+		return err
+	}
+	cacheStore, err := cache.Load(paths.Cache)
+	if err != nil {
+		return err
+	}
+	entry := store.Projects[path]
+	enriched, _ := app.Enrich(scanner.Project{
+		Name:   filepath.Base(path),
+		Path:   path,
+		Manual: entry.Manual,
+		Hidden: entry.Hidden,
+		Status: entry.Status,
+		Note:   entry.Note,
+	}, cfg, cacheStore, time.Now())
+	out := cmd.OutOrStdout()
+	if jsonOutput {
+		return render.ProjectJSON(out, enriched)
+	}
+	fmt.Fprintf(out, "%s\n", filepath.Base(path))
+	fmt.Fprintf(out, "Path      %s\n", path)
+	fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
+	fmt.Fprintf(out, "Status    %s\n", enriched.Status)
+	fmt.Fprintf(out, "Note      %s\n", enriched.Note.Display)
+	if enriched.Activity.HasGit && enriched.Activity.Branch != "" {
+		fmt.Fprintf(out, "Branch    %s\n", enriched.Activity.Branch)
+	}
+	fmt.Fprintf(out, "Activity  %s\n", detailActivity(enriched))
+	if enriched.Activity.HasGit && !enriched.Activity.LastCommitAt.IsZero() {
+		fmt.Fprintf(out, "Updated   %s\n", showTime(enriched.Activity.LastCommitAt))
+	}
+	return nil
 }
 
 func commandState() (config.FilePaths, config.Config, metadata.Store, error) {
