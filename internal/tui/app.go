@@ -24,6 +24,8 @@ const (
 	screenFilter
 	screenSort
 	screenNote
+	screenStatus
+	screenStatusInput
 )
 
 type Model struct {
@@ -42,6 +44,8 @@ type Model struct {
 	sortSelected   int
 	activeSort     string
 	noteInput      string
+	statusSelected int
+	statusInput    string
 	message        string
 	loading        bool
 	loadErr        error
@@ -92,6 +96,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenNote {
 			return m.updateNote(msg)
 		}
+		if m.screen == screenStatus {
+			return m.updateStatusPicker(msg)
+		}
+		if m.screen == screenStatusInput {
+			return m.updateStatusInput(msg)
+		}
 		if isEscapeKey(msg.String()) && m.screen == screenDetail {
 			m.screen = screenTable
 			return m, nil
@@ -122,6 +132,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			project, _ := m.currentProject()
 			m.screen = screenNote
 			m.noteInput = project.Note.Manual
+			return m, nil
+		}
+		if isStatusKey(msg.String()) && m.canOpenDetail() {
+			m.screen = screenStatus
+			m.statusSelected = 0
 			return m, nil
 		}
 		if isDownKey(msg.String()) {
@@ -249,6 +264,57 @@ func (m Model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) updateStatusPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	options := m.statusOptions()
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+	case isDownKey(value):
+		if m.statusSelected < len(options)-1 {
+			m.statusSelected++
+		}
+	case isUpKey(value):
+		if m.statusSelected > 0 {
+			m.statusSelected--
+		}
+	case isEnterKey(value):
+		option := options[m.statusSelected]
+		switch option.Kind {
+		case statusOptionCustom:
+			m.screen = screenStatusInput
+			m.statusInput = ""
+		case statusOptionClear:
+			m.screen = screenTable
+			m.loading = true
+			return m, m.saveStatus("", "Status cleared")
+		default:
+			m.screen = screenTable
+			m.loading = true
+			return m, m.saveStatus(option.Value, "Status saved")
+		}
+	}
+	return m, nil
+}
+
+func (m Model) updateStatusInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+	case isEnterKey(value):
+		m.screen = screenTable
+		m.loading = true
+		return m, m.saveStatus(m.statusInput, "Status saved")
+	case isBackspaceKey(value):
+		runes := []rune(m.statusInput)
+		if len(runes) > 0 {
+			m.statusInput = string(runes[:len(runes)-1])
+		}
+	case msg.Type == tea.KeyRunes:
+		m.statusInput += string(msg.Runes)
+	}
+	return m, nil
+}
+
 func (m Model) View() string {
 	return renderShell(m)
 }
@@ -342,6 +408,23 @@ func (m Model) saveNote() tea.Cmd {
 	}
 }
 
+func (m Model) saveStatus(status, message string) tea.Cmd {
+	project, ok := m.currentProject()
+	return func() tea.Msg {
+		if !ok {
+			return metadataFailedMsg{err: errNoProjectSelected{}}
+		}
+		if _, err := m.updater(project.Path, app.MetadataUpdate{Status: &status}); err != nil {
+			return metadataFailedMsg{err: err}
+		}
+		result, err := m.loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		return metadataSavedMsg{message: message, result: result}
+	}
+}
+
 type errNoProjectSelected struct{}
 
 func (errNoProjectSelected) Error() string {
@@ -384,6 +467,10 @@ func renderShell(m Model) string {
 			body += "\n\n" + sortView(sortOptions(), m.sortSelected)
 		} else if m.screen == screenNote {
 			body += "\n\n" + noteView(m.noteInput)
+		} else if m.screen == screenStatus {
+			body += "\n\n" + statusView(m.statusOptions(), m.statusSelected)
+		} else if m.screen == screenStatusInput {
+			body += "\n\n" + statusInputView(m.statusInput)
 		} else if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
 		} else {

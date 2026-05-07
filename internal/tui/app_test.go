@@ -415,6 +415,112 @@ func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 	}
 }
 
+func TestModelStatusPickerSavesConfiguredStatus(t *testing.T) {
+	var savedStatus string
+	cfg := config.Default()
+	cfg.Statuses = []string{"parked", "shipped"}
+	model := Model{
+		config: cfg,
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: cfg, Projects: []project.Project{{Name: "app", Path: "/tmp/app", Status: savedStatus}}}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			if update.Status == nil {
+				t.Fatal("status update was nil")
+			}
+			savedStatus = *update.Status
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	model = updateKey(t, model, "m")
+	if model.screen != screenStatus {
+		t.Fatalf("screen = %v, want status", model.screen)
+	}
+	if !strings.Contains(model.View(), "parked") {
+		t.Fatalf("status view missing parked:\n%s", model.View())
+	}
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected status save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if savedStatus != "parked" {
+		t.Fatalf("savedStatus = %q, want parked", savedStatus)
+	}
+	if model.message != "Status saved" {
+		t.Fatalf("message = %q, want Status saved", model.message)
+	}
+}
+
+func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
+	var savedStatus string
+	model := Model{
+		config: config.Default(),
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: config.Default()}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			savedStatus = *update.Status
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects:       []project.Project{{Name: "app", Path: "/tmp/app"}},
+		screen:         screenStatus,
+		statusSelected: len(config.Default().Statuses),
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenStatusInput {
+		t.Fatalf("screen = %v, want status input", model.screen)
+	}
+	for _, value := range []string{"b", "l", "o", "c", "k", "e", "d"} {
+		model = updateKey(t, model, value)
+	}
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected custom status save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if savedStatus != "blocked" {
+		t.Fatalf("savedStatus = %q, want blocked", savedStatus)
+	}
+}
+
+func TestModelStatusPickerClearSavesEmptyStatus(t *testing.T) {
+	var savedStatus *string
+	cfg := config.Default()
+	model := Model{
+		config: cfg,
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: cfg}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			savedStatus = update.Status
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects:       []project.Project{{Name: "app", Path: "/tmp/app"}},
+		screen:         screenStatus,
+		statusSelected: len(cfg.Statuses) + 1,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected clear status command")
+	}
+	model = updateMsg(t, model, cmd())
+	if savedStatus == nil || *savedStatus != "" {
+		t.Fatalf("savedStatus = %v, want empty string pointer", savedStatus)
+	}
+	if model.message != "Status cleared" {
+		t.Fatalf("message = %q, want Status cleared", model.message)
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
