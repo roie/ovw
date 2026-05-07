@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"ovw/internal/app"
-	"ovw/internal/cache"
 	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/metadata"
@@ -55,7 +54,6 @@ func NewRootCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Stale, "stale", false, "show stale projects")
 	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show projects without manual status")
 	cmd.Flags().BoolVar(&opts.Hidden, "hidden", false, "show hidden projects")
-	cmd.Flags().BoolVar(&opts.Refresh, "refresh", false, "rebuild generated project data before rendering")
 	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, name, or status")
 	cmd.AddCommand(newAddCommand())
 	cmd.AddCommand(newVisibilityCommand("hide", true))
@@ -64,7 +62,6 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(newSetCommand())
 	cmd.AddCommand(newUnsetCommand())
 	cmd.AddCommand(newConfigCommand())
-	cmd.AddCommand(newCacheCommand())
 	cmd.AddCommand(newShowCommand())
 	return cmd
 }
@@ -81,7 +78,6 @@ Commands:
   set       Set project status or note
   unset     Clear project status or note
   config    Manage ovw config
-  cache     Manage ovw cache
 
 Flags:
   --json            output JSON for overview or project
@@ -91,7 +87,6 @@ Flags:
   --stale           show stale projects
   --untagged        show projects without manual status
   --hidden          show hidden projects
-  --refresh         rebuild generated project data before rendering
   --sort string     sort by activity, name, or status
   -h, --help        help for ovw
   -v, --version     version for ovw
@@ -129,29 +124,6 @@ func newConfigCommand() *cobra.Command {
 		},
 	})
 	return configCmd
-}
-
-func newCacheCommand() *cobra.Command {
-	cacheCmd := &cobra.Command{
-		Use:   "cache",
-		Short: "Manage ovw cache",
-	}
-	cacheCmd.AddCommand(&cobra.Command{
-		Use:   "clear",
-		Short: "Clear generated cache",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			paths, err := config.Paths()
-			if err != nil {
-				return err
-			}
-			if err := cache.Clear(paths.Cache); err != nil {
-				return err
-			}
-			fmt.Fprintln(cmd.OutOrStdout(), "Cache cleared.")
-			return nil
-		},
-	})
-	return cacheCmd
 }
 
 func newAddCommand() *cobra.Command {
@@ -389,7 +361,7 @@ func newShowCommand() *cobra.Command {
 }
 
 func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
-	paths, cfg, store, err := commandState()
+	_, cfg, store, err := commandState()
 	if err != nil {
 		return err
 	}
@@ -397,19 +369,15 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 	if err != nil {
 		return err
 	}
-	cacheStore, err := cache.Load(paths.Cache)
-	if err != nil {
-		return err
-	}
 	entry := store.Projects[path]
-	enriched, _ := app.Enrich(scanner.Project{
+	enriched := app.Enrich(scanner.Project{
 		Name:   filepath.Base(path),
 		Path:   path,
 		Manual: entry.Manual,
 		Hidden: entry.Hidden,
 		Status: entry.Status,
 		Note:   entry.Note,
-	}, cfg, cacheStore, time.Now())
+	}, cfg, time.Now())
 	out := cmd.OutOrStdout()
 	if jsonOutput {
 		return render.ProjectJSON(out, enriched)

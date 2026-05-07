@@ -4,7 +4,6 @@ import (
 	"io"
 	"time"
 
-	"ovw/internal/cache"
 	"ovw/internal/config"
 	projectdescription "ovw/internal/description"
 	"ovw/internal/filter"
@@ -26,7 +25,6 @@ type Options struct {
 	Stale    bool
 	Untagged bool
 	Hidden   bool
-	Refresh  bool
 	Sort     string
 	Cwd      string
 	In       io.Reader
@@ -50,13 +48,6 @@ func Run(opts Options) error {
 	if err != nil {
 		return err
 	}
-	cacheStore, err := cache.Load(paths.Cache)
-	if err != nil {
-		return err
-	}
-	if opts.Refresh {
-		cacheStore = cache.New()
-	}
 	var scanned []scanner.Project
 	if opts.Hidden {
 		scanned, err = scanner.ScanAll(cfg, meta)
@@ -69,14 +60,8 @@ func Run(opts Options) error {
 	projects := make([]project.Project, 0, len(scanned))
 	now := time.Now()
 	for _, scannedProject := range scanned {
-		enriched, cacheProject := Enrich(scannedProject, cfg, cacheStore, now)
+		enriched := Enrich(scannedProject, cfg, now)
 		projects = append(projects, enriched)
-		cacheStore.Projects[enriched.Path] = cacheProject
-	}
-	if cfg.Cache.Enabled {
-		if err := cache.Write(paths.Cache, cacheStore); err != nil {
-			return err
-		}
 	}
 	filtered, err := filter.Apply(projects, filter.Options{
 		Status:   opts.Status,
@@ -95,38 +80,28 @@ func Run(opts Options) error {
 	return render.Table(opts.Out, filtered, cfg, time.Since(start))
 }
 
-func Enrich(scanned scanner.Project, cfg config.Config, cacheStore cache.Store, now time.Time) (project.Project, cache.Project) {
+func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.Project {
 	stackResult, _ := stack.Detect(scanned.Path, cfg.Stack)
 	managers := manager.Detect(scanned.Path)
 	gitInfo := gitactivity.Detect(scanned.Path)
-	cached := cacheStore.Projects[scanned.Path]
-	description := cached.Description
-	if detectedDescription := projectdescription.Detect(scanned.Path); detectedDescription != "" {
-		description = detectedDescription
-	}
+	description := projectdescription.Detect(scanned.Path)
 	activity := ovwformat.Activity(gitInfo, cfg, now)
 	note := ovwformat.Note(scanned.Note, description, gitInfo, cfg)
 	tags := ovwformat.Tags(activity, scanned.Status, cfg, now)
 	return project.Project{
-			Name:         scanned.Name,
-			Path:         scanned.Path,
-			Stack:        stackResult.Labels,
-			StackDisplay: stackResult.Display,
-			Managers:     managers,
-			Activity:     activity,
-			Tags:         tags,
-			Status:       scanned.Status,
-			Note:         note,
-			Manual:       scanned.Manual,
-			Hidden:       scanned.Hidden,
-			Description:  description,
-		}, cache.Project{
-			Stack:             stackResult.Labels,
-			StackDisplay:      stackResult.Display,
-			Description:       description,
-			LastCommitAt:      activity.LastCommitAt,
-			LastCommitMessage: activity.LastCommitMessage,
-		}
+		Name:         scanned.Name,
+		Path:         scanned.Path,
+		Stack:        stackResult.Labels,
+		StackDisplay: stackResult.Display,
+		Managers:     managers,
+		Activity:     activity,
+		Tags:         tags,
+		Status:       scanned.Status,
+		Note:         note,
+		Manual:       scanned.Manual,
+		Hidden:       scanned.Hidden,
+		Description:  description,
+	}
 }
 
 func firstRunWriter(opts Options) io.Writer {

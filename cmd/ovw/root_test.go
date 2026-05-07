@@ -57,7 +57,6 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"set       Set project status or note",
 		"unset     Clear project status or note",
 		"config    Manage ovw config",
-		"cache     Manage ovw cache",
 		"--json            output JSON for overview or project",
 		"--status string   filter by manual status",
 	} {
@@ -73,6 +72,9 @@ func TestHelpTextDescriptions(t *testing.T) {
 	}
 	if strings.Contains(got, "completion  Generate") {
 		t.Fatalf("help output should hide completion command:\n%s", got)
+	}
+	if strings.Contains(got, "cache     Manage ovw cache") {
+		t.Fatalf("help output should not list cache command:\n%s", got)
 	}
 	if strings.Contains(got, "scan      Rescan configured roots") {
 		t.Fatalf("help output should not list scan command:\n%s", got)
@@ -90,7 +92,6 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"set       Set project status or note",
 		"unset     Clear project status or note",
 		"config    Manage ovw config",
-		"cache     Manage ovw cache",
 	})
 	mustAppearInOrder(t, got, []string{
 		"--json            output JSON for overview or project",
@@ -100,7 +101,6 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"--stale           show stale projects",
 		"--untagged        show projects without manual status",
 		"--hidden          show hidden projects",
-		"--refresh         rebuild generated project data before rendering",
 		"--sort string     sort by activity, name, or status",
 		"-h, --help        help for ovw",
 		"-v, --version     version for ovw",
@@ -138,17 +138,10 @@ func TestConfigPathCommand(t *testing.T) {
 	}
 }
 
-func TestCacheClearCommand(t *testing.T) {
+func TestCacheCommandIsRemoved(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CACHE_HOME", "")
-	cachePath := filepath.Join(home, ".cache", "ovw", "projects.json")
-	if err := os.MkdirAll(filepath.Dir(cachePath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(cachePath, []byte("{}"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 
 	cmd := NewRootCommand()
 	var out bytes.Buffer
@@ -156,14 +149,8 @@ func TestCacheClearCommand(t *testing.T) {
 	cmd.SetErr(&out)
 	cmd.SetArgs([]string{"cache", "clear"})
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if out.String() != "Cache cleared.\n" {
-		t.Fatalf("output = %q", out.String())
-	}
-	if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
-		t.Fatalf("cache still exists or stat failed unexpectedly: %v", err)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected cache command error")
 	}
 }
 

@@ -32,7 +32,6 @@ type Config struct {
 	SortBy                  string      `toml:"sort_by"`
 	SortDir                 string      `toml:"sort_dir"`
 	Stack                   StackConfig `toml:"stack"`
-	Cache                   CacheConfig `toml:"cache"`
 	Editor                  string      `toml:"editor"`
 	Shell                   string      `toml:"shell"`
 }
@@ -42,14 +41,9 @@ type StackConfig struct {
 	Aliases     map[string]string `toml:"aliases"`
 }
 
-type CacheConfig struct {
-	Enabled bool `toml:"enabled"`
-}
-
 type FilePaths struct {
 	Config   string
 	Metadata string
-	Cache    string
 }
 
 func Default() Config {
@@ -84,7 +78,6 @@ func Default() Config {
 				"JavaScript":         "JS",
 			},
 		},
-		Cache:  CacheConfig{Enabled: true},
 		Editor: "code",
 		Shell:  "",
 	}
@@ -107,21 +100,15 @@ func Paths() (FilePaths, error) {
 		return FilePaths{
 			Config:   filepath.Join(configDir, "ovw", "config.toml"),
 			Metadata: filepath.Join(local, "ovw", "projects.json"),
-			Cache:    filepath.Join(local, "ovw", "cache.json"),
 		}, nil
 	}
 	dataDir := os.Getenv("XDG_DATA_HOME")
 	if dataDir == "" {
 		dataDir = filepath.Join(home, ".local", "share")
 	}
-	cacheDir := os.Getenv("XDG_CACHE_HOME")
-	if cacheDir == "" {
-		cacheDir = filepath.Join(home, ".cache")
-	}
 	return FilePaths{
 		Config:   filepath.Join(configDir, "ovw", "config.toml"),
 		Metadata: filepath.Join(dataDir, "ovw", "projects.json"),
-		Cache:    filepath.Join(cacheDir, "ovw", "projects.json"),
 	}, nil
 }
 
@@ -398,13 +385,6 @@ show_unknown = true
 # name = "SvelteKit"
 # packages = ["@sveltejs/kit"]
 # files = ["svelte.config.js", "svelte.config.ts"]
-
-# ─────────────────────────────────────────
-# Cache
-# ─────────────────────────────────────────
-
-[cache]
-enabled = true
 
 # ─────────────────────────────────────────
 # Editor and Shell

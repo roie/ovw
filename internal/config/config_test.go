@@ -36,9 +36,6 @@ func TestDefaultConfigValues(t *testing.T) {
 	if cfg.Stack.Aliases["Cloudflare Workers"] != "CF" {
 		t.Fatalf("Cloudflare alias = %q", cfg.Stack.Aliases["Cloudflare Workers"])
 	}
-	if !cfg.Cache.Enabled {
-		t.Fatal("cache disabled by default")
-	}
 }
 
 func TestPathHelpersUseHome(t *testing.T) {
@@ -58,9 +55,6 @@ func TestPathHelpersUseHome(t *testing.T) {
 	}
 	if paths.Metadata != filepath.Join(home, ".local", "share", "ovw", "projects.json") {
 		t.Fatalf("Metadata path = %q", paths.Metadata)
-	}
-	if paths.Cache != filepath.Join(home, ".cache", "ovw", "projects.json") {
-		t.Fatalf("Cache path = %q", paths.Cache)
 	}
 }
 
@@ -123,6 +117,9 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	}
 	if strings.Contains(text, "show_untagged") || strings.Contains(text, "relative_dates") {
 		t.Fatalf("default config contains stale display fields:\n%s", text)
+	}
+	if strings.Contains(text, "[cache]") {
+		t.Fatalf("default config contains cache section:\n%s", text)
 	}
 	if !strings.Contains(text, "# Suggested manual statuses. Status is free-form.") {
 		t.Fatalf("default config missing suggested status comment:\n%s", text)
