@@ -55,6 +55,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Stale, "stale", false, "show stale projects")
 	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show projects without manual status")
 	cmd.Flags().BoolVar(&opts.Hidden, "hidden", false, "show hidden projects")
+	cmd.Flags().BoolVar(&opts.Refresh, "refresh", false, "rebuild generated project data before rendering")
 	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, name, or status")
 	cmd.AddCommand(newAddCommand())
 	cmd.AddCommand(newVisibilityCommand("hide", true))
@@ -62,7 +63,6 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(newVisibilityCommand("unhide", false))
 	cmd.AddCommand(newSetCommand())
 	cmd.AddCommand(newUnsetCommand())
-	cmd.AddCommand(newScanCommand())
 	cmd.AddCommand(newConfigCommand())
 	cmd.AddCommand(newCacheCommand())
 	cmd.AddCommand(newShowCommand())
@@ -80,7 +80,6 @@ Commands:
   unhide    Show a hidden project again
   set       Set project status or note
   unset     Clear project status or note
-  scan      Rescan configured roots
   config    Manage ovw config
   cache     Manage ovw cache
 
@@ -92,6 +91,7 @@ Flags:
   --stale           show stale projects
   --untagged        show projects without manual status
   --hidden          show hidden projects
+  --refresh         rebuild generated project data before rendering
   --sort string     sort by activity, name, or status
   -h, --help        help for ovw
   -v, --version     version for ovw
@@ -152,48 +152,6 @@ func newCacheCommand() *cobra.Command {
 		},
 	})
 	return cacheCmd
-}
-
-func newScanCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "scan",
-		Short: "Rescan configured roots",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			start := time.Now()
-			paths, err := config.Paths()
-			if err != nil {
-				return err
-			}
-			cwd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-			cfg, _, err := config.Ensure(paths.Config, cwd, cmd.InOrStdin(), cmd.OutOrStdout())
-			if err != nil {
-				return err
-			}
-			meta, err := metadata.Load(paths.Metadata)
-			if err != nil {
-				return err
-			}
-			for _, root := range cfg.Roots {
-				fmt.Fprintf(cmd.OutOrStdout(), "Scanning %s...\n", root)
-			}
-			projects, err := scanner.Scan(cfg, meta)
-			if err != nil {
-				return err
-			}
-			cacheStore := cache.New()
-			for _, project := range projects {
-				cacheStore.Projects[project.Path] = cache.Project{}
-			}
-			if err := cache.Write(paths.Cache, cacheStore); err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Found %d projects in %.1fs\n", len(projects), time.Since(start).Seconds())
-			return nil
-		},
-	}
 }
 
 func newAddCommand() *cobra.Command {

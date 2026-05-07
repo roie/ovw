@@ -122,6 +122,39 @@ func TestOverviewCanFilterHiddenProjects(t *testing.T) {
 	}
 }
 
+func TestRefreshClearsCacheBeforeRendering(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{"description":"fresh description"}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.Cache), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	staleCache := `{"projects":{` + quote(filepath.Join(root, "app")) + `:{"description":"stale description"}}}`
+	if err := os.WriteFile(paths.Cache, []byte(staleCache), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	err = Run(Options{Refresh: true, Plain: true, Cwd: root, Out: &out, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "fresh description") || strings.Contains(got, "stale description") {
+		t.Fatalf("refresh output = %s", got)
+	}
+}
+
 func writePackage(t *testing.T, dir, data string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {

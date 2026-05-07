@@ -56,7 +56,6 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"unhide    Show a hidden project again",
 		"set       Set project status or note",
 		"unset     Clear project status or note",
-		"scan      Rescan configured roots",
 		"config    Manage ovw config",
 		"cache     Manage ovw cache",
 		"--json            output JSON for overview or project",
@@ -75,6 +74,9 @@ func TestHelpTextDescriptions(t *testing.T) {
 	if strings.Contains(got, "completion  Generate") {
 		t.Fatalf("help output should hide completion command:\n%s", got)
 	}
+	if strings.Contains(got, "scan      Rescan configured roots") {
+		t.Fatalf("help output should not list scan command:\n%s", got)
+	}
 	if strings.Contains(got, "help        Help about any command") {
 		t.Fatalf("help output should not list help command:\n%s", got)
 	}
@@ -87,7 +89,6 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"unhide    Show a hidden project again",
 		"set       Set project status or note",
 		"unset     Clear project status or note",
-		"scan      Rescan configured roots",
 		"config    Manage ovw config",
 		"cache     Manage ovw cache",
 	})
@@ -99,6 +100,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"--stale           show stale projects",
 		"--untagged        show projects without manual status",
 		"--hidden          show hidden projects",
+		"--refresh         rebuild generated project data before rendering",
 		"--sort string     sort by activity, name, or status",
 		"-h, --help        help for ovw",
 		"-v, --version     version for ovw",
@@ -291,7 +293,7 @@ func TestHiddenFlagListsHiddenProjects(t *testing.T) {
 	}
 }
 
-func TestScanCommand(t *testing.T) {
+func TestScanCommandIsRemoved(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()
 	t.Setenv("HOME", home)
@@ -301,12 +303,11 @@ func TestScanCommand(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "app", "go.mod"), []byte("module app"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg := configForTest(t, root)
-	_ = cfg
+	configForTest(t, root)
 
-	out := runCommand(t, []string{"scan"})
-	if !bytes.Contains([]byte(out), []byte("Scanning")) || !bytes.Contains([]byte(out), []byte("Found 1 projects")) {
-		t.Fatalf("scan output = %q", out)
+	_, err := executeCommand([]string{"scan"})
+	if err == nil {
+		t.Fatal("expected scan command error")
 	}
 }
 

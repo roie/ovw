@@ -26,6 +26,7 @@ type Options struct {
 	Stale    bool
 	Untagged bool
 	Hidden   bool
+	Refresh  bool
 	Sort     string
 	Cwd      string
 	In       io.Reader
@@ -52,6 +53,9 @@ func Run(opts Options) error {
 	cacheStore, err := cache.Load(paths.Cache)
 	if err != nil {
 		return err
+	}
+	if opts.Refresh {
+		cacheStore = cache.New()
 	}
 	var scanned []scanner.Project
 	if opts.Hidden {
