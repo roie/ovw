@@ -23,7 +23,7 @@ const version = "0.1.0"
 
 var (
 	interactiveTerminal = streamsAreTerminal
-	runTUI              = tui.Run
+	runTUI              = tui.RunWithOptions
 )
 
 func NewRootCommand() *cobra.Command {
@@ -54,7 +54,7 @@ func NewRootCommand() *cobra.Command {
 				if _, _, err := app.EnsureConfig(opts); err != nil {
 					return err
 				}
-				return runTUI()
+				return runTUI(opts)
 			}
 			return app.Run(opts)
 		},

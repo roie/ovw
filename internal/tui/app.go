@@ -189,7 +189,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
 		m.message = msg.message
-		m.clampSelection()
+		if msg.preservePath != "" {
+			m.selectProjectPath(msg.preservePath)
+		} else {
+			m.clampSelection()
+		}
 	case metadataFailedMsg:
 		m.loading = false
 		m.message = "Failed to write metadata: " + msg.err.Error()
@@ -384,7 +388,11 @@ func (m *Model) clampSelection() {
 }
 
 func Run() error {
-	program := tea.NewProgram(New(), tea.WithAltScreen())
+	return RunWithOptions(app.Options{})
+}
+
+func RunWithOptions(opts app.Options) error {
+	program := tea.NewProgram(NewWithOptions(opts), tea.WithAltScreen())
 	_, err := program.Run()
 	return err
 }
@@ -400,8 +408,9 @@ type overviewLoadFailedMsg struct {
 }
 
 type metadataSavedMsg struct {
-	message string
-	result  app.OverviewResult
+	message      string
+	result       app.OverviewResult
+	preservePath string
 }
 
 type metadataFailedMsg struct {
@@ -444,7 +453,7 @@ func (m Model) saveNote() tea.Cmd {
 		if err != nil {
 			return overviewLoadFailedMsg{err: err}
 		}
-		return metadataSavedMsg{message: "Note saved", result: result}
+		return metadataSavedMsg{message: "Note saved", result: result, preservePath: project.Path}
 	}
 }
 
@@ -461,7 +470,7 @@ func (m Model) saveStatus(status, message string) tea.Cmd {
 		if err != nil {
 			return overviewLoadFailedMsg{err: err}
 		}
-		return metadataSavedMsg{message: message, result: result}
+		return metadataSavedMsg{message: message, result: result, preservePath: project.Path}
 	}
 }
 

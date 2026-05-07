@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"ovw/internal/app"
 	"ovw/internal/config"
 	"ovw/internal/format"
 	"ovw/internal/project"
@@ -134,7 +135,7 @@ func TestInteractiveBareCommandRunsTUI(t *testing.T) {
 	t.Setenv("HOME", home)
 	configForTest(t, root)
 	tuiCalled := false
-	withTerminalRouting(t, true, func() error {
+	withTerminalRouting(t, true, func(opts app.Options) error {
 		tuiCalled = true
 		return nil
 	})
@@ -157,7 +158,7 @@ func TestNonInteractiveBareCommandUsesPlainTable(t *testing.T) {
 	t.Setenv("HOME", home)
 	writePackage(t, filepath.Join(root, "app"), `{}`)
 	configForTest(t, root)
-	withTerminalRouting(t, false, func() error {
+	withTerminalRouting(t, false, func(opts app.Options) error {
 		t.Fatal("TUI runner should not be called")
 		return nil
 	})
@@ -177,7 +178,7 @@ func TestInteractivePlainJSONAndProjectSkipTUI(t *testing.T) {
 	t.Setenv("HOME", home)
 	writePackage(t, filepath.Join(root, "app"), `{}`)
 	configForTest(t, root)
-	withTerminalRouting(t, true, func() error {
+	withTerminalRouting(t, true, func(opts app.Options) error {
 		t.Fatal("TUI runner should not be called")
 		return nil
 	})
@@ -190,6 +191,25 @@ func TestInteractivePlainJSONAndProjectSkipTUI(t *testing.T) {
 		if _, err := executeCommand(args); err != nil {
 			t.Fatalf("Execute(%v) error = %v", args, err)
 		}
+	}
+}
+
+func TestInteractiveRootPassesFlagsToTUI(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	configForTest(t, root)
+	var got app.Options
+	withTerminalRouting(t, true, func(opts app.Options) error {
+		got = opts
+		return nil
+	})
+
+	if _, err := executeCommand([]string{"--dirty", "--sort", "name"}); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !got.Dirty || got.Sort != "name" {
+		t.Fatalf("TUI options = %#v", got)
 	}
 }
 
@@ -636,7 +656,7 @@ func executeCommand(args []string) (string, error) {
 	return out.String(), err
 }
 
-func withTerminalRouting(t *testing.T, interactive bool, runner func() error) {
+func withTerminalRouting(t *testing.T, interactive bool, runner func(app.Options) error) {
 	t.Helper()
 	previousTerminal := interactiveTerminal
 	previousRunner := runTUI
