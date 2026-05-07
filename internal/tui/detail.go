@@ -9,6 +9,7 @@ import (
 	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
 	"ovw/internal/projectview"
+	"ovw/internal/textwrap"
 )
 
 func detailView(project project.Project, ok bool) string {
@@ -16,6 +17,9 @@ func detailView(project project.Project, ok bool) string {
 		return mutedStyle.Render("No project selected")
 	}
 	lines := []string{titleStyle.Render(project.Name)}
+	if subtitle := projectview.Subtitle(project); subtitle != "" {
+		lines = append(lines, subtitle, "")
+	}
 	for _, field := range projectview.Fields(project, projectview.Options{Activity: projectview.DetailActivity}) {
 		lines = append(lines, detailLine(field.Label, field.Value))
 	}
@@ -29,22 +33,51 @@ func detailModalView(project project.Project, ok bool, width int) string {
 	if width < 32 {
 		width = 32
 	}
-	return modalView("Details", detailModalLines(project, ok), width)
+	return modalView("Details", detailModalLinesWithWidth(project, ok, width-4), width)
 }
 
 func detailModalLines(project project.Project, ok bool) []string {
+	return detailModalLinesWithWidth(project, ok, 68)
+}
+
+func detailModalLinesWithWidth(project project.Project, ok bool, width int) []string {
 	if !ok {
 		return []string{modalMuted("No project selected")}
 	}
-	lines := strings.Split(detailView(project, ok), "\n")
-	if len(lines) > 0 {
-		lines[0] = project.Name
+	valueWidth := width - 11
+	if valueWidth < 8 {
+		valueWidth = width
+	}
+	lines := []string{project.Name}
+	if subtitle := projectview.Subtitle(project); subtitle != "" {
+		lines = append(lines, textwrap.Lines(subtitle, width)...)
+		lines = append(lines, "")
+	}
+	for _, field := range projectview.Fields(project, projectview.Options{Activity: projectview.DetailActivity}) {
+		if field.Value == "" {
+			continue
+		}
+		wrapped := textwrap.Lines(field.Value, valueWidth)
+		if len(wrapped) == 0 {
+			continue
+		}
+		lines = append(lines, detailLine(field.Label, wrapped[0]))
+		for _, line := range wrapped[1:] {
+			lines = append(lines, detailLine("", line))
+		}
 	}
 	return lines
 }
 
 func detailSummaryView(project project.Project, width int) string {
+	contentWidth := width - 2
+	if contentWidth < 1 {
+		contentWidth = width
+	}
 	lines := []string{titleStyle.Render(truncateText(project.Name, width))}
+	if subtitle := projectview.Subtitle(project); subtitle != "" {
+		lines = append(lines, textwrap.Lines(subtitle, contentWidth)...)
+	}
 	addSummaryLine := func(field projectview.Field) {
 		label := field.Label
 		value := field.Value
@@ -55,7 +88,7 @@ func detailSummaryView(project project.Project, width int) string {
 			addSummaryNote(&lines, value, width)
 			return
 		}
-		lines = append(lines, truncateText(detailLine(label, value), width))
+		lines = append(lines, truncateText(detailLine(label, value), contentWidth))
 	}
 	fields := projectview.Fields(project, projectview.Options{
 		Path:     shortPath,
@@ -64,7 +97,7 @@ func detailSummaryView(project project.Project, width int) string {
 	for _, field := range fields {
 		addSummaryLine(field)
 	}
-	addRecentCommits(&lines, project.Activity.RecentCommits, width)
+	addRecentCommits(&lines, project.Activity.RecentCommits, contentWidth)
 	return strings.Join(lines, "\n")
 }
 
@@ -76,7 +109,7 @@ func addSummaryNote(lines *[]string, note string, width int) {
 		*lines = append(*lines, "")
 	}
 	*lines = append(*lines, truncateText("Note", width))
-	*lines = append(*lines, wrapText(note, width)...)
+	*lines = append(*lines, textwrap.Lines(note, width)...)
 }
 
 func addRecentCommits(lines *[]string, commits []ovwformat.RecentCommit, width int) {
@@ -123,44 +156,4 @@ func shortPath(path string) string {
 
 func detailLine(label, value string) string {
 	return fmt.Sprintf("%-8s %s", label, value)
-}
-
-func wrapText(value string, width int) []string {
-	if width <= 0 {
-		return []string{value}
-	}
-	paragraphs := strings.Split(value, "\n")
-	lines := []string{}
-	for _, paragraph := range paragraphs {
-		lines = append(lines, wrapTextLine(paragraph, width)...)
-	}
-	return lines
-}
-
-func wrapTextLine(value string, width int) []string {
-	if len([]rune(value)) <= width {
-		return []string{value}
-	}
-	words := strings.Fields(value)
-	if len(words) == 0 {
-		return []string{""}
-	}
-	lines := []string{}
-	line := ""
-	for _, word := range words {
-		if line == "" {
-			line = word
-			continue
-		}
-		if len([]rune(line))+1+len([]rune(word)) <= width {
-			line += " " + word
-			continue
-		}
-		lines = append(lines, line)
-		line = word
-	}
-	if line != "" {
-		lines = append(lines, line)
-	}
-	return lines
 }

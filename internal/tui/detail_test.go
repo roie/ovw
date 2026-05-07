@@ -19,7 +19,7 @@ func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 		"Branch   main",
 		"Activity 12m",
 		"Status   dirty · unpushed",
-		"Description Project description",
+		"Project description",
 		"Note",
 		"Value note",
 	} {
@@ -35,9 +35,9 @@ func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 		"Activity",
 		"Updated",
 		"Status",
-		"Description",
 		"Note",
 	})
+	mustAppearInOrder(t, got, []string{"eventca", "Project description", "Path"})
 	for _, unwanted := range []string{"Last commit", "Git"} {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("detail summary contains redundant field %q:\n%s", unwanted, got)
@@ -83,6 +83,33 @@ func TestDetailSummaryPreservesNoteNewlines(t *testing.T) {
 	}
 	if !strings.Contains(got, "check after deploy\n\nsecond paragraph") {
 		t.Fatalf("detail summary did not preserve blank line:\n%s", got)
+	}
+}
+
+func TestDetailModalWrapsDescriptionAndNote(t *testing.T) {
+	project := detailTestProject("imagio")
+	project.Description = "Imagio - View Image Properties. The image inspector that actually helps."
+	project.Note.Display = "release/refactor · refactor: split repo into workspaces and packages"
+
+	got := stripANSI(detailModalView(project, true, 56))
+
+	for _, want := range []string{
+		"Imagio - View Image Properties.",
+		"that actually helps.",
+		"Note",
+		"release/refactor · refactor:",
+		"into workspaces and packages",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("detail modal missing wrapped text %q:\n%s", want, got)
+		}
+	}
+	noteBlock := got[strings.Index(got, "Note"):]
+	if strings.Contains(noteBlock, "...") {
+		t.Fatalf("detail modal note should wrap instead of truncate:\n%s", got)
+	}
+	if strings.Contains(got, "actually...") || strings.Contains(got, "packages...") {
+		t.Fatalf("detail modal description/note was truncated:\n%s", got)
 	}
 }
 

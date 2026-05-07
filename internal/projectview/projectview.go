@@ -50,9 +50,12 @@ func Fields(project project.Project, opts Options) []Field {
 		add("Updated", updated)
 	}
 	add("Status", project.Status.Display)
-	add("Description", project.Description)
 	add("Note", project.Note.Display)
 	return fields
+}
+
+func Subtitle(project project.Project) string {
+	return project.Description
 }
 
 func DetailActivity(project project.Project) string {

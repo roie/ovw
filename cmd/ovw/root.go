@@ -357,6 +357,9 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 		return render.ProjectJSON(out, enriched)
 	}
 	fmt.Fprintf(out, "%s\n", filepath.Base(path))
+	if subtitle := projectview.Subtitle(enriched); subtitle != "" {
+		fmt.Fprintf(out, "%s\n\n", subtitle)
+	}
 	fields := projectview.Fields(enriched, projectview.Options{
 		Path:     displayPath,
 		Time:     showTime,
