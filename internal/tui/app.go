@@ -637,6 +637,7 @@ func renderShell(m Model) string {
 func headerView(m Model) string {
 	parts := []string{
 		formatProjectCount(len(m.projects)),
+		selectedPosition(m.selected, len(m.visibleProjects())),
 		"filter: " + headerFilter(m.activeFilter),
 	}
 	if m.activeSort != "" {
@@ -646,6 +647,19 @@ func headerView(m Model) string {
 		parts = append(parts, "search: "+m.searchDisplay())
 	}
 	return titleStyle.Render("ovw") + "  " + mutedStyle.Render(strings.Join(parts, "  "))
+}
+
+func selectedPosition(selected, total int) string {
+	if total <= 0 {
+		return "0/0"
+	}
+	if selected < 0 {
+		selected = 0
+	}
+	if selected >= total {
+		selected = total - 1
+	}
+	return fmt.Sprintf("%d/%d", selected+1, total)
 }
 
 func headerFilter(value string) string {

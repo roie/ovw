@@ -21,12 +21,8 @@ func tableView(projects []project.Project, selected, width, height int) string {
 		return mutedStyle.Render("No projects found")
 	}
 	widths := fitTableColumns(width)
-	noteHeader := "Note"
-	if selected >= 0 && selected < len(projects) {
-		noteHeader = fmt.Sprintf("Note %d/%d", selected+1, len(projects))
-	}
 	lines := []string{
-		tableRow("Name", "Stack", "Activity", "Status", noteHeader, widths),
+		tableRow("Name", "Stack", "Activity", "Status", "Note", widths),
 		strings.Repeat("-", tableLineWidth(widths)),
 	}
 	start, end := visibleRange(len(projects), selected, tableBodyHeight(height))

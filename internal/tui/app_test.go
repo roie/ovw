@@ -109,7 +109,7 @@ func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	for _, want := range []string{"ovw  1 project  filter: all  sort: activity", "app", "Go", "12m", "dirty", "user note"} {
+	for _, want := range []string{"ovw  1 project  1/1  filter: all  sort: activity", "app", "Go", "12m", "dirty", "user note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("background loading view missing %q:\n%s", want, view)
 		}
@@ -132,7 +132,7 @@ func TestModelHeaderShowsFilterAndSort(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "ovw  2 projects  filter: dirty  sort: name") {
+	if !strings.Contains(view, "ovw  2 projects  1/2  filter: dirty  sort: name") {
 		t.Fatalf("header missing filter and sort:\n%s", view)
 	}
 	if strings.Contains(view, "ovw -") {
@@ -148,7 +148,7 @@ func TestModelHeaderShowsAllFilter(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "ovw  1 project  filter: all  sort: activity") {
+	if !strings.Contains(view, "ovw  1 project  1/1  filter: all  sort: activity") {
 		t.Fatalf("header missing all filter:\n%s", view)
 	}
 }
@@ -663,7 +663,7 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 		t.Fatalf("noteInput = %q, want old", model.noteInput)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Name", "Note 1/1", "app", "Note", "old▌", "enter", "save", "esc"} {
+	for _, want := range []string{"Name", "1/1", "app", "Note", "old▌", "enter", "save", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("note modal view missing %q:\n%s", want, view)
 		}
@@ -799,7 +799,7 @@ func TestModelStatusPickerSavesConfiguredStatus(t *testing.T) {
 		t.Fatalf("screen = %v, want status", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Name", "Note 1/1", "app", "Status", "parked", "shipped", "enter select", "esc"} {
+	for _, want := range []string{"Name", "1/1", "app", "Status", "parked", "shipped", "enter select", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("status modal view missing %q:\n%s", want, view)
 		}
@@ -1179,8 +1179,11 @@ func TestModelWideViewShowsInlineDetailPane(t *testing.T) {
 			t.Fatalf("wide view missing %q:\n%s", want, view)
 		}
 	}
-	if !strings.Contains(view, "Note 2/2") {
+	if !strings.Contains(view, "Note") {
 		t.Fatalf("wide table should keep note column:\n%s", view)
+	}
+	if !strings.Contains(stripANSI(view), "ovw  2 projects  2/2  filter: all") {
+		t.Fatalf("wide header should show selection position:\n%s", view)
 	}
 	if !strings.Contains(view, " │ ") {
 		t.Fatalf("wide view missing split divider:\n%s", view)

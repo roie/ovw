@@ -89,8 +89,8 @@ func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 	if strings.Contains(got, "project-19") {
 		t.Fatalf("table rendered rows past viewport:\n%s", got)
 	}
-	if !strings.Contains(got, "16/20") {
-		t.Fatalf("table missing scroll position:\n%s", got)
+	if !strings.Contains(got, "Note") {
+		t.Fatalf("table should keep note header plain:\n%s", got)
 	}
 }
 
