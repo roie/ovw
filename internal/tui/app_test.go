@@ -952,6 +952,62 @@ func TestModelOpenEditorShowsError(t *testing.T) {
 	}
 }
 
+func TestModelOpenTerminalUsesSelectedProject(t *testing.T) {
+	var gotPath string
+	var gotName string
+	model := Model{
+		terminal: func(path, name string) tea.Cmd {
+			gotPath = path
+			gotName = name
+			return func() tea.Msg {
+				return terminalOpenedMsg{message: "Opened terminal two"}
+			}
+		},
+		projects: []project.Project{
+			{Name: "one", Path: "/tmp/one"},
+			{Name: "two", Path: "/tmp/two"},
+		},
+		selected: 1,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected terminal command")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotPath != "/tmp/two" {
+		t.Fatalf("path = %q, want /tmp/two", gotPath)
+	}
+	if gotName != "two" {
+		t.Fatalf("name = %q, want two", gotName)
+	}
+	if model.message != "Opened terminal two" {
+		t.Fatalf("message = %q, want Opened terminal two", model.message)
+	}
+}
+
+func TestModelOpenTerminalShowsError(t *testing.T) {
+	model := Model{
+		terminal: func(path, name string) tea.Cmd {
+			return func() tea.Msg {
+				return terminalFailedMsg{err: errors.New("no shell")}
+			}
+		},
+		projects: []project.Project{{Name: "one", Path: "/tmp/one"}},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected terminal command")
+	}
+	model = updateMsg(t, model, cmd())
+	if !strings.Contains(model.message, "Terminal failed: no shell") {
+		t.Fatalf("message = %q", model.message)
+	}
+}
+
 func TestModelHelpOpensAndCloses(t *testing.T) {
 	model := updateKey(t, Model{
 		width:    140,

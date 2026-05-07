@@ -19,6 +19,7 @@ import (
 type overviewLoader func(app.Options) (app.OverviewResult, error)
 type metadataUpdater func(string, app.MetadataUpdate) (app.MetadataUpdateResult, error)
 type editorRunner func(string, string) error
+type terminalRunner func(string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
 
 type screenMode int
@@ -35,11 +36,12 @@ const (
 )
 
 type Model struct {
-	request app.Options
-	loader  overviewLoader
-	updater metadataUpdater
-	editor  editorRunner
-	recent  recentLoader
+	request  app.Options
+	loader   overviewLoader
+	updater  metadataUpdater
+	editor   editorRunner
+	terminal terminalRunner
+	recent   recentLoader
 
 	width          int
 	height         int
@@ -75,6 +77,7 @@ func NewWithOptions(opts app.Options) Model {
 		loader:       app.LoadOverview,
 		updater:      app.UpdateProjectMetadata,
 		editor:       runEditor,
+		terminal:     runTerminal,
 		recent:       loadRecentCommits,
 		activeFilter: optionsFromRequest(opts),
 		activeSort:   sortFromRequest(opts),
@@ -160,6 +163,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isOpenKey(msg.String()) && m.canOpenDetail() {
 			return m, m.openSelectedProject()
 		}
+		if isTerminalKey(msg.String()) && m.canOpenDetail() {
+			return m, m.openSelectedTerminal()
+		}
 		if isHelpKey(msg.String()) {
 			m.screen = screenHelp
 			return m, nil
@@ -214,6 +220,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.message = msg.message
 	case editorFailedMsg:
 		m.message = "Editor failed: " + msg.err.Error()
+	case terminalOpenedMsg:
+		m.message = msg.message
+	case terminalFailedMsg:
+		m.message = "Terminal failed: " + msg.err.Error()
 	case recentLoadedMsg:
 		if m.recentByPath == nil {
 			m.recentByPath = map[string][]ovwformat.RecentCommit{}
@@ -461,6 +471,14 @@ type editorFailedMsg struct {
 	err error
 }
 
+type terminalOpenedMsg struct {
+	message string
+}
+
+type terminalFailedMsg struct {
+	err error
+}
+
 type recentLoadedMsg struct {
 	path    string
 	commits []ovwformat.RecentCommit
@@ -528,6 +546,20 @@ func (m Model) openSelectedProject() tea.Cmd {
 		}
 		return editorOpenedMsg{message: "Opened " + project.Name}
 	}
+}
+
+func (m Model) openSelectedTerminal() tea.Cmd {
+	project, ok := m.currentProject()
+	if !ok {
+		return func() tea.Msg {
+			return terminalFailedMsg{err: errNoProjectSelected{}}
+		}
+	}
+	runner := m.terminal
+	if runner == nil {
+		runner = runTerminal
+	}
+	return runner(project.Path, project.Name)
 }
 
 func (m Model) loadSelectedRecent() tea.Cmd {

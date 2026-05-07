@@ -78,6 +78,10 @@ func isOpenKey(value string) bool {
 	return value == "o"
 }
 
+func isTerminalKey(value string) bool {
+	return value == "t"
+}
+
 func isHelpKey(value string) bool {
 	return value == "?"
 }
@@ -88,5 +92,5 @@ func isBackspaceKey(value string) bool {
 
 func footerView() string {
 	keys := defaultKeyMap()
-	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · / search · f filter · s sort · n note · m status · r reload · o open · ? help · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
+	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · / search · f filter · s sort · n note · m status · r reload · o open · t terminal · ? help · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
 }
