@@ -237,10 +237,12 @@ func newVisibilityCommand(name string, hidden bool) *cobra.Command {
 	if !hidden {
 		short = "Show a hidden project again"
 	}
+	hideFromHelp := name == "remove"
 	return &cobra.Command{
-		Use:   name + " <name-or-path>",
-		Short: short,
-		Args:  cobra.ExactArgs(1),
+		Use:    name + " <name-or-path>",
+		Short:  short,
+		Hidden: hideFromHelp,
+		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths, err := config.Paths()
 			if err != nil {

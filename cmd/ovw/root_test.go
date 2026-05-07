@@ -56,7 +56,6 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"cache       Manage ovw cache",
 		"config      Manage ovw config",
 		"hide        Hide a project from ovw",
-		"remove      Hide a project from ovw without deleting files",
 		"scan        Rescan configured roots",
 		"set         Set project status or note",
 		"unhide      Show a hidden project again",
@@ -68,6 +67,9 @@ func TestHelpTextDescriptions(t *testing.T) {
 	}
 	if strings.Contains(got, "show        Show project details") {
 		t.Fatalf("help output should hide show alias:\n%s", got)
+	}
+	if strings.Contains(got, "remove      Hide a project from ovw without deleting files") {
+		t.Fatalf("help output should hide remove alias:\n%s", got)
 	}
 }
 
