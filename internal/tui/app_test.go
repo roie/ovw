@@ -94,8 +94,9 @@ func TestModelLoadsOverviewData(t *testing.T) {
 
 func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 	model := Model{
-		loading: true,
-		message: "Saving note...",
+		loading:      true,
+		activeFilter: "all",
+		activeSort:   "activity",
 		projects: []project.Project{
 			{
 				Name:         "app",
@@ -108,12 +109,89 @@ func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	for _, want := range []string{"app", "Go", "12m", "dirty", "manual note", "Saving note..."} {
+	for _, want := range []string{"ovw  1 project  filter: all  sort: activity", "app", "Go", "12m", "dirty", "manual note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("background loading view missing %q:\n%s", want, view)
 		}
 	}
-	if strings.Contains(view, "Loading projects...") {
+	for _, notWant := range []string{"Loading projects...", "Loading...", "Saving note...", "Saving status...", "Filtering...", "Sorting..."} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("background loading should not show %q:\n%s", notWant, view)
+		}
+	}
+}
+
+func TestModelHeaderShowsFilterAndSort(t *testing.T) {
+	model := Model{
+		activeFilter: "dirty",
+		activeSort:   "name",
+		projects: []project.Project{
+			{Name: "app"},
+			{Name: "api"},
+		},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "ovw  2 projects  filter: dirty  sort: name") {
+		t.Fatalf("header missing filter and sort:\n%s", view)
+	}
+	if strings.Contains(view, "ovw -") {
+		t.Fatalf("header should not use dash separator:\n%s", view)
+	}
+}
+
+func TestModelHeaderShowsAllFilter(t *testing.T) {
+	model := Model{
+		activeFilter: "all",
+		activeSort:   "activity",
+		projects:     []project.Project{{Name: "app"}},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "ovw  1 project  filter: all  sort: activity") {
+		t.Fatalf("header missing all filter:\n%s", view)
+	}
+}
+
+func TestModelActionsDoNotSetTransientProgressMessages(t *testing.T) {
+	model := Model{
+		config: config.Default(),
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: config.Default()}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	cases := []struct {
+		name  string
+		model Model
+		key   string
+	}{
+		{name: "note", model: func() Model { m := model; m.screen = screenNote; return m }(), key: "enter"},
+		{name: "status", model: func() Model { m := model; m.screen = screenStatus; return m }(), key: "enter"},
+		{name: "filter", model: func() Model { m := model; m.screen = screenFilter; return m }(), key: "enter"},
+		{name: "sort", model: func() Model { m := model; m.screen = screenSort; return m }(), key: "enter"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			updated := updateKey(t, tc.model, tc.key)
+			for _, notWant := range []string{"Saving note...", "Saving status...", "Filtering...", "Sorting..."} {
+				if updated.message == notWant {
+					t.Fatalf("message = %q", updated.message)
+				}
+			}
+		})
+	}
+}
+
+func TestModelInitialLoadStillShowsLoadingState(t *testing.T) {
+	model := Model{loading: true}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Loading projects...") {
 		t.Fatalf("background loading should not replace table:\n%s", view)
 	}
 }
