@@ -221,6 +221,7 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 		"stack",
 		"stack_display",
 		"managers",
+		"version",
 		"activity",
 		"last_commit_at",
 		"last_commit_message",

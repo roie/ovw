@@ -40,6 +40,7 @@ func Fields(project project.Project, opts Options) []Field {
 		}
 	}
 
+	add("Version", project.Version)
 	add("Branch", project.Activity.Branch)
 	add("Activity", activity)
 	if !project.Activity.LastCommitAt.IsZero() {

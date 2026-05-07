@@ -150,6 +150,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		Stack:        []string{"Go"},
 		StackDisplay: "Go",
 		Managers:     []string{"go modules"},
+		Version:      "1.2.3",
 		Activity: format.ActivityInfo{
 			Display:           "1d !",
 			LastCommitAge:     "1d",
@@ -194,6 +195,9 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	if description, ok := item["description"].(string); !ok || description != "Project description" {
 		t.Fatalf("description = %#v, want Project description\n%s", item["description"], out.String())
 	}
+	if version, ok := item["version"].(string); !ok || version != "1.2.3" {
+		t.Fatalf("version = %#v, want 1.2.3\n%s", item["version"], out.String())
+	}
 	managers, ok := item["managers"].([]any)
 	if !ok || len(managers) != 1 || managers[0] != "go modules" {
 		t.Fatalf("managers = %#v, want go modules\n%s", item["managers"], out.String())
@@ -224,6 +228,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		`"path":`,
 		`"stack":`,
 		`"managers":`,
+		`"version":`,
 		`"activity":`,
 		`"tags":`,
 		`"status":`,

@@ -14,6 +14,7 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 		Path:        "/tmp/eventca",
 		Stack:       []string{"Go", "Cobra"},
 		Managers:    []string{"go modules"},
+		Version:     "1.2.3",
 		Status:      format.StatusFromTags("parked", []string{"dirty", "parked"}),
 		Description: "Project description",
 		Note:        format.NoteInfo{Display: "user note"},
@@ -35,7 +36,7 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 	for _, field := range fields {
 		got = append(got, field.Label)
 	}
-	want := []string{"Path", "Stack", "Manager", "Branch", "Activity", "Updated", "Status", "Note"}
+	want := []string{"Path", "Stack", "Manager", "Version", "Branch", "Activity", "Updated", "Status", "Note"}
 	if len(got) != len(want) {
 		t.Fatalf("labels = %#v, want %#v", got, want)
 	}

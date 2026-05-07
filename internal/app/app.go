@@ -14,6 +14,7 @@ import (
 	"ovw/internal/manager"
 	"ovw/internal/metadata"
 	"ovw/internal/project"
+	projectversion "ovw/internal/projectversion"
 	"ovw/internal/render"
 	"ovw/internal/scanner"
 	"ovw/internal/stack"
@@ -283,6 +284,7 @@ func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.P
 	managers := manager.Detect(scanned.Path)
 	gitInfo := gitactivity.Detect(scanned.Path)
 	description := projectdescription.Detect(scanned.Path)
+	version := projectversion.Detect(scanned.Path)
 	activity := ovwformat.Activity(gitInfo, cfg, now)
 	note := ovwformat.Note(scanned.Note, description, gitInfo, cfg)
 	status := ovwformat.Status(activity, scanned.Status, cfg, now)
@@ -292,6 +294,7 @@ func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.P
 		Stack:        stackResult.Labels,
 		StackDisplay: stackResult.Display,
 		Managers:     managers,
+		Version:      version,
 		Activity:     activity,
 		Status:       status,
 		Note:         note,

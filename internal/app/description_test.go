@@ -32,3 +32,13 @@ func TestEnrichDescriptionFallbackUsesWorkspaceChild(t *testing.T) {
 		t.Fatalf("note = %#v", enriched.Note)
 	}
 }
+
+func TestEnrichDetectsProjectVersion(t *testing.T) {
+	dir := t.TempDir()
+	writePackage(t, dir, `{"version":"1.2.3"}`)
+
+	enriched := Enrich(scanner.Project{Name: "app", Path: dir}, config.Default(), time.Now())
+	if enriched.Version != "1.2.3" {
+		t.Fatalf("Version = %q", enriched.Version)
+	}
+}

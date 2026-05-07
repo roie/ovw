@@ -365,7 +365,7 @@ func TestModelOpensAndClosesDetailView(t *testing.T) {
 		t.Fatalf("selected = %d, want 1", updated.selected)
 	}
 	view := updated.View()
-	for _, want := range []string{"Details", "one", "two", " │ ", "/tmp/two", "Go, Cobra", "go modules", "dirty", "2 unpushed", "Value note"} {
+	for _, want := range []string{"Details", "one", "two", " │ ", "/tmp/two", "Go, Cobra", "go modules", "1.2.3", "dirty", "2 unpushed", "Value note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("detail view missing %q:\n%s", want, view)
 		}
@@ -1325,6 +1325,7 @@ func detailTestProject(name string) project.Project {
 		Stack:        []string{"Go", "Cobra"},
 		StackDisplay: "Go",
 		Managers:     []string{"go modules"},
+		Version:      "1.2.3",
 		Activity: ovwformat.ActivityInfo{
 			Display:           "12m ↑2",
 			LastCommitAge:     "12m",
