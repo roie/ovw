@@ -46,13 +46,13 @@ func (m *Model) applyFilter(option filterOption) {
 
 func filterView(options []filterOption, selected int) string {
 	if len(options) == 0 {
-		return modalView("Filter", []string{mutedStyle.Render("No filters available")}, 42)
+		return modalView("Filter", []string{modalMuted("No filters available")}, 42)
 	}
 	lines := []string{}
 	for index, option := range options {
 		line := option.Label
 		if index == selected {
-			line = selectedStyle.Render(line)
+			line = modalSelected(line)
 		}
 		lines = append(lines, line)
 	}

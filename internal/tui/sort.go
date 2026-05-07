@@ -35,7 +35,7 @@ func sortView(options []sortOption, selected int) string {
 	for index, option := range options {
 		line := option.Label
 		if index == selected {
-			line = selectedStyle.Render(line)
+			line = modalSelected(line)
 		}
 		lines = append(lines, line)
 	}

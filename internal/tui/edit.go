@@ -1,6 +1,10 @@
 package tui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/x/ansi"
+)
 
 func noteView(value string) string {
 	return inputModalView("Note", value, "empty clears manual note", 56)
@@ -37,7 +41,7 @@ func statusView(options []statusOption, selected int) string {
 	for index, option := range options {
 		line := option.Label
 		if index == selected {
-			line = selectedStyle.Render(line)
+			line = modalSelected(line)
 		}
 		lines = append(lines, line)
 	}
@@ -51,20 +55,30 @@ func statusInputView(value string) string {
 
 func inputModalView(title, value, placeholder string, width int) string {
 	inputWidth := width - 4
-	lines := wrapInputLines(textInputLine(value, placeholder), inputWidth)
+	lines := inputModalLines(value, placeholder, inputWidth)
 	lines = append(lines, "", actionHint("enter", "save"))
 	return modalView(title, lines, width)
 }
 
-func textInputLine(value, placeholder string) string {
+func searchInputLine(value, placeholder string) string {
 	if value == "" {
-		return mutedStyle.Render(placeholder) + "▌"
+		return placeholder + "▌"
 	}
 	return value + "▌"
 }
 
+func inputModalLines(value, placeholder string, width int) []string {
+	if value == "" {
+		return []string{modalMuted(placeholder) + modalCursor()}
+	}
+	lines := wrapInputLines(value, width)
+	last := len(lines) - 1
+	lines[last] += modalCursor()
+	return lines
+}
+
 func actionHint(key, action string) string {
-	return hintKeyStyle.Render(key) + " " + mutedStyle.Render(action)
+	return modalHintKey(key) + " " + modalMuted(action)
 }
 
 func keyActionLine(key, action string, keyWidth int) string {
@@ -72,7 +86,7 @@ func keyActionLine(key, action string, keyWidth int) string {
 	if gap < 2 {
 		gap = 2
 	}
-	return hintKeyStyle.Render(key) + strings.Repeat(" ", gap) + mutedStyle.Render(action)
+	return modalHintKey(key) + strings.Repeat(" ", gap) + modalMuted(action)
 }
 
 func modalView(title string, lines []string, width int) string {
@@ -80,21 +94,21 @@ func modalView(title string, lines []string, width int) string {
 		width = 24
 	}
 	innerWidth := width - 4
-	titleLine := titleStyle.Render(title)
-	esc := mutedStyle.Render("esc")
+	titleLine := modalTitle(title)
+	esc := modalMuted("esc")
 	titleGap := innerWidth - lipglossWidth(titleLine) - lipglossWidth(esc)
 	if titleGap < 1 {
 		titleGap = 1
 	}
 	out := []string{
-		"┌" + strings.Repeat("─", width-2) + "┐",
+		modalSurface("┌" + strings.Repeat("─", width-2) + "┐"),
 		modalLine(titleLine+strings.Repeat(" ", titleGap)+esc, innerWidth),
-		"├" + strings.Repeat("─", width-2) + "┤",
+		modalSurface("├" + strings.Repeat("─", width-2) + "┤"),
 	}
 	for _, line := range lines {
 		out = append(out, modalLine(fitModalText(line, innerWidth), innerWidth))
 	}
-	out = append(out, "└"+strings.Repeat("─", width-2)+"┘")
+	out = append(out, modalSurface("└"+strings.Repeat("─", width-2)+"┘"))
 	return strings.Join(out, "\n")
 }
 
@@ -106,12 +120,12 @@ func fitModalText(value string, width int) string {
 }
 
 func wrapInputLines(value string, width int) []string {
-	if width <= 0 || lipglossWidth(value) <= width {
+	if width <= 0 || lipglossWidth(value)+1 <= width {
 		return []string{value}
 	}
 	runes := []rune(value)
 	lines := make([]string, 0, len(runes)/width+1)
-	for len(runes) > width {
+	for len(runes)+1 > width {
 		lines = append(lines, string(runes[:width]))
 		runes = runes[width:]
 	}
@@ -120,7 +134,35 @@ func wrapInputLines(value string, width int) []string {
 }
 
 func modalLine(value string, width int) string {
-	return "│ " + padRight(value, width) + " │"
+	return modalSurface("│ " + padRight(value, width) + " │")
+}
+
+func modalSurface(value string) string {
+	return "\x1b[48;5;" + modalSurfaceColor + "m" + value + ansiReset
+}
+
+func modalTitle(value string) string {
+	return modalANSI("1;38;5;86", value)
+}
+
+func modalMuted(value string) string {
+	return modalANSI("38;5;244", value)
+}
+
+func modalHintKey(value string) string {
+	return modalANSI("38;5;252", value)
+}
+
+func modalCursor() string {
+	return modalANSI("38;5;252", "▌")
+}
+
+func modalSelected(value string) string {
+	return "\x1b[38;5;229;48;5;57m" + value + "\x1b[39;48;5;" + modalSurfaceColor + "m"
+}
+
+func modalANSI(code, value string) string {
+	return "\x1b[" + code + ";48;5;" + modalSurfaceColor + "m" + value + "\x1b[22;39;48;5;" + modalSurfaceColor + "m"
 }
 
 func overlayModal(base, modal string, width int) string {
@@ -171,22 +213,14 @@ func displayPrefix(value string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	runes := []rune(value)
-	if len(runes) <= width {
-		return value
-	}
-	return string(runes[:width])
+	return ansi.Cut(value, 0, width)
 }
 
 func displaySuffix(value string, start int) string {
 	if start <= 0 {
 		return value
 	}
-	runes := []rune(value)
-	if len(runes) <= start {
-		return ""
-	}
-	return string(runes[start:])
+	return ansi.Cut(value, start, lipglossWidth(value))
 }
 
 func lipglossWidth(value string) int {

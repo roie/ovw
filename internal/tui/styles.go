@@ -2,6 +2,8 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
+const modalSurfaceColor = "236"
+
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).

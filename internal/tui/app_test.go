@@ -216,7 +216,7 @@ func TestModelSearchFiltersVisibleProjects(t *testing.T) {
 	if len(visible) != 1 || visible[0].Name != "web" {
 		t.Fatalf("visible projects = %#v", visible)
 	}
-	view := model.View()
+	view := stripANSI(model.View())
 	if !strings.Contains(view, "search: web▌") || !strings.Contains(view, "web") || strings.Contains(view, "api") {
 		t.Fatalf("search view = %s", view)
 	}
@@ -228,7 +228,7 @@ func TestModelSearchEmptyShowsCursor(t *testing.T) {
 		searching: true,
 	}
 
-	view := model.View()
+	view := stripANSI(model.View())
 	if !strings.Contains(view, "search: ▌") {
 		t.Fatalf("search view missing cursor:\n%s", view)
 	}
@@ -321,7 +321,7 @@ func TestModelFilterPickerIncludesConfiguredStatuses(t *testing.T) {
 	model := Model{config: cfg}
 
 	model = updateKey(t, model, "f")
-	view := model.View()
+	view := stripANSI(model.View())
 	for _, want := range []string{"all", "dirty", "stale", "untagged", "hidden", "parked", "shipped"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("filter view missing %q:\n%s", want, view)
@@ -425,7 +425,7 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 	if model.noteInput != "old" {
 		t.Fatalf("noteInput = %q, want old", model.noteInput)
 	}
-	view := model.View()
+	view := stripANSI(model.View())
 	for _, want := range []string{"Name", "Note 1/1", "app", "Note", "old▌", "enter", "save", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("note modal view missing %q:\n%s", want, view)
@@ -477,7 +477,7 @@ func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 		screen:   screenNote,
 	}
 
-	view := model.View()
+	view := stripANSI(model.View())
 	for _, want := range []string{"empty clears manual note▌", "enter", "save"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("empty note modal missing %q:\n%s", want, view)
@@ -542,7 +542,7 @@ func TestModelStatusPickerSavesConfiguredStatus(t *testing.T) {
 	if model.screen != screenStatus {
 		t.Fatalf("screen = %v, want status", model.screen)
 	}
-	view := model.View()
+	view := stripANSI(model.View())
 	for _, want := range []string{"Name", "Note 1/1", "app", "Status", "parked", "shipped", "enter select", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("status modal view missing %q:\n%s", want, view)
@@ -583,14 +583,16 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 	if model.screen != screenStatusInput {
 		t.Fatalf("screen = %v, want status input", model.screen)
 	}
-	if !strings.Contains(model.View(), "empty clears manual status▌") {
-		t.Fatalf("empty custom status modal missing cursor placeholder:\n%s", model.View())
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "empty clears manual status▌") {
+		t.Fatalf("empty custom status modal missing cursor placeholder:\n%s", view)
 	}
 	for _, value := range []string{"b", "l", "o", "c", "k", "e", "d"} {
 		model = updateKey(t, model, value)
 	}
-	if !strings.Contains(model.View(), "blocked▌") {
-		t.Fatalf("custom status modal missing cursor:\n%s", model.View())
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "blocked▌") {
+		t.Fatalf("custom status modal missing cursor:\n%s", view)
 	}
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)

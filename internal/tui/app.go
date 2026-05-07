@@ -682,7 +682,7 @@ func (m Model) selectedProjectPath() string {
 
 func (m Model) searchDisplay() string {
 	if m.searching {
-		return textInputLine(m.search, "")
+		return searchInputLine(m.search, "")
 	}
 	return m.search
 }
