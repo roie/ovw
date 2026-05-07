@@ -337,7 +337,7 @@ show_unpushed = true
 # ─────────────────────────────────────────
 
 # Fallback chain for note column:
-# [branch ·] manual note OR last commit msg OR project description OR ""
+# [branch ·] user note OR last commit msg OR project description OR ""
 note_fallback_commit = true
 note_fallback_description = true
 
@@ -351,7 +351,7 @@ default_branches = ["main", "master", "trunk"]
 # Status
 # ─────────────────────────────────────────
 
-# Suggested manual statuses. Status is free-form.
+# Suggested statuses. Status is free-form.
 statuses = ["active", "parked", "shipped", "idea"]
 
 # ─────────────────────────────────────────

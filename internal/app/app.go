@@ -285,7 +285,7 @@ func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.P
 	description := projectdescription.Detect(scanned.Path)
 	activity := ovwformat.Activity(gitInfo, cfg, now)
 	note := ovwformat.Note(scanned.Note, description, gitInfo, cfg)
-	tags := ovwformat.Tags(activity, scanned.Status, cfg, now)
+	status := ovwformat.Status(activity, scanned.Status, cfg, now)
 	return project.Project{
 		Name:         scanned.Name,
 		Path:         scanned.Path,
@@ -293,8 +293,7 @@ func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.P
 		StackDisplay: stackResult.Display,
 		Managers:     managers,
 		Activity:     activity,
-		Tags:         tags,
-		Status:       scanned.Status,
+		Status:       status,
 		Note:         note,
 		Manual:       scanned.Manual,
 		Hidden:       scanned.Hidden,

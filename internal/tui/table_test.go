@@ -16,7 +16,7 @@ func TestTableViewRendersProjectColumns(t *testing.T) {
 			Name:         "eventca",
 			StackDisplay: "SvelteKit+CF",
 			Activity:     ovwformat.ActivityInfo{Display: "40m"},
-			Tags:         []string{"dirty", "stale"},
+			Status:       ovwformat.StatusFromTags("", []string{"dirty", "stale"}),
 			Note:         ovwformat.NoteInfo{Display: "partial check-in"},
 		},
 	}, -1, 100, 0)
@@ -34,7 +34,7 @@ func TestTableViewTruncatesToWidth(t *testing.T) {
 			Name:         "very-long-project-name",
 			StackDisplay: "SvelteKit+Cloudflare Workers+Tailwind",
 			Activity:     ovwformat.ActivityInfo{Display: "2w"},
-			Tags:         []string{"dirty", "unpushed", "stale"},
+			Status:       ovwformat.StatusFromTags("", []string{"dirty", "unpushed", "stale"}),
 			Note:         ovwformat.NoteInfo{Display: "this is a long note that should not overflow the table width"},
 		},
 	}, -1, 72, 0)
@@ -55,7 +55,7 @@ func TestTableViewCollapsesMultilineNotes(t *testing.T) {
 			Name:         "instaview",
 			StackDisplay: "WXT",
 			Activity:     ovwformat.ActivityInfo{Display: "3w"},
-			Tags:         []string{"dirty"},
+			Status:       ovwformat.StatusFromTags("", []string{"dirty"}),
 			Note:         ovwformat.NoteInfo{Display: "fix: extract carousel\n- Add SJS script\n- Increase timeout"},
 		},
 	}, 0, 120, 8)

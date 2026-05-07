@@ -100,15 +100,15 @@ func TestTagsBuildAutomaticAndManualStatusTags(t *testing.T) {
 		want   []string
 	}{
 		{name: "no git", info: ActivityInfo{}, want: []string{}},
-		{name: "no git manual", info: ActivityInfo{}, status: "parked", want: []string{"parked"}},
+		{name: "no git user", info: ActivityInfo{}, status: "parked", want: []string{"parked"}},
 		{name: "no commits", info: ActivityInfo{HasGit: true}, status: "parked", want: []string{"no commits", "parked"}},
-		{name: "dirty stale manual", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "stale", "parked"}},
-		{name: "dirty unpushed stale manual", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "unpushed", "stale", "parked"}},
+		{name: "dirty stale user", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "stale", "parked"}},
+		{name: "dirty unpushed stale user", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "unpushed", "stale", "parked"}},
 		{name: "dirty recent", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"dirty"}},
 		{name: "unpushed recent", info: ActivityInfo{HasGit: true, HasCommits: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"unpushed"}},
 		{name: "dirty unpushed recent", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"dirty", "unpushed"}},
 		{name: "stale", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -60)}, want: []string{"stale"}},
-		{name: "active dedupes manual active", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -2)}, status: "active", want: []string{"active"}},
+		{name: "active dedupes user active", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -2)}, status: "active", want: []string{"active"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -135,9 +135,9 @@ func TestNoteFallbackChain(t *testing.T) {
 	cfg := config.Default()
 	info := gitactivity.Info{Branch: "feat/checkin", LastCommitMessage: "commit msg"}
 
-	got := Note("manual note", "description", info, cfg)
-	if got.Display != "feat/checkin · manual note" || got.Source != "manual" || got.Manual != "manual note" {
-		t.Fatalf("manual note = %#v", got)
+	got := Note("user note", "description", info, cfg)
+	if got.Display != "feat/checkin · user note" || got.Source != "user" || got.Value != "user note" {
+		t.Fatalf("user note = %#v", got)
 	}
 
 	got = Note("", "description", info, cfg)

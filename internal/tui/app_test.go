@@ -65,8 +65,8 @@ func TestModelLoadsOverviewData(t *testing.T) {
 					Name:         "app",
 					StackDisplay: "Go",
 					Activity:     ovwformat.ActivityInfo{Display: "12m"},
-					Tags:         []string{"dirty"},
-					Note:         ovwformat.NoteInfo{Display: "manual note"},
+					Status:       ovwformat.StatusFromTags("", []string{"dirty"}),
+					Note:         ovwformat.NoteInfo{Display: "user note"},
 				},
 			},
 		}, nil
@@ -85,7 +85,7 @@ func TestModelLoadsOverviewData(t *testing.T) {
 		t.Fatalf("projects = %#v", got.projects)
 	}
 	view := got.View()
-	for _, want := range []string{"ovw", "1 project", "Name", "Stack", "Activity", "Status", "Note", "app", "Go", "12m", "dirty", "manual note"} {
+	for _, want := range []string{"ovw", "1 project", "Name", "Stack", "Activity", "Status", "Note", "app", "Go", "12m", "dirty", "user note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("View() missing %q:\n%s", want, view)
 		}
@@ -102,14 +102,14 @@ func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 				Name:         "app",
 				StackDisplay: "Go",
 				Activity:     ovwformat.ActivityInfo{Display: "12m"},
-				Tags:         []string{"dirty"},
-				Note:         ovwformat.NoteInfo{Display: "manual note"},
+				Status:       ovwformat.StatusFromTags("", []string{"dirty"}),
+				Note:         ovwformat.NoteInfo{Display: "user note"},
 			},
 		},
 	}
 
 	view := stripANSI(model.View())
-	for _, want := range []string{"ovw  1 project  filter: all  sort: activity", "app", "Go", "12m", "dirty", "manual note"} {
+	for _, want := range []string{"ovw  1 project  filter: all  sort: activity", "app", "Go", "12m", "dirty", "user note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("background loading view missing %q:\n%s", want, view)
 		}
@@ -365,7 +365,7 @@ func TestModelOpensAndClosesDetailView(t *testing.T) {
 		t.Fatalf("selected = %d, want 1", updated.selected)
 	}
 	view := updated.View()
-	for _, want := range []string{"Details", "one", "two", " │ ", "/tmp/two", "Go, Cobra", "go modules", "dirty", "2 unpushed", "Manual note"} {
+	for _, want := range []string{"Details", "one", "two", " │ ", "/tmp/two", "Go, Cobra", "go modules", "dirty", "2 unpushed", "Value note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("detail view missing %q:\n%s", want, view)
 		}
@@ -633,7 +633,7 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 					{
 						Name: "app",
 						Path: "/tmp/app",
-						Note: ovwformat.NoteInfo{Display: savedNote, Manual: savedNote},
+						Note: ovwformat.NoteInfo{Display: savedNote, Value: savedNote},
 					},
 				},
 			}, nil
@@ -650,7 +650,7 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 			{
 				Name: "app",
 				Path: "/tmp/app",
-				Note: ovwformat.NoteInfo{Display: "old", Manual: "old"},
+				Note: ovwformat.NoteInfo{Display: "old", Value: "old"},
 			},
 		},
 	}
@@ -684,7 +684,7 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 	if model.message != "Note saved" {
 		t.Fatalf("message = %q, want Note saved", model.message)
 	}
-	if model.projects[0].Note.Manual != "old!" {
+	if model.projects[0].Note.Value != "old!" {
 		t.Fatalf("project note = %#v", model.projects[0].Note)
 	}
 }
@@ -715,7 +715,7 @@ func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	for _, want := range []string{"empty clears manual note▌", "enter", "save"} {
+	for _, want := range []string{"empty clears note▌", "enter", "save"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("empty note modal missing %q:\n%s", want, view)
 		}
@@ -745,7 +745,7 @@ func TestModelNoteEditorUsesCurrentDisplayNoteAsPlaceholder(t *testing.T) {
 	if !strings.Contains(view, "commit fallback note▌") {
 		t.Fatalf("note modal should show current note as placeholder:\n%s", view)
 	}
-	if strings.Contains(view, "empty clears manual note") {
+	if strings.Contains(view, "empty clears note") {
 		t.Fatalf("note modal should not show clear hint when a current note exists:\n%s", view)
 	}
 }
@@ -782,7 +782,7 @@ func TestModelStatusPickerSavesConfiguredStatus(t *testing.T) {
 		height: 24,
 		config: cfg,
 		loader: func(opts app.Options) (app.OverviewResult, error) {
-			return app.OverviewResult{Config: cfg, Projects: []project.Project{{Name: "app", Path: "/tmp/app", Status: savedStatus}}}, nil
+			return app.OverviewResult{Config: cfg, Projects: []project.Project{{Name: "app", Path: "/tmp/app", Status: ovwformat.StatusFromTags(savedStatus, []string{savedStatus})}}}, nil
 		},
 		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
 			if update.Status == nil {
@@ -840,7 +840,7 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 		t.Fatalf("screen = %v, want status input", model.screen)
 	}
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "empty clears manual status▌") {
+	if !strings.Contains(view, "empty clears status▌") {
 		t.Fatalf("empty custom status modal missing cursor placeholder:\n%s", view)
 	}
 	for _, value := range []string{"b", "l", "o", "c", "k", "e", "d"} {
@@ -864,7 +864,7 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
 	got := stripANSI(statusInputView(""))
 
-	if !strings.Contains(got, "empty clears manual status▌") {
+	if !strings.Contains(got, "empty clears status▌") {
 		t.Fatalf("status input placeholder was truncated:\n%s", got)
 	}
 	if !strings.Contains(got, "enter save") {
@@ -1333,9 +1333,8 @@ func detailTestProject(name string) project.Project {
 			HasGit:            true,
 			HasCommits:        true,
 		},
-		Tags:        []string{"dirty", "unpushed"},
-		Status:      "parked",
-		Note:        ovwformat.NoteInfo{Display: "Manual note", Manual: "Manual note"},
+		Status:      ovwformat.StatusFromTags("parked", []string{"dirty", "unpushed", "parked"}),
+		Note:        ovwformat.NoteInfo{Display: "Value note", Value: "Value note"},
 		Description: "Project description",
 	}
 }

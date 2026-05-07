@@ -13,8 +13,7 @@ type Project struct {
 	StackDisplay string              `json:"stack_display"`
 	Managers     []string            `json:"managers"`
 	Activity     format.ActivityInfo `json:"activity"`
-	Tags         []string            `json:"tags"`
-	Status       string              `json:"status"`
+	Status       format.StatusInfo   `json:"status"`
 	Note         format.NoteInfo     `json:"note"`
 	Manual       bool                `json:"manual"`
 	Hidden       bool                `json:"hidden"`

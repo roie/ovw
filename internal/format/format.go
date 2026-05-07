@@ -30,8 +30,14 @@ type RecentCommit struct {
 
 type NoteInfo struct {
 	Display string `json:"display"`
-	Manual  string `json:"manual"`
+	Value   string `json:"value"`
 	Source  string `json:"source"`
+}
+
+type StatusInfo struct {
+	Display string   `json:"display"`
+	Value   string   `json:"value"`
+	Tags    []string `json:"tags"`
 }
 
 func Activity(info gitactivity.Info, cfg config.Config, now time.Time) ActivityInfo {
@@ -119,6 +125,19 @@ func TagDisplay(tags []string) string {
 	return strings.Join(tags, " · ")
 }
 
+func Status(activity ActivityInfo, value string, cfg config.Config, now time.Time) StatusInfo {
+	tags := Tags(activity, value, cfg, now)
+	return StatusFromTags(value, tags)
+}
+
+func StatusFromTags(value string, tags []string) StatusInfo {
+	return StatusInfo{
+		Display: TagDisplay(tags),
+		Value:   value,
+		Tags:    tags,
+	}
+}
+
 func RelativeAge(then, now time.Time) string {
 	if then.IsZero() {
 		return ""
@@ -149,12 +168,12 @@ func RelativeAge(then, now time.Time) string {
 }
 
 func Note(manual, description string, activity gitactivity.Info, cfg config.Config) NoteInfo {
-	note := NoteInfo{Manual: manual, Source: "none"}
+	note := NoteInfo{Value: manual, Source: "none"}
 	text := ""
 	switch {
 	case manual != "":
 		text = manual
-		note.Source = "manual"
+		note.Source = "user"
 	case cfg.NoteFallbackCommit && activity.LastCommitMessage != "":
 		text = activity.LastCommitMessage
 		note.Source = "commit"

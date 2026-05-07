@@ -131,8 +131,8 @@ func newJSONProject(project project.Project) jsonProject {
 		Path:     project.Path,
 		Stack:    project.Stack,
 		Managers: project.Managers,
-		Tags:     project.Tags,
-		Status:   project.Status,
+		Tags:     project.Status.Tags,
+		Status:   project.Status.Value,
 		Note:     project.Note.Display,
 		Activity: activity,
 	}
@@ -162,7 +162,7 @@ func value(p project.Project, column, displayName string) string {
 	case "activity":
 		return p.Activity.Display
 	case "status":
-		return ovwformat.TagDisplay(p.Tags)
+		return p.Status.Display
 	case "note":
 		return ovwformat.SingleLine(p.Note.Display)
 	default:

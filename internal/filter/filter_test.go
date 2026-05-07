@@ -9,12 +9,16 @@ import (
 	"ovw/internal/project"
 )
 
+func testStatus(value string) format.StatusInfo {
+	return format.StatusFromTags(value, []string{value})
+}
+
 func TestApplyCombinedFilters(t *testing.T) {
 	now := time.Date(2026, 5, 6, 0, 0, 0, 0, time.Local)
 	projects := []project.Project{
-		{Name: "a", Status: "active", Activity: format.ActivityInfo{Dirty: true, HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -40)}},
-		{Name: "b", Status: "active", Activity: format.ActivityInfo{Dirty: false, HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -40)}},
-		{Name: "c", Status: "parked", Activity: format.ActivityInfo{Dirty: true, HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -40)}},
+		{Name: "a", Status: testStatus("active"), Activity: format.ActivityInfo{Dirty: true, HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -40)}},
+		{Name: "b", Status: testStatus("active"), Activity: format.ActivityInfo{Dirty: false, HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -40)}},
+		{Name: "c", Status: testStatus("parked"), Activity: format.ActivityInfo{Dirty: true, HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -40)}},
 	}
 	opts := Options{Status: "active", Dirty: true, Stale: true}
 
@@ -28,7 +32,7 @@ func TestApplyCombinedFilters(t *testing.T) {
 }
 
 func TestApplyUntaggedFilter(t *testing.T) {
-	projects := []project.Project{{Name: "a"}, {Name: "b", Status: "active"}}
+	projects := []project.Project{{Name: "a"}, {Name: "b", Status: testStatus("active")}}
 	got, err := Apply(projects, Options{Untagged: true}, config.Default(), time.Now())
 	if err != nil {
 		t.Fatalf("Apply() error = %v", err)
@@ -39,7 +43,7 @@ func TestApplyUntaggedFilter(t *testing.T) {
 }
 
 func TestApplyAllowsFreeFormStatusFilter(t *testing.T) {
-	projects := []project.Project{{Name: "a", Status: "needs review"}, {Name: "b", Status: "active"}}
+	projects := []project.Project{{Name: "a", Status: testStatus("needs review")}, {Name: "b", Status: testStatus("active")}}
 	got, err := Apply(projects, Options{Status: "needs review"}, config.Default(), time.Now())
 	if err != nil {
 		t.Fatalf("Apply() error = %v", err)
@@ -65,8 +69,8 @@ func TestSortModes(t *testing.T) {
 	cfg := config.Default()
 	cfg.SortDir = "asc"
 	projects := []project.Project{
-		{Name: "beta", Status: "parked", Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -1), HasCommits: true}},
-		{Name: "alpha", Status: "active", Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -3), HasCommits: true}},
+		{Name: "beta", Status: testStatus("parked"), Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -1), HasCommits: true}},
+		{Name: "alpha", Status: testStatus("active"), Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -3), HasCommits: true}},
 	}
 
 	got := Sort(projects, "name", cfg)
@@ -74,7 +78,7 @@ func TestSortModes(t *testing.T) {
 		t.Fatalf("name sort = %#v", got)
 	}
 	got = Sort(projects, "status", cfg)
-	if got[0].Status != "active" {
+	if got[0].Status.Value != "active" {
 		t.Fatalf("status sort = %#v", got)
 	}
 	got = Sort(projects, "activity", config.Default())
@@ -87,8 +91,8 @@ func TestSortDirectionAppliesToNameAndStatus(t *testing.T) {
 	cfg := config.Default()
 	cfg.SortDir = "desc"
 	projects := []project.Project{
-		{Name: "alpha", Status: "active"},
-		{Name: "beta", Status: "parked"},
+		{Name: "alpha", Status: testStatus("active")},
+		{Name: "beta", Status: testStatus("parked")},
 	}
 
 	got := Sort(projects, "name", cfg)
@@ -96,7 +100,7 @@ func TestSortDirectionAppliesToNameAndStatus(t *testing.T) {
 		t.Fatalf("name desc sort = %#v", got)
 	}
 	got = Sort(projects, "status", cfg)
-	if got[0].Status != "parked" {
+	if got[0].Status.Value != "parked" {
 		t.Fatalf("status desc sort = %#v", got)
 	}
 }

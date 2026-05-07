@@ -36,7 +36,7 @@ func tableView(projects []project.Project, selected, width, height int) string {
 			project.Name,
 			project.StackDisplay,
 			project.Activity.Display,
-			ovwformat.TagDisplay(project.Tags),
+			project.Status.Display,
 			ovwformat.SingleLine(project.Note.Display),
 			widths,
 		)

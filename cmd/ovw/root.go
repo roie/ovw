@@ -10,7 +10,6 @@ import (
 
 	"ovw/internal/app"
 	"ovw/internal/config"
-	ovwformat "ovw/internal/format"
 	"ovw/internal/metadata"
 	"ovw/internal/project"
 	"ovw/internal/render"
@@ -63,10 +62,10 @@ func NewRootCommand() *cobra.Command {
 	cmd.SetUsageTemplate(rootUsageTemplate())
 	cmd.Flags().BoolVar(&opts.Plain, "plain", false, "force plain table output")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "output JSON for overview or project")
-	cmd.Flags().StringVar(&opts.Status, "status", "", "filter by manual status")
+	cmd.Flags().StringVar(&opts.Status, "status", "", "filter by status")
 	cmd.Flags().BoolVar(&opts.Dirty, "dirty", false, "show dirty projects")
 	cmd.Flags().BoolVar(&opts.Stale, "stale", false, "show stale projects")
-	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show projects without manual status")
+	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show projects without status")
 	cmd.Flags().BoolVar(&opts.Hidden, "hidden", false, "show hidden projects")
 	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, name, or status")
 	cmd.AddCommand(newAddCommand())
@@ -116,10 +115,10 @@ Commands:
 Flags:
   --json            output JSON for overview or project
   --plain           force plain table output
-  --status string   filter by manual status
+  --status string   filter by status
   --dirty           show dirty projects
   --stale           show stale projects
-  --untagged        show projects without manual status
+  --untagged        show projects without status
   --hidden          show hidden projects
   --sort string     sort by activity, name, or status
   -h, --help        help for ovw
@@ -360,7 +359,7 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 	fmt.Fprintf(out, "Path      %s\n", displayPath(path))
 	fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
 	fmt.Fprintf(out, "Manager   %s\n", managerDisplay(enriched.Managers))
-	fmt.Fprintf(out, "Status    %s\n", ovwformat.TagDisplay(enriched.Tags))
+	fmt.Fprintf(out, "Status    %s\n", enriched.Status.Display)
 	fmt.Fprintf(out, "Note      %s\n", enriched.Note.Display)
 	if enriched.Activity.HasGit && enriched.Activity.Branch != "" {
 		fmt.Fprintf(out, "Branch    %s\n", enriched.Activity.Branch)

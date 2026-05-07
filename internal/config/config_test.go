@@ -121,7 +121,7 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if strings.Contains(text, "[cache]") {
 		t.Fatalf("default config contains cache section:\n%s", text)
 	}
-	if !strings.Contains(text, "# Suggested manual statuses. Status is free-form.") {
+	if !strings.Contains(text, "# Suggested statuses. Status is free-form.") {
 		t.Fatalf("default config missing suggested status comment:\n%s", text)
 	}
 	loaded, err := Load(path)

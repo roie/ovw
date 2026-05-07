@@ -60,7 +60,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"unset     Clear project status or note",
 		"config    Manage ovw config",
 		"--json            output JSON for overview or project",
-		"--status string   filter by manual status",
+		"--status string   filter by status",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("help output missing %q:\n%s", want, got)
@@ -98,10 +98,10 @@ func TestHelpTextDescriptions(t *testing.T) {
 	mustAppearInOrder(t, got, []string{
 		"--json            output JSON for overview or project",
 		"--plain           force plain table output",
-		"--status string   filter by manual status",
+		"--status string   filter by status",
 		"--dirty           show dirty projects",
 		"--stale           show stale projects",
-		"--untagged        show projects without manual status",
+		"--untagged        show projects without status",
 		"--hidden          show hidden projects",
 		"--sort string     sort by activity, name, or status",
 		"-h, --help        help for ovw",

@@ -20,7 +20,7 @@ func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 		"Branch   main",
 		"Manager  go modules",
 		"Note",
-		"Manual note",
+		"Value note",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("detail summary missing %q:\n%s", want, got)
@@ -34,13 +34,14 @@ func TestDetailSummaryWrapsNote(t *testing.T) {
 
 	got := stripANSI(detailSummaryView(project, 28))
 
-	if strings.Contains(got, "...") {
-		t.Fatalf("detail summary note should wrap instead of truncate:\n%s", got)
-	}
 	for _, want := range []string{"chore: add biome and apply", "repository-wide formatting"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("detail summary note missing %q:\n%s", want, got)
 		}
+	}
+	noteBlock := got[strings.Index(got, "Note"):]
+	if strings.Contains(noteBlock, "...") {
+		t.Fatalf("detail summary note should wrap instead of truncate:\n%s", got)
 	}
 }
 

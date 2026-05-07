@@ -24,7 +24,7 @@ func Apply(projects []project.Project, opts Options, cfg config.Config, now time
 		if opts.Hidden && !p.Hidden {
 			continue
 		}
-		if opts.Status != "" && p.Status != opts.Status {
+		if opts.Status != "" && p.Status.Value != opts.Status {
 			continue
 		}
 		if opts.Dirty && !p.Activity.Dirty {
@@ -33,7 +33,7 @@ func Apply(projects []project.Project, opts Options, cfg config.Config, now time
 		if opts.Stale && !isStale(p, cfg.StaleDays, now) {
 			continue
 		}
-		if opts.Untagged && p.Status != "" {
+		if opts.Untagged && p.Status.Value != "" {
 			continue
 		}
 		out = append(out, p)
@@ -56,9 +56,9 @@ func Sort(projects []project.Project, mode string, cfg config.Config) []project.
 			return out[i].Name < out[j].Name
 		case "status":
 			if desc {
-				return out[i].Status > out[j].Status
+				return out[i].Status.Value > out[j].Status.Value
 			}
-			return out[i].Status < out[j].Status
+			return out[i].Status.Value < out[j].Status.Value
 		case "activity":
 			fallthrough
 		default:

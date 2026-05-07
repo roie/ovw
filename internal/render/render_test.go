@@ -17,8 +17,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 		Name:         "eventca",
 		StackDisplay: "SvelteKit+CF",
 		Activity:     format.ActivityInfo{Display: "2d ↑2"},
-		Tags:         []string{"dirty", "stale", "shipped"},
-		Status:       "shipped",
+		Status:       format.StatusFromTags("shipped", []string{"dirty", "stale", "shipped"}),
 		Note:         format.NoteInfo{Display: "feat/checkin · fix"},
 	}}
 	var out bytes.Buffer
@@ -104,7 +103,7 @@ func TestTableCollapsesMultilineNotes(t *testing.T) {
 		Path:         "/tmp/instaview",
 		StackDisplay: "WXT",
 		Activity:     format.ActivityInfo{Display: "3w"},
-		Tags:         []string{"dirty"},
+		Status:       format.StatusFromTags("", []string{"dirty"}),
 		Note:         format.NoteInfo{Display: "fix: extract carousel\n- Add SJS script\n- Increase timeout"},
 	}}
 	var out bytes.Buffer
@@ -162,9 +161,8 @@ func TestJSONOutputsPureArray(t *testing.T) {
 			HasGit:            true,
 			HasCommits:        true,
 		},
-		Status: "active",
-		Tags:   []string{"dirty", "unpushed", "active"},
-		Note:   format.NoteInfo{Display: "note", Source: "manual", Manual: "note"},
+		Status: format.StatusFromTags("active", []string{"dirty", "unpushed", "active"}),
+		Note:   format.NoteInfo{Display: "note", Source: "user", Value: "note"},
 		Manual: true,
 		Hidden: true,
 	}}
@@ -184,7 +182,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		t.Fatalf("decoded = %#v", decoded)
 	}
 	item := decoded[0]
-	for _, unwanted := range []string{"stack_display", "manual", "hidden"} {
+	for _, unwanted := range []string{"stack_display", "user", "hidden"} {
 		if _, ok := item[unwanted]; ok {
 			t.Fatalf("json includes internal field %q:\n%s", unwanted, out.String())
 		}

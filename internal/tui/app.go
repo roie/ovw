@@ -146,7 +146,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isNoteKey(msg.String()) && m.canOpenDetail() {
 			project, _ := m.currentProject()
 			m.screen = screenNote
-			m.noteInput = project.Note.Manual
+			m.noteInput = project.Note.Value
 			return m, nil
 		}
 		if isStatusKey(msg.String()) && m.canOpenDetail() {
@@ -822,7 +822,7 @@ func projectMatchesSearch(project project.Project, query string) bool {
 		project.Path,
 		project.StackDisplay,
 		strings.Join(project.Managers, " "),
-		ovwformat.TagDisplay(project.Tags),
+		project.Status.Display,
 		project.Note.Display,
 	}
 	for _, value := range values {

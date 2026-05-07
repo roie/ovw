@@ -27,11 +27,8 @@ func detailView(project project.Project, ok bool) string {
 	if project.Activity.Display != "" {
 		lines = append(lines, detailLine("Activity", project.Activity.Display))
 	}
-	if status := ovwformat.TagDisplay(project.Tags); status != "" {
-		lines = append(lines, detailLine("Status", status))
-	}
-	if project.Status != "" {
-		lines = append(lines, detailLine("Manual status", project.Status))
+	if project.Status.Display != "" {
+		lines = append(lines, detailLine("Status", project.Status.Display))
 	}
 	if project.Activity.Branch != "" {
 		lines = append(lines, detailLine("Branch", project.Activity.Branch))
@@ -47,9 +44,6 @@ func detailView(project project.Project, ok bool) string {
 	}
 	if project.Note.Display != "" {
 		lines = append(lines, detailLine("Note", project.Note.Display))
-	}
-	if project.Note.Manual != "" {
-		lines = append(lines, detailLine("Manual note", project.Note.Manual))
 	}
 	if project.Description != "" {
 		lines = append(lines, detailLine("Description", project.Description))
@@ -91,9 +85,7 @@ func detailSummaryView(project project.Project, width int) string {
 		addSummaryLine("Stack", strings.Join(project.Stack, ", "))
 	}
 	addSummaryLine("Activity", project.Activity.Display)
-	if status := ovwformat.TagDisplay(project.Tags); status != "" {
-		addSummaryLine("Status", status)
-	}
+	addSummaryLine("Status", project.Status.Display)
 	addSummaryLine("Branch", project.Activity.Branch)
 	if len(project.Managers) > 0 {
 		addSummaryLine("Manager", strings.Join(project.Managers, ", "))

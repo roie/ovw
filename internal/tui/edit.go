@@ -8,7 +8,7 @@ import (
 
 func noteView(value, placeholder string) string {
 	if placeholder == "" {
-		placeholder = "empty clears manual note"
+		placeholder = "empty clears note"
 	}
 	return inputModalView("Note", value, placeholder, 56)
 }
@@ -50,7 +50,7 @@ func statusView(options []statusOption, selected int) string {
 }
 
 func statusInputView(value string) string {
-	return inputModalView("Custom status", value, "empty clears manual status", 42)
+	return inputModalView("Custom status", value, "empty clears status", 42)
 }
 
 func inputModalView(title, value, placeholder string, width int) string {
