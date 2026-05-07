@@ -539,11 +539,107 @@ func renderShell(m Model) string {
 		} else if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
 		} else {
-			body += "\n\n" + tableView(visible, m.selected, m.width)
+			body += "\n\n" + m.tablePanel(visible)
 		}
 	}
 	body += "\n\n" + footerView()
 	return appStyle.Render(body)
+}
+
+func (m Model) tablePanel(visible []project.Project) string {
+	contentWidth := m.contentWidth()
+	tableHeight := m.tableHeight()
+	if m.showInlineDetail() {
+		detailWidth := inlineDetailWidth(contentWidth)
+		gap := 3
+		tableWidth := contentWidth - detailWidth - gap
+		if tableWidth < 40 {
+			tableWidth = contentWidth
+		} else {
+			detail, _ := m.currentProject()
+			return joinColumns(
+				tableView(visible, m.selected, tableWidth, tableHeight),
+				detailSummaryView(detail, detailWidth),
+				gap,
+			)
+		}
+	}
+	return tableView(visible, m.selected, contentWidth, tableHeight)
+}
+
+func (m Model) showInlineDetail() bool {
+	return m.screen == screenTable && m.contentWidth() >= 110 && len(m.visibleProjects()) > 0
+}
+
+func (m Model) contentWidth() int {
+	if m.width <= 4 {
+		return m.width
+	}
+	return m.width - 4
+}
+
+func (m Model) tableHeight() int {
+	if m.height <= 0 {
+		return 0
+	}
+	height := m.height - 8
+	if height < 4 {
+		return 4
+	}
+	return height
+}
+
+func inlineDetailWidth(width int) int {
+	detailWidth := width / 3
+	if detailWidth < 34 {
+		return 34
+	}
+	if detailWidth > 52 {
+		return 52
+	}
+	return detailWidth
+}
+
+func joinColumns(left, right string, gap int) string {
+	leftLines := strings.Split(left, "\n")
+	rightLines := strings.Split(right, "\n")
+	leftWidth := maxLineWidth(leftLines)
+	lineCount := len(leftLines)
+	if len(rightLines) > lineCount {
+		lineCount = len(rightLines)
+	}
+	lines := make([]string, 0, lineCount)
+	spacer := strings.Repeat(" ", gap)
+	for i := 0; i < lineCount; i++ {
+		leftLine := ""
+		if i < len(leftLines) {
+			leftLine = leftLines[i]
+		}
+		rightLine := ""
+		if i < len(rightLines) {
+			rightLine = rightLines[i]
+		}
+		lines = append(lines, padRight(leftLine, leftWidth)+spacer+rightLine)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func maxLineWidth(lines []string) int {
+	width := 0
+	for _, line := range lines {
+		if lineWidth := len([]rune(line)); lineWidth > width {
+			width = lineWidth
+		}
+	}
+	return width
+}
+
+func padRight(value string, width int) string {
+	runes := []rune(value)
+	if len(runes) >= width {
+		return value
+	}
+	return value + strings.Repeat(" ", width-len(runes))
 }
 
 func (m Model) currentProject() (project.Project, bool) {

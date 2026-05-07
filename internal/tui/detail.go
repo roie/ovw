@@ -55,6 +55,30 @@ func detailView(project project.Project, ok bool) string {
 	return strings.Join(lines, "\n")
 }
 
+func detailSummaryView(project project.Project, width int) string {
+	lines := []string{titleStyle.Render(truncateText(project.Name, width))}
+	addSummaryLine := func(label, value string) {
+		if value == "" {
+			return
+		}
+		lines = append(lines, truncateText(detailLine(label, value), width))
+	}
+	addSummaryLine("Path", project.Path)
+	if len(project.Stack) > 0 {
+		addSummaryLine("Stack", strings.Join(project.Stack, ", "))
+	}
+	if status := ovwformat.TagDisplay(project.Tags); status != "" {
+		addSummaryLine("Status", status)
+	}
+	if project.Note.Display != "" {
+		addSummaryLine("Note", project.Note.Display)
+	}
+	if len(project.Managers) > 0 {
+		addSummaryLine("Manager", strings.Join(project.Managers, ", "))
+	}
+	return strings.Join(lines, "\n")
+}
+
 func detailLine(label, value string) string {
 	return fmt.Sprintf("%-14s %s", label, value)
 }

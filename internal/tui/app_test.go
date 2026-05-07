@@ -669,6 +669,40 @@ func TestModelNoProjectsState(t *testing.T) {
 	}
 }
 
+func TestModelWideViewShowsInlineDetailPane(t *testing.T) {
+	model := Model{
+		width:  140,
+		height: 24,
+		projects: []project.Project{
+			detailTestProject("one"),
+			detailTestProject("two"),
+		},
+		selected: 1,
+	}
+
+	view := model.View()
+	for _, want := range []string{"one", "two", "Path", "/tmp/two", "Stack", "Go, Cobra"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("wide view missing %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestModelNarrowViewKeepsDetailPaneHidden(t *testing.T) {
+	model := Model{
+		width:  80,
+		height: 24,
+		projects: []project.Project{
+			detailTestProject("one"),
+		},
+	}
+
+	view := model.View()
+	if strings.Contains(view, "Path") || strings.Contains(view, "/tmp/one") {
+		t.Fatalf("narrow table view should not render inline detail:\n%s", view)
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})

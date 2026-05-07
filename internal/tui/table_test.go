@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -17,7 +18,7 @@ func TestTableViewRendersProjectColumns(t *testing.T) {
 			Tags:         []string{"dirty", "stale"},
 			Note:         ovwformat.NoteInfo{Display: "partial check-in"},
 		},
-	}, -1, 100)
+	}, -1, 100, 0)
 
 	for _, want := range []string{"Name", "Stack", "Activity", "Status", "Note", "eventca", "SvelteKit+CF", "40m", "dirty", "stale", "partial check-in"} {
 		if !strings.Contains(got, want) {
@@ -35,7 +36,7 @@ func TestTableViewTruncatesToWidth(t *testing.T) {
 			Tags:         []string{"dirty", "unpushed", "stale"},
 			Note:         ovwformat.NoteInfo{Display: "this is a long note that should not overflow the table width"},
 		},
-	}, -1, 72)
+	}, -1, 72, 0)
 
 	for _, line := range strings.Split(got, "\n") {
 		if len([]rune(line)) > 72 {
@@ -44,5 +45,27 @@ func TestTableViewTruncatesToWidth(t *testing.T) {
 	}
 	if !strings.Contains(got, "...") {
 		t.Fatalf("table did not truncate long content:\n%s", got)
+	}
+}
+
+func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
+	projects := make([]project.Project, 0, 20)
+	for i := range 20 {
+		projects = append(projects, project.Project{Name: fmt.Sprintf("project-%02d", i)})
+	}
+
+	got := tableView(projects, 15, 80, 8)
+
+	if !strings.Contains(got, "project-15") {
+		t.Fatalf("selected row is not visible:\n%s", got)
+	}
+	if strings.Contains(got, "project-00") {
+		t.Fatalf("table did not scroll away from first row:\n%s", got)
+	}
+	if strings.Contains(got, "project-19") {
+		t.Fatalf("table rendered rows past viewport:\n%s", got)
+	}
+	if !strings.Contains(got, "16/20") {
+		t.Fatalf("table missing scroll position:\n%s", got)
 	}
 }

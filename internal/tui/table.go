@@ -16,16 +16,22 @@ type tableColumnWidths struct {
 	Note     int
 }
 
-func tableView(projects []project.Project, selected, width int) string {
+func tableView(projects []project.Project, selected, width, height int) string {
 	if len(projects) == 0 {
 		return mutedStyle.Render("No projects found")
 	}
 	widths := fitTableColumns(width)
+	noteHeader := "Note"
+	if selected >= 0 && selected < len(projects) {
+		noteHeader = fmt.Sprintf("Note %d/%d", selected+1, len(projects))
+	}
 	lines := []string{
-		tableRow("Name", "Stack", "Activity", "Status", "Note", widths),
+		tableRow("Name", "Stack", "Activity", "Status", noteHeader, widths),
 		strings.Repeat("-", tableLineWidth(widths)),
 	}
-	for index, project := range projects {
+	start, end := visibleRange(len(projects), selected, tableBodyHeight(height))
+	for index := start; index < end; index++ {
+		project := projects[index]
 		line := tableRow(
 			project.Name,
 			project.StackDisplay,
@@ -40,6 +46,40 @@ func tableView(projects []project.Project, selected, width int) string {
 		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func visibleRange(total, selected, rows int) (int, int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	if rows <= 0 || rows > total {
+		return 0, total
+	}
+	if selected < 0 {
+		return 0, rows
+	}
+	if selected >= total {
+		selected = total - 1
+	}
+	start := selected - rows/2
+	if start < 0 {
+		start = 0
+	}
+	if start+rows > total {
+		start = total - rows
+	}
+	return start, start + rows
+}
+
+func tableBodyHeight(height int) int {
+	if height <= 0 {
+		return 0
+	}
+	rows := height - 2
+	if rows < 1 {
+		return 1
+	}
+	return rows
 }
 
 func tableRow(name, stack, activity, status, note string, widths tableColumnWidths) string {
