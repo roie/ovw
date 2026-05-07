@@ -11,6 +11,8 @@ type Store struct {
 	Projects map[string]Entry `json:"projects"`
 }
 
+// Entry is user-owned project metadata. Generated project data such as stack,
+// managers, Git activity, descriptions, and recent commits must stay live-only.
 type Entry struct {
 	Status string `json:"status,omitempty"`
 	Note   string `json:"note,omitempty"`

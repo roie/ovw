@@ -197,7 +197,7 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 	}
 
 	status := "parked"
-	note := "manual note"
+	note := "user note"
 	result, err := UpdateProjectMetadata("app", MetadataUpdate{Status: &status, Note: &note})
 	if err != nil {
 		t.Fatalf("UpdateProjectMetadata() error = %v", err)
@@ -212,6 +212,28 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 	got := store.Projects[result.Path]
 	if got.Status != status || got.Note != note {
 		t.Fatalf("stored entry = %#v", got)
+	}
+	data, err := os.ReadFile(paths.Metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, generated := range []string{
+		"stack",
+		"stack_display",
+		"managers",
+		"activity",
+		"last_commit_at",
+		"last_commit_message",
+		"branch",
+		"dirty",
+		"unpushed",
+		"has_git",
+		"has_commits",
+		"description",
+	} {
+		if strings.Contains(string(data), generated) {
+			t.Fatalf("metadata stored generated field %q: %s", generated, data)
+		}
 	}
 }
 
