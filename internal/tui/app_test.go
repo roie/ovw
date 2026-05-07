@@ -170,6 +170,67 @@ func TestModelDoesNotOpenDetailWithoutProjects(t *testing.T) {
 	}
 }
 
+func TestModelSearchFiltersVisibleProjects(t *testing.T) {
+	model := Model{
+		projects: []project.Project{
+			{Name: "api", Path: "/tmp/api", StackDisplay: "Go"},
+			{Name: "web", Path: "/tmp/web", StackDisplay: "SvelteKit", Note: ovwformat.NoteInfo{Display: "frontend"}},
+		},
+	}
+
+	model = updateKey(t, model, "/")
+	if !model.searching {
+		t.Fatal("expected search mode")
+	}
+	model = updateKey(t, model, "w")
+	model = updateKey(t, model, "e")
+	model = updateKey(t, model, "b")
+	if model.search != "web" {
+		t.Fatalf("search = %q, want web", model.search)
+	}
+	visible := model.visibleProjects()
+	if len(visible) != 1 || visible[0].Name != "web" {
+		t.Fatalf("visible projects = %#v", visible)
+	}
+	view := model.View()
+	if !strings.Contains(view, "search: web") || !strings.Contains(view, "web") || strings.Contains(view, "api") {
+		t.Fatalf("search view = %s", view)
+	}
+}
+
+func TestModelSearchEscClearsSearch(t *testing.T) {
+	model := Model{
+		projects: []project.Project{
+			{Name: "api"},
+			{Name: "web"},
+		},
+		searching: true,
+		search:    "web",
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	if model.searching {
+		t.Fatal("search mode still active")
+	}
+	if model.search != "" {
+		t.Fatalf("search = %q, want empty", model.search)
+	}
+	if len(model.visibleProjects()) != 2 {
+		t.Fatalf("visible projects = %#v", model.visibleProjects())
+	}
+}
+
+func TestModelSearchNoMatchesState(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{Name: "api"}},
+		search:   "zzz",
+	}
+
+	if !strings.Contains(model.View(), "No projects match search") {
+		t.Fatalf("View() missing no matches state:\n%s", model.View())
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})

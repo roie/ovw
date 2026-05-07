@@ -50,7 +50,15 @@ func isEscapeKey(value string) bool {
 	return value == "esc"
 }
 
+func isSearchKey(value string) bool {
+	return value == "/"
+}
+
+func isBackspaceKey(value string) bool {
+	return value == "backspace" || value == "ctrl+h"
+}
+
 func footerView() string {
 	keys := defaultKeyMap()
-	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
+	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · / search · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
 }
