@@ -209,6 +209,36 @@ func TestAddHideUnhideRemoveCommands(t *testing.T) {
 	}
 }
 
+func TestHideCanTargetScannedProjectByName(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(root, "scanned"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scanned", "go.mod"), []byte("module scanned"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, root)
+
+	out := runCommand(t, []string{"hide", "scanned"})
+	if !strings.Contains(out, "Hidden scanned from ovw.") || !strings.Contains(out, "No files were deleted.") {
+		t.Fatalf("hide output = %q", out)
+	}
+	overview := runCommand(t, []string{"--plain"})
+	if strings.Contains(overview, "\nscanned  ") {
+		t.Fatalf("hidden scanned project still visible:\n%s", overview)
+	}
+	out = runCommand(t, []string{"unhide", "scanned"})
+	if !strings.Contains(out, "scanned is now visible in ovw.") {
+		t.Fatalf("unhide output = %q", out)
+	}
+	overview = runCommand(t, []string{"--plain"})
+	if !strings.Contains(overview, "\nscanned  ") {
+		t.Fatalf("unhidden scanned project missing:\n%s", overview)
+	}
+}
+
 func TestScanCommand(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()

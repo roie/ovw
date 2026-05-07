@@ -254,15 +254,11 @@ func newVisibilityCommand(name string, hidden bool) *cobra.Command {
 		Hidden: hideFromHelp,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			paths, err := config.Paths()
+			paths, cfg, store, err := commandState()
 			if err != nil {
 				return err
 			}
-			store, err := metadata.Load(paths.Metadata)
-			if err != nil {
-				return err
-			}
-			path, err := resolveProject(args[0], store)
+			path, err := resolveProjectWithConfig(args[0], cfg, store)
 			if err != nil {
 				return err
 			}
