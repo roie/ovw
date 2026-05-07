@@ -48,14 +48,11 @@ func filterView(options []filterOption, selected int) string {
 	if len(options) == 0 {
 		return modalView("Filter", []string{modalMuted("No filters available")}, 42)
 	}
-	lines := []string{}
-	for index, option := range options {
-		line := option.Label
-		if index == selected {
-			line = modalSelected(line)
-		}
-		lines = append(lines, line)
+	labels := make([]string, 0, len(options))
+	for _, option := range options {
+		labels = append(labels, option.Label)
 	}
+	lines := modalOptionLines(labels, selected)
 	lines = append(lines, "", actionHint("enter", "apply"))
 	return modalView("Filter", lines, 42)
 }

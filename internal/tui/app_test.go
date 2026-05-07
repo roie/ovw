@@ -518,6 +518,35 @@ func TestModelFilterPickerIncludesConfiguredStatuses(t *testing.T) {
 	}
 }
 
+func TestModalPickersUseCaretSelection(t *testing.T) {
+	cases := []struct {
+		name string
+		view string
+		want string
+	}{
+		{name: "filter", view: filterView([]filterOption{{Label: "all"}, {Label: "dirty"}}, 1), want: "> dirty"},
+		{name: "sort", view: sortView([]sortOption{{Label: "activity"}, {Label: "name"}}, 1), want: "> name"},
+		{name: "status", view: statusView([]statusOption{{Label: "parked"}, {Label: "shipped"}}, 1), want: "> shipped"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stripANSI(tc.view)
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("picker missing caret selection %q:\n%s", tc.want, got)
+			}
+			if strings.Contains(got, "\x1b[48;5;57m") {
+				t.Fatalf("picker should not use selected background:\n%q", tc.view)
+			}
+			if !strings.Contains(tc.view, "\x1b[38;5;86;48;5;236m> "+strings.TrimPrefix(tc.want, "> ")) {
+				t.Fatalf("picker selected text should be accented:\n%q", tc.view)
+			}
+			if !strings.Contains(tc.view, "\x1b[38;5;244;48;5;236m") {
+				t.Fatalf("picker unselected text should be muted:\n%q", tc.view)
+			}
+		})
+	}
+}
+
 func TestModelSortPickerAppliesNameSort(t *testing.T) {
 	var captured app.Options
 	model := Model{

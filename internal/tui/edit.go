@@ -40,14 +40,11 @@ func (m Model) statusOptions() []statusOption {
 }
 
 func statusView(options []statusOption, selected int) string {
-	lines := []string{}
-	for index, option := range options {
-		line := option.Label
-		if index == selected {
-			line = modalSelected(line)
-		}
-		lines = append(lines, line)
+	labels := make([]string, 0, len(options))
+	for _, option := range options {
+		labels = append(labels, option.Label)
 	}
+	lines := modalOptionLines(labels, selected)
 	lines = append(lines, "", actionHint("enter", "select"))
 	return modalView("Status", lines, 42)
 }
@@ -216,6 +213,10 @@ func modalHintKey(value string) string {
 	return modalANSI("38;5;252", value)
 }
 
+func modalAccent(value string) string {
+	return modalANSI("38;5;86", value)
+}
+
 func modalCursor() string {
 	return modalANSI("5;38;5;252", "▌")
 }
@@ -224,8 +225,16 @@ func activeCursor() string {
 	return "\x1b[5m▌\x1b[25m"
 }
 
-func modalSelected(value string) string {
-	return "\x1b[38;5;229;48;5;57m" + value + "\x1b[39;48;5;" + modalSurfaceColor + "m"
+func modalOptionLines(labels []string, selected int) []string {
+	lines := make([]string, 0, len(labels))
+	for index, label := range labels {
+		if index == selected {
+			lines = append(lines, modalAccent("> "+label))
+			continue
+		}
+		lines = append(lines, "  "+modalMuted(label))
+	}
+	return lines
 }
 
 func modalANSI(code, value string) string {

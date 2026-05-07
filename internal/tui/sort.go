@@ -31,14 +31,11 @@ func (m *Model) applySort(option sortOption) {
 }
 
 func sortView(options []sortOption, selected int) string {
-	lines := []string{}
-	for index, option := range options {
-		line := option.Label
-		if index == selected {
-			line = modalSelected(line)
-		}
-		lines = append(lines, line)
+	labels := make([]string, 0, len(options))
+	for _, option := range options {
+		labels = append(labels, option.Label)
 	}
+	lines := modalOptionLines(labels, selected)
 	lines = append(lines, "", actionHint("enter", "apply"))
 	return modalView("Sort", lines, 42)
 }
