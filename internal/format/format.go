@@ -54,23 +54,6 @@ func Activity(info gitactivity.Info, cfg config.Config, now time.Time) ActivityI
 	return out
 }
 
-func State(activity ActivityInfo, cfg config.Config, now time.Time) string {
-	switch {
-	case !activity.HasGit:
-		return "no git"
-	case !activity.HasCommits:
-		return "no commits"
-	case activity.Dirty:
-		return "dirty"
-	case activity.Unpushed > 0:
-		return "unpushed"
-	case isStale(activity, cfg, now):
-		return "stale"
-	default:
-		return "active"
-	}
-}
-
 func isStale(activity ActivityInfo, cfg config.Config, now time.Time) bool {
 	if !activity.HasCommits || activity.LastCommitAt.IsZero() {
 		return false
@@ -78,15 +61,43 @@ func isStale(activity ActivityInfo, cfg config.Config, now time.Time) bool {
 	return now.Sub(activity.LastCommitAt) > time.Duration(cfg.StaleDays)*24*time.Hour
 }
 
-func StatusDisplay(state, status string) string {
-	switch {
-	case state == "":
-		return status
-	case status == "" || status == state:
-		return state
-	default:
-		return state + " · " + status
+func Tags(activity ActivityInfo, status string, cfg config.Config, now time.Time) []string {
+	if !activity.HasGit {
+		return []string{"no git"}
 	}
+	tags := []string{}
+	if !activity.HasCommits {
+		tags = append(tags, "no commits")
+		return appendManualTag(tags, status)
+	}
+	if activity.Dirty {
+		tags = append(tags, "dirty")
+	}
+	if activity.Unpushed > 0 {
+		tags = append(tags, "unpushed")
+	}
+	if isStale(activity, cfg, now) {
+		tags = append(tags, "stale")
+	} else {
+		tags = append(tags, "active")
+	}
+	return appendManualTag(tags, status)
+}
+
+func appendManualTag(tags []string, status string) []string {
+	if status == "" {
+		return tags
+	}
+	for _, tag := range tags {
+		if tag == status {
+			return tags
+		}
+	}
+	return append(tags, status)
+}
+
+func TagDisplay(tags []string) string {
+	return strings.Join(tags, " · ")
 }
 
 func RelativeAge(then, now time.Time) string {

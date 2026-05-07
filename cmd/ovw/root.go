@@ -10,6 +10,7 @@ import (
 	"ovw/internal/app"
 	"ovw/internal/cache"
 	"ovw/internal/config"
+	ovwformat "ovw/internal/format"
 	"ovw/internal/metadata"
 	"ovw/internal/project"
 	"ovw/internal/render"
@@ -436,8 +437,7 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 	fmt.Fprintf(out, "%s\n", filepath.Base(path))
 	fmt.Fprintf(out, "Path      %s\n", path)
 	fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
-	fmt.Fprintf(out, "State     %s\n", enriched.State)
-	fmt.Fprintf(out, "Status    %s\n", enriched.Status)
+	fmt.Fprintf(out, "Status    %s\n", ovwformat.TagDisplay(enriched.Tags))
 	fmt.Fprintf(out, "Note      %s\n", enriched.Note.Display)
 	if enriched.Activity.HasGit && enriched.Activity.Branch != "" {
 		fmt.Fprintf(out, "Branch    %s\n", enriched.Activity.Branch)
@@ -537,7 +537,11 @@ func detailActivity(project project.Project) string {
 	if !activity.HasGit || !activity.HasCommits {
 		return activity.Display
 	}
-	parts := []string{activity.LastCommitAge + " ago"}
+	age := activity.LastCommitAge
+	if age != "now" {
+		age += " ago"
+	}
+	parts := []string{age}
 	if activity.Unpushed > 0 {
 		parts = append(parts, fmt.Sprintf("%d unpushed", activity.Unpushed))
 	}

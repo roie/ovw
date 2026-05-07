@@ -71,45 +71,41 @@ func TestActivityNoGitAndNoCommits(t *testing.T) {
 	}
 }
 
-func TestStatePriority(t *testing.T) {
+func TestTagsBuildAutomaticAndManualStatusTags(t *testing.T) {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
 	cfg := config.Default()
 	cases := []struct {
-		name string
-		info ActivityInfo
-		want string
+		name   string
+		info   ActivityInfo
+		status string
+		want   []string
 	}{
-		{name: "no git", info: ActivityInfo{}, want: "no git"},
-		{name: "no commits", info: ActivityInfo{HasGit: true}, want: "no commits"},
-		{name: "dirty", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, want: "dirty"},
-		{name: "unpushed", info: ActivityInfo{HasGit: true, HasCommits: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, want: "unpushed"},
-		{name: "stale", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -60)}, want: "stale"},
-		{name: "active", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -2)}, want: "active"},
+		{name: "no git", info: ActivityInfo{}, status: "parked", want: []string{"no git"}},
+		{name: "no commits", info: ActivityInfo{HasGit: true}, status: "parked", want: []string{"no commits", "parked"}},
+		{name: "dirty stale manual", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "stale", "parked"}},
+		{name: "dirty unpushed stale manual", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "unpushed", "stale", "parked"}},
+		{name: "unpushed active", info: ActivityInfo{HasGit: true, HasCommits: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"unpushed", "active"}},
+		{name: "stale", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -60)}, want: []string{"stale"}},
+		{name: "active dedupes manual active", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -2)}, status: "active", want: []string{"active"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := State(tc.info, cfg, now); got != tc.want {
-				t.Fatalf("State() = %q, want %q", got, tc.want)
+			got := Tags(tc.info, tc.status, cfg, now)
+			if len(got) != len(tc.want) {
+				t.Fatalf("Tags() = %#v, want %#v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("Tags() = %#v, want %#v", got, tc.want)
+				}
 			}
 		})
 	}
 }
 
-func TestStatusDisplayCombinesStateAndManualStatus(t *testing.T) {
-	cases := []struct {
-		state  string
-		status string
-		want   string
-	}{
-		{state: "dirty", want: "dirty"},
-		{state: "dirty", status: "shipped", want: "dirty · shipped"},
-		{state: "active", status: "active", want: "active"},
-		{status: "parked", want: "parked"},
-	}
-	for _, tc := range cases {
-		if got := StatusDisplay(tc.state, tc.status); got != tc.want {
-			t.Fatalf("StatusDisplay(%q, %q) = %q, want %q", tc.state, tc.status, got, tc.want)
-		}
+func TestTagDisplay(t *testing.T) {
+	if got := TagDisplay([]string{"dirty", "unpushed", "stale", "parked"}); got != "dirty · unpushed · stale · parked" {
+		t.Fatalf("TagDisplay() = %q", got)
 	}
 }
 
