@@ -92,6 +92,32 @@ func TestModelLoadsOverviewData(t *testing.T) {
 	}
 }
 
+func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
+	model := Model{
+		loading: true,
+		message: "Saving note...",
+		projects: []project.Project{
+			{
+				Name:         "app",
+				StackDisplay: "Go",
+				Activity:     ovwformat.ActivityInfo{Display: "12m"},
+				Tags:         []string{"dirty"},
+				Note:         ovwformat.NoteInfo{Display: "manual note"},
+			},
+		},
+	}
+
+	view := stripANSI(model.View())
+	for _, want := range []string{"app", "Go", "12m", "dirty", "manual note", "Saving note..."} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("background loading view missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "Loading projects...") {
+		t.Fatalf("background loading should not replace table:\n%s", view)
+	}
+}
+
 func TestModelLoadsRecentCommitsOnlyForWideSidepane(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{

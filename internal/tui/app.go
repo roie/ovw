@@ -266,6 +266,7 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.applyFilter(options[m.filterSelected])
 		m.screen = screenTable
 		m.loading = true
+		m.message = "Filtering..."
 		m.selected = 0
 		return m, m.loadOverview()
 	}
@@ -289,6 +290,7 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.applySort(options[m.sortSelected])
 		m.screen = screenTable
 		m.loading = true
+		m.message = "Sorting..."
 		m.selected = 0
 		return m, m.loadOverview()
 	}
@@ -302,6 +304,7 @@ func (m Model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEnterKey(value):
 		m.screen = screenTable
 		m.loading = true
+		m.message = "Saving note..."
 		return m, m.saveNote()
 	case isBackspaceKey(value):
 		runes := []rune(m.noteInput)
@@ -336,10 +339,12 @@ func (m Model) updateStatusPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case statusOptionClear:
 			m.screen = screenTable
 			m.loading = true
+			m.message = "Clearing status..."
 			return m, m.saveStatus("", "Status cleared")
 		default:
 			m.screen = screenTable
 			m.loading = true
+			m.message = "Saving status..."
 			return m, m.saveStatus(option.Value, "Status saved")
 		}
 	}
@@ -353,6 +358,7 @@ func (m Model) updateStatusInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEnterKey(value):
 		m.screen = screenTable
 		m.loading = true
+		m.message = "Saving status..."
 		return m, m.saveStatus(m.statusInput, "Status saved")
 	case isBackspaceKey(value):
 		runes := []rune(m.statusInput)
@@ -563,7 +569,7 @@ func (errNoProjectSelected) Error() string {
 func renderShell(m Model) string {
 	body := titleStyle.Render("ovw")
 	switch {
-	case m.loading:
+	case m.loading && len(m.projects) == 0:
 		body += "\n\n" + mutedStyle.Render("Loading projects...")
 	case m.loadErr != nil:
 		body += "\n\n" + errorStyle.Render("Failed to load projects: "+m.loadErr.Error())
@@ -578,6 +584,8 @@ func renderShell(m Model) string {
 		}
 		if m.message != "" {
 			body += " " + mutedStyle.Render(m.message)
+		} else if m.loading {
+			body += " " + mutedStyle.Render("Loading...")
 		}
 		if m.search != "" || m.searching {
 			body += " " + mutedStyle.Render("search: "+m.searchDisplay())
