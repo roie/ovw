@@ -32,7 +32,7 @@ func TestDetectCommitBranchAndDirty(t *testing.T) {
 		t.Fatal(err)
 	}
 	git(t, dir, "add", "file.txt")
-	git(t, dir, "commit", "-m", "initial commit")
+	git(t, dir, "commit", "-m", "initial commit", "-m", "- Add setup\n- Add tests")
 	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,8 @@ func TestDetectCommitBranchAndDirty(t *testing.T) {
 	if info.Branch != "feat/test" {
 		t.Fatalf("Branch = %q", info.Branch)
 	}
-	if info.LastCommitMessage != "initial commit" {
+	wantMessage := "initial commit\n\n- Add setup\n- Add tests"
+	if info.LastCommitMessage != wantMessage {
 		t.Fatalf("LastCommitMessage = %q", info.LastCommitMessage)
 	}
 	if info.LastCommitAt.IsZero() {

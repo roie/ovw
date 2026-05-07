@@ -36,7 +36,7 @@ func Detect(path string) Info {
 			}
 		}
 	}
-	if message, err := run(path, "log", "-1", "--format=%s"); err == nil {
+	if message, err := run(path, "log", "-1", "--format=%B"); err == nil {
 		info.LastCommitMessage = strings.TrimSpace(message)
 	}
 	if status, err := run(path, "status", "--porcelain"); err == nil {
