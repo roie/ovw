@@ -201,7 +201,7 @@ func TestSetUnsetShowCommands(t *testing.T) {
 		}
 	}
 	show := runCommand(t, []string{"show", "manual"})
-	if !bytes.Contains([]byte(show), []byte("Status    no git")) || !bytes.Contains([]byte(show), []byte("Note      fix flow")) {
+	if !bytes.Contains([]byte(show), []byte("Status    active")) || !bytes.Contains([]byte(show), []byte("Note      fix flow")) {
 		t.Fatalf("show output = %q", show)
 	}
 
@@ -262,7 +262,7 @@ func TestSetCanTargetScannedProjectByName(t *testing.T) {
 	if !bytes.Contains([]byte(show), []byte("Path      ")) {
 		t.Fatalf("show output missing path = %q", show)
 	}
-	if !bytes.Contains([]byte(show), []byte("Status    no git")) {
+	if !bytes.Contains([]byte(show), []byte("Status    active")) {
 		t.Fatalf("show output = %q", show)
 	}
 	if !bytes.Contains([]byte(show), []byte("Stack     Go")) {
@@ -308,7 +308,7 @@ func TestShowJSONOutputsSingleProject(t *testing.T) {
 	if !strings.HasPrefix(trimmed, "{") || !strings.HasSuffix(trimmed, "}") {
 		t.Fatalf("show json should be one object: %q", out)
 	}
-	for _, want := range []string{`"name": "scanned"`, `"stack":`, `"Go"`, `"tags":`, `"no git"`, `"status": "active"`, `"note": "working"`, `"activity":`} {
+	for _, want := range []string{`"name": "scanned"`, `"stack":`, `"Go"`, `"tags":`, `"active"`, `"status": "active"`, `"note": "working"`, `"activity":`} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("show json missing %q: %s", want, out)
 		}
@@ -337,7 +337,7 @@ func TestRootArgShowsSingleProject(t *testing.T) {
 	if !strings.HasPrefix(out, "scanned\n") {
 		t.Fatalf("root project output missing title = %q", out)
 	}
-	for _, want := range []string{"Stack     Go", "Status    no git", "Note      working"} {
+	for _, want := range []string{"Stack     Go", "Status    active", "Note      working"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("root project output missing %q: %s", want, out)
 		}
@@ -361,7 +361,7 @@ func TestRootArgShowsSingleProjectJSON(t *testing.T) {
 	if !strings.HasPrefix(trimmed, "{") || !strings.HasSuffix(trimmed, "}") {
 		t.Fatalf("root project json should be one object: %q", out)
 	}
-	for _, want := range []string{`"name": "scanned"`, `"stack":`, `"Go"`, `"tags":`, `"no git"`, `"activity":`} {
+	for _, want := range []string{`"name": "scanned"`, `"stack":`, `"Go"`, `"tags":`, `"activity":`} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("root project json missing %q: %s", want, out)
 		}

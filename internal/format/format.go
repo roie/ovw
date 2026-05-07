@@ -63,7 +63,7 @@ func isStale(activity ActivityInfo, cfg config.Config, now time.Time) bool {
 
 func Tags(activity ActivityInfo, status string, cfg config.Config, now time.Time) []string {
 	if !activity.HasGit {
-		return []string{"no git"}
+		return appendManualTag([]string{}, status)
 	}
 	tags := []string{}
 	if !activity.HasCommits {

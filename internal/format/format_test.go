@@ -80,7 +80,8 @@ func TestTagsBuildAutomaticAndManualStatusTags(t *testing.T) {
 		status string
 		want   []string
 	}{
-		{name: "no git", info: ActivityInfo{}, status: "parked", want: []string{"no git"}},
+		{name: "no git", info: ActivityInfo{}, want: []string{}},
+		{name: "no git manual", info: ActivityInfo{}, status: "parked", want: []string{"parked"}},
 		{name: "no commits", info: ActivityInfo{HasGit: true}, status: "parked", want: []string{"no commits", "parked"}},
 		{name: "dirty stale manual", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "stale", "parked"}},
 		{name: "dirty unpushed stale manual", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "unpushed", "stale", "parked"}},
