@@ -596,7 +596,8 @@ func renderShell(m Model) string {
 			case screenSort:
 				content = overlayModal(content, sortView(sortOptions(), m.sortSelected), m.contentWidth())
 			case screenNote:
-				content = overlayModal(content, noteView(m.noteInput), m.contentWidth())
+				project, _ := m.currentProject()
+				content = overlayModal(content, noteView(m.noteInput, project.Note.Display), m.contentWidth())
 			case screenStatus:
 				content = overlayModal(content, statusView(m.statusOptions(), m.statusSelected), m.contentWidth())
 			case screenStatusInput:

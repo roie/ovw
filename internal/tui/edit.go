@@ -6,8 +6,11 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func noteView(value string) string {
-	return inputModalView("Note", value, "empty clears manual note", 56)
+func noteView(value, placeholder string) string {
+	if placeholder == "" {
+		placeholder = "empty clears manual note"
+	}
+	return inputModalView("Note", value, placeholder, 56)
 }
 
 type statusOptionKind int
@@ -69,7 +72,13 @@ func searchInputLine(value, placeholder string) string {
 
 func inputModalLines(value, placeholder string, width int) []string {
 	if value == "" {
-		return []string{modalMuted(placeholder) + modalCursor()}
+		lines := wrapInputPlaceholderLines(placeholder, width)
+		for index := range lines {
+			lines[index] = modalMuted(lines[index])
+		}
+		last := len(lines) - 1
+		lines[last] += modalCursor()
+		return lines
 	}
 	lines := wrapInputLines(value, width)
 	last := len(lines) - 1
@@ -120,6 +129,60 @@ func fitModalText(value string, width int) string {
 }
 
 func wrapInputLines(value string, width int) []string {
+	paragraphs := strings.Split(value, "\n")
+	lines := []string{}
+	for _, paragraph := range paragraphs {
+		lines = append(lines, wrapInputLine(paragraph, width)...)
+	}
+	return lines
+}
+
+func wrapInputPlaceholderLines(value string, width int) []string {
+	if width <= 0 {
+		return []string{value}
+	}
+	paragraphs := strings.Split(value, "\n")
+	lines := []string{}
+	for _, paragraph := range paragraphs {
+		lines = append(lines, wrapInputPlaceholderLine(paragraph, width)...)
+	}
+	return lines
+}
+
+func wrapInputPlaceholderLine(value string, width int) []string {
+	words := strings.Fields(value)
+	if len(words) == 0 {
+		return []string{""}
+	}
+	lines := []string{}
+	line := ""
+	for _, word := range words {
+		if lipglossWidth(word)+1 > width {
+			if line != "" {
+				lines = append(lines, line)
+				line = ""
+			}
+			lines = append(lines, wrapInputLine(word, width)...)
+			continue
+		}
+		if line == "" {
+			line = word
+			continue
+		}
+		if lipglossWidth(line)+1+lipglossWidth(word)+1 <= width {
+			line += " " + word
+			continue
+		}
+		lines = append(lines, line)
+		line = word
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func wrapInputLine(value string, width int) []string {
 	if width <= 0 || lipglossWidth(value)+1 <= width {
 		return []string{value}
 	}

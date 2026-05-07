@@ -579,6 +579,25 @@ func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 	}
 }
 
+func TestModelNoteEditorUsesCurrentDisplayNoteAsPlaceholder(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{
+			Name: "app",
+			Path: "/tmp/app",
+			Note: ovwformat.NoteInfo{Display: "commit fallback note"},
+		}},
+		screen: screenNote,
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "commit fallback note▌") {
+		t.Fatalf("note modal should show current note as placeholder:\n%s", view)
+	}
+	if strings.Contains(view, "empty clears manual note") {
+		t.Fatalf("note modal should not show clear hint when a current note exists:\n%s", view)
+	}
+}
+
 func TestModelMetadataWriteErrorIsVisible(t *testing.T) {
 	model := Model{
 		loader: func(opts app.Options) (app.OverviewResult, error) {
@@ -702,7 +721,7 @@ func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
 }
 
 func TestModalInputCursorBlinks(t *testing.T) {
-	got := noteView("")
+	got := noteView("", "")
 
 	if !strings.Contains(got, "\x1b[5;38;5;252;48;5;236m▌\x1b[25;22;39;48;5;236m") {
 		t.Fatalf("modal cursor should use ANSI blink:\n%q", got)
@@ -710,7 +729,7 @@ func TestModalInputCursorBlinks(t *testing.T) {
 }
 
 func TestNoteInputWrapsInsteadOfTruncating(t *testing.T) {
-	got := stripANSI(noteView(strings.Repeat("f", 80)))
+	got := stripANSI(noteView(strings.Repeat("f", 80), ""))
 
 	if strings.Contains(got, "...") {
 		t.Fatalf("note input should wrap instead of truncate:\n%s", got)
@@ -720,6 +739,44 @@ func TestNoteInputWrapsInsteadOfTruncating(t *testing.T) {
 	}
 	if !strings.Contains(got, strings.Repeat("f", 28)+"▌") {
 		t.Fatalf("note input missing second wrapped line with cursor:\n%s", got)
+	}
+}
+
+func TestNotePlaceholderWrapsInsteadOfTruncating(t *testing.T) {
+	got := stripANSI(noteView("", strings.Repeat("p", 80)))
+
+	if strings.Contains(got, "...") {
+		t.Fatalf("note placeholder should wrap instead of truncate:\n%s", got)
+	}
+	if !strings.Contains(got, strings.Repeat("p", 52)) {
+		t.Fatalf("note placeholder missing first wrapped line:\n%s", got)
+	}
+	if !strings.Contains(got, strings.Repeat("p", 28)+"▌") {
+		t.Fatalf("note placeholder missing second wrapped line with cursor:\n%s", got)
+	}
+}
+
+func TestNotePlaceholderPreservesNewlinesAsModalRows(t *testing.T) {
+	got := stripANSI(noteView("", "first line\n- second line wraps here\n\nthird line"))
+
+	for _, want := range []string{"first line", "- second line wraps here", "third line"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("note placeholder missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "first line\n- second line wraps here") {
+		t.Fatalf("note placeholder embedded newline inside one modal row:\n%s", got)
+	}
+}
+
+func TestNotePlaceholderWrapsAtWordBoundaries(t *testing.T) {
+	got := stripANSI(noteView("", "refactor: create content-agnostic segmenter module replacing Bible-specific splitter"))
+
+	if strings.Contains(got, "r\neplacing") {
+		t.Fatalf("note placeholder split word across lines:\n%s", got)
+	}
+	if !strings.Contains(got, "refactor: create content-agnostic segmenter module") || !strings.Contains(got, "replacing Bible-specific splitter") {
+		t.Fatalf("note placeholder should wrap before replacing:\n%s", got)
 	}
 }
 
