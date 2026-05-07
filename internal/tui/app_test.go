@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"ovw/internal/app"
 	"ovw/internal/config"
@@ -128,6 +129,47 @@ func TestModelNavigationHandlesEmptyProjects(t *testing.T) {
 	}
 }
 
+func TestModelOpensAndClosesDetailView(t *testing.T) {
+	updated := updateSpecialKey(t, Model{
+		projects: []project.Project{
+			detailTestProject("one"),
+			detailTestProject("two"),
+		},
+		selected: 1,
+	}, tea.KeyEnter)
+
+	if updated.screen != screenDetail {
+		t.Fatalf("screen = %v, want detail", updated.screen)
+	}
+	if updated.selected != 1 {
+		t.Fatalf("selected = %d, want 1", updated.selected)
+	}
+	view := updated.View()
+	for _, want := range []string{"two", "/tmp/two", "Go, Cobra", "go modules", "dirty", "2 unpushed", "Manual note"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("detail view missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "NoteSource") {
+		t.Fatalf("detail view contains noisy internal field:\n%s", view)
+	}
+
+	updated = updateSpecialKey(t, updated, tea.KeyEsc)
+	if updated.screen != screenTable {
+		t.Fatalf("screen = %v, want table", updated.screen)
+	}
+	if updated.selected != 1 {
+		t.Fatalf("selected after esc = %d, want 1", updated.selected)
+	}
+}
+
+func TestModelDoesNotOpenDetailWithoutProjects(t *testing.T) {
+	updated := updateSpecialKey(t, Model{}, tea.KeyEnter)
+	if updated.screen != screenTable {
+		t.Fatalf("screen = %v, want table", updated.screen)
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
@@ -138,4 +180,29 @@ func updateSpecialKey(t *testing.T, model Model, key tea.KeyType) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: key})
 	return updated.(Model)
+}
+
+func detailTestProject(name string) project.Project {
+	return project.Project{
+		Name:         name,
+		Path:         "/tmp/" + name,
+		Stack:        []string{"Go", "Cobra"},
+		StackDisplay: "Go",
+		Managers:     []string{"go modules"},
+		Activity: ovwformat.ActivityInfo{
+			Display:           "12m ↑2",
+			LastCommitAge:     "12m",
+			LastCommitAt:      time.Date(2026, 5, 7, 12, 30, 0, 0, time.UTC),
+			LastCommitMessage: "feat: add detail",
+			Unpushed:          2,
+			Dirty:             true,
+			Branch:            "main",
+			HasGit:            true,
+			HasCommits:        true,
+		},
+		Tags:        []string{"dirty", "unpushed"},
+		Status:      "parked",
+		Note:        ovwformat.NoteInfo{Display: "Manual note", Manual: "Manual note"},
+		Description: "Project description",
+	}
 }

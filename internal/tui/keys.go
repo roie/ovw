@@ -42,7 +42,15 @@ func isDownKey(value string) bool {
 	return value == "down" || value == "j"
 }
 
+func isEnterKey(value string) bool {
+	return value == "enter"
+}
+
+func isEscapeKey(value string) bool {
+	return value == "esc"
+}
+
 func footerView() string {
 	keys := defaultKeyMap()
-	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
+	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
 }

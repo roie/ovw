@@ -13,6 +13,13 @@ import (
 
 type overviewLoader func(app.Options) (app.OverviewResult, error)
 
+type screenMode int
+
+const (
+	screenTable screenMode = iota
+	screenDetail
+)
+
 type Model struct {
 	request app.Options
 	loader  overviewLoader
@@ -20,6 +27,7 @@ type Model struct {
 	width    int
 	height   int
 	selected int
+	screen   screenMode
 	loading  bool
 	loadErr  error
 	config   config.Config
@@ -54,8 +62,16 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if isEscapeKey(msg.String()) && m.screen == screenDetail {
+			m.screen = screenTable
+			return m, nil
+		}
 		if isQuitKey(msg.String()) {
 			return m, tea.Quit
+		}
+		if isEnterKey(msg.String()) && m.canOpenDetail() {
+			m.screen = screenDetail
+			return m, nil
 		}
 		if isDownKey(msg.String()) {
 			m.moveSelection(1)
@@ -91,7 +107,14 @@ func (m Model) Size() (int, int) {
 	return m.width, m.height
 }
 
+func (m Model) canOpenDetail() bool {
+	return !m.loading && m.loadErr == nil && len(m.projects) > 0
+}
+
 func (m *Model) moveSelection(delta int) {
+	if m.screen == screenDetail {
+		return
+	}
 	if len(m.projects) == 0 {
 		m.selected = 0
 		return
@@ -145,10 +168,21 @@ func renderShell(m Model) string {
 		if m.width > 0 && m.height > 0 {
 			body += "\n" + mutedStyle.Render(fmt.Sprintf("%dx%d", m.width, m.height))
 		}
-		body += "\n\n" + tableView(m.projects, m.selected, m.width)
+		if m.screen == screenDetail {
+			body += "\n\n" + detailView(m.currentProject())
+		} else {
+			body += "\n\n" + tableView(m.projects, m.selected, m.width)
+		}
 	}
 	body += "\n\n" + footerView()
 	return appStyle.Render(body)
+}
+
+func (m Model) currentProject() (project.Project, bool) {
+	if len(m.projects) == 0 || m.selected < 0 || m.selected >= len(m.projects) {
+		return project.Project{}, false
+	}
+	return m.projects[m.selected], true
 }
 
 func formatProjectCount(count int) string {
