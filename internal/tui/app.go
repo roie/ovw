@@ -605,9 +605,6 @@ func renderShell(m Model) string {
 		if m.message != "" {
 			body += " " + mutedStyle.Render(m.message)
 		}
-		if m.search != "" || m.searching {
-			body += " " + mutedStyle.Render("search: "+m.searchDisplay())
-		}
 		if m.screen == screenDetail {
 			body += "\n\n" + detailView(m.currentProject())
 		} else if len(visible) == 0 && m.search != "" {
@@ -643,6 +640,9 @@ func headerView(m Model) string {
 	}
 	if m.activeSort != "" {
 		parts = append(parts, "sort: "+m.activeSort)
+	}
+	if m.search != "" || m.searching {
+		parts = append(parts, "search: "+m.searchDisplay())
 	}
 	return titleStyle.Render("ovw") + "  " + mutedStyle.Render(strings.Join(parts, "  "))
 }

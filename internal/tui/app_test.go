@@ -153,6 +153,23 @@ func TestModelHeaderShowsAllFilter(t *testing.T) {
 	}
 }
 
+func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
+	model := Model{
+		activeFilter: "all",
+		activeSort:   "activity",
+		searching:    true,
+		projects:     []project.Project{{Name: "app"}},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "sort: activity  search: ▌") {
+		t.Fatalf("header should separate sort and search consistently:\n%s", view)
+	}
+	if strings.Contains(view, "search:  ▌") {
+		t.Fatalf("search label should not add extra spacing after colon:\n%s", view)
+	}
+}
+
 func TestModelActionsDoNotSetTransientProgressMessages(t *testing.T) {
 	model := Model{
 		config: config.Default(),
