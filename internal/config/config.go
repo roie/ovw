@@ -31,8 +31,6 @@ type Config struct {
 	Columns                 []string    `toml:"columns"`
 	SortBy                  string      `toml:"sort_by"`
 	SortDir                 string      `toml:"sort_dir"`
-	ShowUntagged            bool        `toml:"show_untagged"`
-	RelativeDates           bool        `toml:"relative_dates"`
 	Stack                   StackConfig `toml:"stack"`
 	Cache                   CacheConfig `toml:"cache"`
 	Editor                  string      `toml:"editor"`
@@ -77,8 +75,6 @@ func Default() Config {
 		Columns:                 []string{"name", "stack", "activity", "status", "note"},
 		SortBy:                  "activity",
 		SortDir:                 "desc",
-		ShowUntagged:            true,
-		RelativeDates:           true,
 		Stack: StackConfig{
 			ShowUnknown: true,
 			Aliases: map[string]string{
@@ -368,7 +364,7 @@ default_branches = ["main", "master", "trunk"]
 # Status
 # ─────────────────────────────────────────
 
-# Available statuses. First is the default.
+# Suggested manual statuses. Status is free-form.
 statuses = ["active", "parked", "shipped", "idea"]
 
 # ─────────────────────────────────────────
@@ -383,12 +379,6 @@ sort_by = "activity"
 
 # Sort direction: asc or desc
 sort_dir = "desc"
-
-# Show projects with no status set.
-show_untagged = true
-
-# Use relative dates. true = 2d, 1w, 3mo. false = 2024-01-15
-relative_dates = true
 
 # ─────────────────────────────────────────
 # Stack

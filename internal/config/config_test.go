@@ -121,6 +121,12 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !strings.Contains(text, `columns = ["name", "stack", "activity", "status", "note"]`) {
 		t.Fatalf("default config missing status column:\n%s", text)
 	}
+	if strings.Contains(text, "show_untagged") || strings.Contains(text, "relative_dates") {
+		t.Fatalf("default config contains stale display fields:\n%s", text)
+	}
+	if !strings.Contains(text, "# Suggested manual statuses. Status is free-form.") {
+		t.Fatalf("default config missing suggested status comment:\n%s", text)
+	}
 	loaded, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load() generated config error = %v\n%s", err, text)
