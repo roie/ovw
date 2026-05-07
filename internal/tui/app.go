@@ -14,6 +14,7 @@ import (
 )
 
 type overviewLoader func(app.Options) (app.OverviewResult, error)
+type metadataUpdater func(string, app.MetadataUpdate) (app.MetadataUpdateResult, error)
 
 type screenMode int
 
@@ -22,11 +23,13 @@ const (
 	screenDetail
 	screenFilter
 	screenSort
+	screenNote
 )
 
 type Model struct {
 	request app.Options
 	loader  overviewLoader
+	updater metadataUpdater
 
 	width          int
 	height         int
@@ -38,6 +41,8 @@ type Model struct {
 	activeFilter   string
 	sortSelected   int
 	activeSort     string
+	noteInput      string
+	message        string
 	loading        bool
 	loadErr        error
 	config         config.Config
@@ -55,6 +60,7 @@ func NewWithOptions(opts app.Options) Model {
 	return Model{
 		request:      opts,
 		loader:       app.LoadOverview,
+		updater:      app.UpdateProjectMetadata,
 		activeFilter: optionsFromRequest(opts),
 		activeSort:   sortFromRequest(opts),
 		loading:      true,
@@ -83,6 +89,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenSort {
 			return m.updateSort(msg)
 		}
+		if m.screen == screenNote {
+			return m.updateNote(msg)
+		}
 		if isEscapeKey(msg.String()) && m.screen == screenDetail {
 			m.screen = screenTable
 			return m, nil
@@ -109,6 +118,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sortSelected = m.currentSortIndex()
 			return m, nil
 		}
+		if isNoteKey(msg.String()) && m.canOpenDetail() {
+			project, _ := m.currentProject()
+			m.screen = screenNote
+			m.noteInput = project.Note.Manual
+			return m, nil
+		}
 		if isDownKey(msg.String()) {
 			m.moveSelection(1)
 			return m, nil
@@ -131,6 +146,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case overviewLoadFailedMsg:
 		m.loading = false
 		m.loadErr = msg.err
+	case metadataSavedMsg:
+		m.loading = false
+		m.loadErr = nil
+		m.config = msg.result.Config
+		m.projects = msg.result.Projects
+		m.message = msg.message
+		m.clampSelection()
+	case metadataFailedMsg:
+		m.loading = false
+		m.message = "Failed to write metadata: " + msg.err.Error()
 	}
 	return m, nil
 }
@@ -205,6 +230,25 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+	case isEnterKey(value):
+		m.screen = screenTable
+		m.loading = true
+		return m, m.saveNote()
+	case isBackspaceKey(value):
+		runes := []rune(m.noteInput)
+		if len(runes) > 0 {
+			m.noteInput = string(runes[:len(runes)-1])
+		}
+	case msg.Type == tea.KeyRunes:
+		m.noteInput += string(msg.Runes)
+	}
+	return m, nil
+}
+
 func (m Model) View() string {
 	return renderShell(m)
 }
@@ -261,6 +305,15 @@ type overviewLoadFailedMsg struct {
 	err error
 }
 
+type metadataSavedMsg struct {
+	message string
+	result  app.OverviewResult
+}
+
+type metadataFailedMsg struct {
+	err error
+}
+
 func (m Model) loadOverview() tea.Cmd {
 	return func() tea.Msg {
 		result, err := m.loader(m.request)
@@ -269,6 +322,30 @@ func (m Model) loadOverview() tea.Cmd {
 		}
 		return overviewLoadedMsg{result: result}
 	}
+}
+
+func (m Model) saveNote() tea.Cmd {
+	project, ok := m.currentProject()
+	note := m.noteInput
+	return func() tea.Msg {
+		if !ok {
+			return metadataFailedMsg{err: errNoProjectSelected{}}
+		}
+		if _, err := m.updater(project.Path, app.MetadataUpdate{Note: &note}); err != nil {
+			return metadataFailedMsg{err: err}
+		}
+		result, err := m.loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		return metadataSavedMsg{message: "Note saved", result: result}
+	}
+}
+
+type errNoProjectSelected struct{}
+
+func (errNoProjectSelected) Error() string {
+	return "no project selected"
 }
 
 func renderShell(m Model) string {
@@ -290,6 +367,9 @@ func renderShell(m Model) string {
 		if m.activeSort != "" {
 			body += " " + mutedStyle.Render("sort: "+m.activeSort)
 		}
+		if m.message != "" {
+			body += " " + mutedStyle.Render(m.message)
+		}
 		if m.search != "" || m.searching {
 			body += " " + mutedStyle.Render("search: "+m.search)
 		}
@@ -302,6 +382,8 @@ func renderShell(m Model) string {
 			body += "\n\n" + filterView(m.filterOptions(), m.filterSelected)
 		} else if m.screen == screenSort {
 			body += "\n\n" + sortView(sortOptions(), m.sortSelected)
+		} else if m.screen == screenNote {
+			body += "\n\n" + noteView(m.noteInput)
 		} else if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
 		} else {

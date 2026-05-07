@@ -329,6 +329,92 @@ func TestSortPickerEscCloses(t *testing.T) {
 	}
 }
 
+func TestModelNoteEditorSavesAndReloads(t *testing.T) {
+	var target string
+	var savedNote string
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config: config.Default(),
+				Projects: []project.Project{
+					{
+						Name: "app",
+						Path: "/tmp/app",
+						Note: ovwformat.NoteInfo{Display: savedNote, Manual: savedNote},
+					},
+				},
+			}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			target = path
+			if update.Note == nil {
+				t.Fatal("note update was nil")
+			}
+			savedNote = *update.Note
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{
+			{
+				Name: "app",
+				Path: "/tmp/app",
+				Note: ovwformat.NoteInfo{Display: "old", Manual: "old"},
+			},
+		},
+	}
+
+	model = updateKey(t, model, "n")
+	if model.screen != screenNote {
+		t.Fatalf("screen = %v, want note", model.screen)
+	}
+	if model.noteInput != "old" {
+		t.Fatalf("noteInput = %q, want old", model.noteInput)
+	}
+	model = updateKey(t, model, "!")
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected note save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if target != "/tmp/app" {
+		t.Fatalf("target = %q, want /tmp/app", target)
+	}
+	if savedNote != "old!" {
+		t.Fatalf("savedNote = %q, want old!", savedNote)
+	}
+	if model.message != "Note saved" {
+		t.Fatalf("message = %q, want Note saved", model.message)
+	}
+	if model.projects[0].Note.Manual != "old!" {
+		t.Fatalf("project note = %#v", model.projects[0].Note)
+	}
+}
+
+func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
+	var savedNote *string
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: config.Default()}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			savedNote = update.Note
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		screen:   screenNote,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected note clear command")
+	}
+	model = updateMsg(t, model, cmd())
+	if savedNote == nil || *savedNote != "" {
+		t.Fatalf("savedNote = %v, want empty string pointer", savedNote)
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
