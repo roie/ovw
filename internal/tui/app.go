@@ -20,22 +20,25 @@ type screenMode int
 const (
 	screenTable screenMode = iota
 	screenDetail
+	screenFilter
 )
 
 type Model struct {
 	request app.Options
 	loader  overviewLoader
 
-	width     int
-	height    int
-	selected  int
-	screen    screenMode
-	search    string
-	searching bool
-	loading   bool
-	loadErr   error
-	config    config.Config
-	projects  []project.Project
+	width          int
+	height         int
+	selected       int
+	screen         screenMode
+	search         string
+	searching      bool
+	filterSelected int
+	activeFilter   string
+	loading        bool
+	loadErr        error
+	config         config.Config
+	projects       []project.Project
 }
 
 func New() Model {
@@ -47,9 +50,10 @@ func NewWithOptions(opts app.Options) Model {
 		opts.Out = io.Discard
 	}
 	return Model{
-		request: opts,
-		loader:  app.LoadOverview,
-		loading: true,
+		request:      opts,
+		loader:       app.LoadOverview,
+		activeFilter: optionsFromRequest(opts),
+		loading:      true,
 	}
 }
 
@@ -69,6 +73,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.searching {
 			return m.updateSearch(msg)
 		}
+		if m.screen == screenFilter {
+			return m.updateFilter(msg)
+		}
 		if isEscapeKey(msg.String()) && m.screen == screenDetail {
 			m.screen = screenTable
 			return m, nil
@@ -83,6 +90,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isSearchKey(msg.String()) {
 			m.screen = screenTable
 			m.searching = true
+			return m, nil
+		}
+		if isFilterKey(msg.String()) {
+			m.screen = screenFilter
+			m.filterSelected = m.currentFilterIndex()
 			return m, nil
 		}
 		if isDownKey(msg.String()) {
@@ -131,6 +143,33 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	options := m.filterOptions()
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+	case isDownKey(value):
+		if m.filterSelected < len(options)-1 {
+			m.filterSelected++
+		}
+	case isUpKey(value):
+		if m.filterSelected > 0 {
+			m.filterSelected--
+		}
+	case isEnterKey(value):
+		if len(options) == 0 {
+			m.screen = screenTable
+			return m, nil
+		}
+		m.applyFilter(options[m.filterSelected])
+		m.screen = screenTable
+		m.loading = true
+		m.selected = 0
+		return m, m.loadOverview()
+	}
+	return m, nil
+}
+
 func (m Model) View() string {
 	return renderShell(m)
 }
@@ -144,7 +183,7 @@ func (m Model) canOpenDetail() bool {
 }
 
 func (m *Model) moveSelection(delta int) {
-	if m.screen == screenDetail {
+	if m.screen != screenTable {
 		return
 	}
 	visible := m.visibleProjects()
@@ -210,6 +249,9 @@ func renderShell(m Model) string {
 	default:
 		visible := m.visibleProjects()
 		body = titleStyle.Render("ovw") + " " + mutedStyle.Render("- "+formatProjectCount(len(m.projects)))
+		if m.activeFilter != "" && m.activeFilter != "all" {
+			body += " " + mutedStyle.Render("filter: "+m.activeFilter)
+		}
 		if m.search != "" || m.searching {
 			body += " " + mutedStyle.Render("search: "+m.search)
 		}
@@ -218,6 +260,8 @@ func renderShell(m Model) string {
 		}
 		if m.screen == screenDetail {
 			body += "\n\n" + detailView(m.currentProject())
+		} else if m.screen == screenFilter {
+			body += "\n\n" + filterView(m.filterOptions(), m.filterSelected)
 		} else if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
 		} else {

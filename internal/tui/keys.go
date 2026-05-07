@@ -54,11 +54,15 @@ func isSearchKey(value string) bool {
 	return value == "/"
 }
 
+func isFilterKey(value string) bool {
+	return value == "f"
+}
+
 func isBackspaceKey(value string) bool {
 	return value == "backspace" || value == "ctrl+h"
 }
 
 func footerView() string {
 	keys := defaultKeyMap()
-	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · / search · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
+	return mutedStyle.Render(keys.Down.Help().Key + " " + keys.Down.Help().Desc + " · / search · f filter · enter details · esc back · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
 }

@@ -231,6 +231,58 @@ func TestModelSearchNoMatchesState(t *testing.T) {
 	}
 }
 
+func TestModelFilterPickerAppliesDirtyFilter(t *testing.T) {
+	var captured app.Options
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			captured = opts
+			return app.OverviewResult{
+				Config:   config.Default(),
+				Projects: []project.Project{{Name: "dirty-project"}},
+			}, nil
+		},
+		config: config.Default(),
+	}
+
+	model = updateKey(t, model, "f")
+	if model.screen != screenFilter {
+		t.Fatalf("screen = %v, want filter", model.screen)
+	}
+	if !strings.Contains(model.View(), "dirty") {
+		t.Fatalf("filter view missing dirty option:\n%s", model.View())
+	}
+	model = updateKey(t, model, "j")
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected filter apply to reload data")
+	}
+	model = updateMsg(t, model, cmd())
+	if !captured.Dirty {
+		t.Fatalf("captured options = %#v, want dirty", captured)
+	}
+	if model.activeFilter != "dirty" {
+		t.Fatalf("activeFilter = %q, want dirty", model.activeFilter)
+	}
+	if model.loading {
+		t.Fatal("model is still loading")
+	}
+}
+
+func TestModelFilterPickerIncludesConfiguredStatuses(t *testing.T) {
+	cfg := config.Default()
+	cfg.Statuses = []string{"parked", "shipped"}
+	model := Model{config: cfg}
+
+	model = updateKey(t, model, "f")
+	view := model.View()
+	for _, want := range []string{"all", "dirty", "stale", "untagged", "hidden", "parked", "shipped"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("filter view missing %q:\n%s", want, view)
+		}
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
@@ -240,6 +292,12 @@ func updateKey(t *testing.T, model Model, value string) Model {
 func updateSpecialKey(t *testing.T, model Model, key tea.KeyType) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: key})
+	return updated.(Model)
+}
+
+func updateMsg(t *testing.T, model Model, msg tea.Msg) Model {
+	t.Helper()
+	updated, _ := model.Update(msg)
 	return updated.(Model)
 }
 
