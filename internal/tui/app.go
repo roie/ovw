@@ -605,13 +605,14 @@ func renderShell(m Model) string {
 		if m.message != "" {
 			body += " " + mutedStyle.Render(m.message)
 		}
-		if m.screen == screenDetail {
-			body += "\n\n" + detailView(m.currentProject())
-		} else if len(visible) == 0 && m.search != "" {
+		if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
 		} else {
 			content := m.tablePanel(visible)
 			switch m.screen {
+			case screenDetail:
+				project, ok := m.currentProject()
+				content = overlayModal(content, detailModalView(project, ok, m.contentWidth()), m.contentWidth())
 			case screenHelp:
 				content = overlayModal(content, helpView(), m.contentWidth())
 			case screenFilter:
@@ -683,7 +684,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenHelp, screenFilter, screenSort, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenHelp, screenFilter, screenSort, screenNote, screenStatus, screenStatusInput:
 		return true
 	default:
 		return false

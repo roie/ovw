@@ -57,6 +57,27 @@ func detailView(project project.Project, ok bool) string {
 	return strings.Join(lines, "\n")
 }
 
+func detailModalView(project project.Project, ok bool, width int) string {
+	if width <= 0 || width > 72 {
+		width = 72
+	}
+	if width < 32 {
+		width = 32
+	}
+	return modalView("Details", detailModalLines(project, ok), width)
+}
+
+func detailModalLines(project project.Project, ok bool) []string {
+	if !ok {
+		return []string{modalMuted("No project selected")}
+	}
+	lines := strings.Split(detailView(project, ok), "\n")
+	if len(lines) > 0 {
+		lines[0] = project.Name
+	}
+	return lines
+}
+
 func detailSummaryView(project project.Project, width int) string {
 	lines := []string{titleStyle.Render(truncateText(project.Name, width))}
 	addSummaryLine := func(label, value string) {

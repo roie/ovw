@@ -349,6 +349,8 @@ func TestModelNavigationHandlesEmptyProjects(t *testing.T) {
 
 func TestModelOpensAndClosesDetailView(t *testing.T) {
 	updated := updateSpecialKey(t, Model{
+		width:  140,
+		height: 24,
 		projects: []project.Project{
 			detailTestProject("one"),
 			detailTestProject("two"),
@@ -363,7 +365,7 @@ func TestModelOpensAndClosesDetailView(t *testing.T) {
 		t.Fatalf("selected = %d, want 1", updated.selected)
 	}
 	view := updated.View()
-	for _, want := range []string{"two", "/tmp/two", "Go, Cobra", "go modules", "dirty", "2 unpushed", "Manual note"} {
+	for _, want := range []string{"Details", "one", "two", " │ ", "/tmp/two", "Go, Cobra", "go modules", "dirty", "2 unpushed", "Manual note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("detail view missing %q:\n%s", want, view)
 		}
