@@ -38,10 +38,25 @@ func TestApplyUntaggedFilter(t *testing.T) {
 	}
 }
 
-func TestApplyRejectsUnknownStatus(t *testing.T) {
-	_, err := Apply(nil, Options{Status: "building"}, config.Default(), time.Now())
-	if err == nil {
-		t.Fatal("expected unknown status error")
+func TestApplyAllowsFreeFormStatusFilter(t *testing.T) {
+	projects := []project.Project{{Name: "a", Status: "needs review"}, {Name: "b", Status: "active"}}
+	got, err := Apply(projects, Options{Status: "needs review"}, config.Default(), time.Now())
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "a" {
+		t.Fatalf("projects = %#v", got)
+	}
+}
+
+func TestApplyHiddenFilter(t *testing.T) {
+	projects := []project.Project{{Name: "visible"}, {Name: "hidden", Hidden: true}}
+	got, err := Apply(projects, Options{Hidden: true}, config.Default(), time.Now())
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "hidden" {
+		t.Fatalf("projects = %#v", got)
 	}
 }
 

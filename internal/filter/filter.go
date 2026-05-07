@@ -1,7 +1,6 @@
 package filter
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -15,15 +14,16 @@ type Options struct {
 	Dirty    bool
 	Stale    bool
 	Untagged bool
+	Hidden   bool
 	Sort     string
 }
 
 func Apply(projects []project.Project, opts Options, cfg config.Config, now time.Time) ([]project.Project, error) {
-	if opts.Status != "" && !validStatus(opts.Status, cfg.Statuses) {
-		return nil, fmt.Errorf("unknown status: %s", opts.Status)
-	}
 	out := []project.Project{}
 	for _, p := range projects {
+		if opts.Hidden && !p.Hidden {
+			continue
+		}
 		if opts.Status != "" && p.Status != opts.Status {
 			continue
 		}
@@ -68,15 +68,6 @@ func Sort(projects []project.Project, mode string, cfg config.Config) []project.
 		}
 	})
 	return out
-}
-
-func validStatus(status string, statuses []string) bool {
-	for _, value := range statuses {
-		if status == value {
-			return true
-		}
-	}
-	return false
 }
 
 func isStale(p project.Project, staleDays int, now time.Time) bool {

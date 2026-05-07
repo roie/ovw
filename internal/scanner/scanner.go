@@ -19,6 +19,14 @@ type Project struct {
 }
 
 func Scan(cfg config.Config, meta metadata.Store) ([]Project, error) {
+	return scan(cfg, meta, false)
+}
+
+func ScanAll(cfg config.Config, meta metadata.Store) ([]Project, error) {
+	return scan(cfg, meta, true)
+}
+
+func scan(cfg config.Config, meta metadata.Store, includeHidden bool) ([]Project, error) {
 	seen := map[string]Project{}
 	for _, root := range cfg.Roots {
 		expanded, err := config.ExpandPath(root)
@@ -62,7 +70,7 @@ func Scan(cfg config.Config, meta metadata.Store) ([]Project, error) {
 	}
 	projects := make([]Project, 0, len(seen))
 	for _, project := range seen {
-		if project.Hidden {
+		if project.Hidden && !includeHidden {
 			continue
 		}
 		projects = append(projects, project)

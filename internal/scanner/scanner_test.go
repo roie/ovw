@@ -119,6 +119,33 @@ func TestScanIncludesManualOutsideRoots(t *testing.T) {
 	}
 }
 
+func TestScanAllIncludesHiddenProjects(t *testing.T) {
+	root := t.TempDir()
+	hiddenPath := filepath.Join(root, "hidden")
+	touch(t, filepath.Join(hiddenPath, "go.mod"))
+	store := metadata.New()
+	canonical, _, err := store.Set(hiddenPath, metadata.Entry{Hidden: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	visible, err := Scan(configForRoot(root), store)
+	if err != nil {
+		t.Fatalf("Scan() error = %v", err)
+	}
+	if len(visible) != 0 {
+		t.Fatalf("visible projects = %#v", visible)
+	}
+
+	all, err := ScanAll(configForRoot(root), store)
+	if err != nil {
+		t.Fatalf("ScanAll() error = %v", err)
+	}
+	if len(all) != 1 || all[0].Path != canonical || !all[0].Hidden {
+		t.Fatalf("all projects = %#v", all)
+	}
+}
+
 func TestDetectRootRequiresTwoProjectChildren(t *testing.T) {
 	root := t.TempDir()
 	touch(t, filepath.Join(root, "one", "package.json"))

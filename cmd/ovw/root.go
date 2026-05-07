@@ -54,6 +54,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Dirty, "dirty", false, "show dirty projects")
 	cmd.Flags().BoolVar(&opts.Stale, "stale", false, "show stale projects")
 	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show projects without manual status")
+	cmd.Flags().BoolVar(&opts.Hidden, "hidden", false, "show hidden projects")
 	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, name, or status")
 	cmd.AddCommand(newAddCommand())
 	cmd.AddCommand(newVisibilityCommand("hide", true))
@@ -90,6 +91,7 @@ Flags:
   --dirty           show dirty projects
   --stale           show stale projects
   --untagged        show projects without manual status
+  --hidden          show hidden projects
   --sort string     sort by activity, name, or status
   -h, --help        help for ovw
   -v, --version     version for ovw

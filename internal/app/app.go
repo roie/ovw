@@ -24,6 +24,7 @@ type Options struct {
 	Dirty    bool
 	Stale    bool
 	Untagged bool
+	Hidden   bool
 	Sort     string
 	Cwd      string
 	In       io.Reader
@@ -51,7 +52,12 @@ func Run(opts Options) error {
 	if err != nil {
 		return err
 	}
-	scanned, err := scanner.Scan(cfg, meta)
+	var scanned []scanner.Project
+	if opts.Hidden {
+		scanned, err = scanner.ScanAll(cfg, meta)
+	} else {
+		scanned, err = scanner.Scan(cfg, meta)
+	}
 	if err != nil {
 		return err
 	}
@@ -72,6 +78,7 @@ func Run(opts Options) error {
 		Dirty:    opts.Dirty,
 		Stale:    opts.Stale,
 		Untagged: opts.Untagged,
+		Hidden:   opts.Hidden,
 	}, cfg, now)
 	if err != nil {
 		return err

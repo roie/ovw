@@ -98,6 +98,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"--dirty           show dirty projects",
 		"--stale           show stale projects",
 		"--untagged        show projects without manual status",
+		"--hidden          show hidden projects",
 		"--sort string     sort by activity, name, or status",
 		"-h, --help        help for ovw",
 		"-v, --version     version for ovw",
@@ -236,6 +237,35 @@ func TestHideCanTargetScannedProjectByName(t *testing.T) {
 	overview = runCommand(t, []string{"--plain"})
 	if !strings.Contains(overview, "\nscanned  ") {
 		t.Fatalf("unhidden scanned project missing:\n%s", overview)
+	}
+}
+
+func TestHiddenFlagListsHiddenProjects(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(root, "visible"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "visible", "go.mod"), []byte("module visible"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "hidden"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "hidden", "go.mod"), []byte("module hidden"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, root)
+	runCommand(t, []string{"hide", "hidden"})
+
+	out := runCommand(t, []string{"--hidden", "--plain"})
+	if !strings.Contains(out, "\nhidden  ") || strings.Contains(out, "\nvisible  ") {
+		t.Fatalf("hidden overview = %q", out)
+	}
+	jsonOut := runCommand(t, []string{"--hidden", "--json"})
+	if !strings.Contains(jsonOut, `"name": "hidden"`) || strings.Contains(jsonOut, `"name": "visible"`) {
+		t.Fatalf("hidden json = %q", jsonOut)
 	}
 }
 

@@ -83,6 +83,45 @@ func TestOverviewPlainAppliesStatusFilter(t *testing.T) {
 	}
 }
 
+func TestOverviewCanFilterHiddenProjects(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	writePackage(t, filepath.Join(root, "hidden"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	metadataPath := filepath.Join(home, ".local", "share", "ovw", "projects.json")
+	hiddenPath, err := filepath.Abs(filepath.Join(root, "hidden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta := `{"projects":{` + quote(hiddenPath) + `:{"hidden":true}}}`
+	if err := os.MkdirAll(filepath.Dir(metadataPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(metadataPath, []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	err = Run(Options{Hidden: true, Plain: true, Cwd: root, Out: &out, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "hidden") || strings.Contains(got, "app") {
+		t.Fatalf("table output = %s", got)
+	}
+}
+
 func writePackage(t *testing.T, dir, data string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
