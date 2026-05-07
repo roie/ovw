@@ -21,6 +21,7 @@ const (
 	screenTable screenMode = iota
 	screenDetail
 	screenFilter
+	screenSort
 )
 
 type Model struct {
@@ -35,6 +36,8 @@ type Model struct {
 	searching      bool
 	filterSelected int
 	activeFilter   string
+	sortSelected   int
+	activeSort     string
 	loading        bool
 	loadErr        error
 	config         config.Config
@@ -53,6 +56,7 @@ func NewWithOptions(opts app.Options) Model {
 		request:      opts,
 		loader:       app.LoadOverview,
 		activeFilter: optionsFromRequest(opts),
+		activeSort:   sortFromRequest(opts),
 		loading:      true,
 	}
 }
@@ -76,6 +80,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenFilter {
 			return m.updateFilter(msg)
 		}
+		if m.screen == screenSort {
+			return m.updateSort(msg)
+		}
 		if isEscapeKey(msg.String()) && m.screen == screenDetail {
 			m.screen = screenTable
 			return m, nil
@@ -95,6 +102,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isFilterKey(msg.String()) {
 			m.screen = screenFilter
 			m.filterSelected = m.currentFilterIndex()
+			return m, nil
+		}
+		if isSortKey(msg.String()) {
+			m.screen = screenSort
+			m.sortSelected = m.currentSortIndex()
 			return m, nil
 		}
 		if isDownKey(msg.String()) {
@@ -162,6 +174,29 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.applyFilter(options[m.filterSelected])
+		m.screen = screenTable
+		m.loading = true
+		m.selected = 0
+		return m, m.loadOverview()
+	}
+	return m, nil
+}
+
+func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	options := sortOptions()
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+	case isDownKey(value):
+		if m.sortSelected < len(options)-1 {
+			m.sortSelected++
+		}
+	case isUpKey(value):
+		if m.sortSelected > 0 {
+			m.sortSelected--
+		}
+	case isEnterKey(value):
+		m.applySort(options[m.sortSelected])
 		m.screen = screenTable
 		m.loading = true
 		m.selected = 0
@@ -252,6 +287,9 @@ func renderShell(m Model) string {
 		if m.activeFilter != "" && m.activeFilter != "all" {
 			body += " " + mutedStyle.Render("filter: "+m.activeFilter)
 		}
+		if m.activeSort != "" {
+			body += " " + mutedStyle.Render("sort: "+m.activeSort)
+		}
 		if m.search != "" || m.searching {
 			body += " " + mutedStyle.Render("search: "+m.search)
 		}
@@ -262,6 +300,8 @@ func renderShell(m Model) string {
 			body += "\n\n" + detailView(m.currentProject())
 		} else if m.screen == screenFilter {
 			body += "\n\n" + filterView(m.filterOptions(), m.filterSelected)
+		} else if m.screen == screenSort {
+			body += "\n\n" + sortView(sortOptions(), m.sortSelected)
 		} else if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
 		} else {

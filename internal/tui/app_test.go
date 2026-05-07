@@ -283,6 +283,52 @@ func TestModelFilterPickerIncludesConfiguredStatuses(t *testing.T) {
 	}
 }
 
+func TestModelSortPickerAppliesNameSort(t *testing.T) {
+	var captured app.Options
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			captured = opts
+			return app.OverviewResult{
+				Config:   config.Default(),
+				Projects: []project.Project{{Name: "a"}, {Name: "b"}},
+			}, nil
+		},
+		activeSort: "activity",
+	}
+
+	model = updateKey(t, model, "s")
+	if model.screen != screenSort {
+		t.Fatalf("screen = %v, want sort", model.screen)
+	}
+	if !strings.Contains(model.View(), "name") {
+		t.Fatalf("sort view missing name option:\n%s", model.View())
+	}
+	model = updateKey(t, model, "j")
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected sort apply to reload data")
+	}
+	model = updateMsg(t, model, cmd())
+	if captured.Sort != "name" {
+		t.Fatalf("captured sort = %q, want name", captured.Sort)
+	}
+	if model.activeSort != "name" {
+		t.Fatalf("activeSort = %q, want name", model.activeSort)
+	}
+	if model.loading {
+		t.Fatal("model is still loading")
+	}
+}
+
+func TestSortPickerEscCloses(t *testing.T) {
+	model := Model{screen: screenSort}
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
