@@ -25,6 +25,7 @@ func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ovw",
 		Short:   "A terminal overview for your local projects",
+		Example: "  ovw\n  ovw myproject\n  ovw myproject --json",
 		Version: version,
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -41,6 +42,7 @@ func NewRootCommand() *cobra.Command {
 			return app.Run(opts)
 		},
 	}
+	cmd.SetUsageTemplate(rootUsageTemplate())
 	cmd.Flags().BoolVar(&opts.Plain, "plain", false, "force plain table output")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "output JSON")
 	cmd.Flags().StringVar(&opts.Status, "status", "", "filter by status")
@@ -59,6 +61,30 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(newUnsetCommand())
 	cmd.AddCommand(newShowCommand())
 	return cmd
+}
+
+func rootUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}} [project] [flags]
+  {{.CommandPath}} [command]
+{{if .HasExample}}
+Examples:
+{{.Example}}
+{{end}}{{if .HasAvailableSubCommands}}
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}
+{{end}}{{if .HasAvailableLocalFlags}}
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}{{if .HasAvailableInheritedFlags}}
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}{{if .HasHelpSubCommands}}
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}
+{{end}}{{if .HasAvailableSubCommands}}
+Use "{{.CommandPath}} [command] --help" for more information about a command.
+{{end}}`
 }
 
 func newConfigCommand() *cobra.Command {
