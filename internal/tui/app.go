@@ -558,7 +558,7 @@ func (m Model) tablePanel(visible []project.Project) string {
 		} else {
 			detail, _ := m.currentProject()
 			return joinColumns(
-				tableView(visible, m.selected, tableWidth, tableHeight),
+				compactTableView(visible, m.selected, tableWidth, tableHeight),
 				detailSummaryView(detail, detailWidth),
 				gap,
 			)

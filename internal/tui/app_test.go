@@ -686,6 +686,9 @@ func TestModelWideViewShowsInlineDetailPane(t *testing.T) {
 			t.Fatalf("wide view missing %q:\n%s", want, view)
 		}
 	}
+	if strings.Contains(view, "Note 2/2") {
+		t.Fatalf("wide table should move notes to detail pane:\n%s", view)
+	}
 }
 
 func TestModelNarrowViewKeepsDetailPaneHidden(t *testing.T) {

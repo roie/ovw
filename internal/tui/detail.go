@@ -80,7 +80,7 @@ func detailSummaryView(project project.Project, width int) string {
 }
 
 func detailLine(label, value string) string {
-	return fmt.Sprintf("%-14s %s", label, value)
+	return fmt.Sprintf("%-8s %s", label, value)
 }
 
 func dirtyDetail(project project.Project) string {

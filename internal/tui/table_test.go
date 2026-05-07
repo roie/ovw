@@ -69,3 +69,24 @@ func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 		t.Fatalf("table missing scroll position:\n%s", got)
 	}
 }
+
+func TestCompactTableViewOmitsNoteColumnForInlineDetail(t *testing.T) {
+	got := compactTableView([]project.Project{
+		{
+			Name:         "eventca",
+			StackDisplay: "SvelteKit+CF",
+			Activity:     ovwformat.ActivityInfo{Display: "18m"},
+			Tags:         []string{"dirty", "active"},
+			Note:         ovwformat.NoteInfo{Display: "long note belongs in detail pane"},
+		},
+	}, 0, 72, 8)
+
+	if strings.Contains(got, "Note") || strings.Contains(got, "long note") {
+		t.Fatalf("compact table should omit note column:\n%s", got)
+	}
+	for _, want := range []string{"Name", "Stack", "Activity", "Status", "eventca", "SvelteKit+CF", "dirty"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("compact table missing %q:\n%s", want, got)
+		}
+	}
+}
