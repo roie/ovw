@@ -76,7 +76,7 @@ func Default() Config {
 		NoteShowBranch:          true,
 		DefaultBranches:         []string{"main", "master", "trunk"},
 		Statuses:                []string{"active", "parked", "shipped", "idea"},
-		Columns:                 []string{"name", "stack", "activity", "status", "note"},
+		Columns:                 []string{"name", "stack", "activity", "state", "note"},
 		SortBy:                  "activity",
 		SortDir:                 "desc",
 		ShowUntagged:            true,
@@ -380,7 +380,7 @@ statuses = ["active", "parked", "shipped", "idea"]
 # ─────────────────────────────────────────
 
 # Columns to show and their order.
-columns = ["name", "stack", "activity", "status", "note"]
+columns = ["name", "stack", "activity", "state", "note"]
 
 # Default sort column. Options: activity, name, status
 sort_by = "activity"

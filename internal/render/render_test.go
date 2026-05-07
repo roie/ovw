@@ -17,6 +17,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 		Name:         "eventca",
 		StackDisplay: "SvelteKit+CF",
 		Activity:     format.ActivityInfo{Display: "2d ↑2 !"},
+		State:        "dirty",
 		Status:       "active",
 		Note:         format.NoteInfo{Display: "feat/checkin · fix"},
 	}}
@@ -25,7 +26,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 		t.Fatalf("Table() error = %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"ovw — 1 projects · scanned in 0.2s", "Name", "Stack", "Activity", "Status", "Note", "----", "eventca", "SvelteKit+CF"} {
+	for _, want := range []string{"ovw — 1 projects · scanned in 0.2s", "Name", "Stack", "Activity", "State", "Note", "----", "eventca", "SvelteKit+CF", "dirty"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing %q:\n%s", want, got)
 		}
@@ -33,7 +34,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 	if strings.Contains(got, "----  -----") {
 		t.Fatalf("table uses disconnected column separators:\n%s", got)
 	}
-	for _, unwanted := range []string{"NAME", "STACK", "ACTIVITY", "STATUS", "NOTE"} {
+	for _, unwanted := range []string{"NAME", "STACK", "ACTIVITY", "STATE", "NOTE"} {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("table contains uppercase header %q:\n%s", unwanted, got)
 		}
@@ -116,6 +117,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 			HasCommits:        true,
 		},
 		Status: "active",
+		State:  "dirty",
 		Note:   format.NoteInfo{Display: "note", Source: "manual", Manual: "note"},
 		Manual: true,
 		Hidden: true,
@@ -143,6 +145,9 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	}
 	if note, ok := item["note"].(string); !ok || note != "note" {
 		t.Fatalf("note = %#v, want string note\n%s", item["note"], out.String())
+	}
+	if state, ok := item["state"].(string); !ok || state != "dirty" {
+		t.Fatalf("state = %#v, want dirty\n%s", item["state"], out.String())
 	}
 	activity, ok := item["activity"].(map[string]any)
 	if !ok {

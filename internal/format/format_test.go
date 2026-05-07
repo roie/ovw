@@ -72,6 +72,30 @@ func TestActivityNoGitAndNoCommits(t *testing.T) {
 	}
 }
 
+func TestStatePriority(t *testing.T) {
+	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
+	cfg := config.Default()
+	cases := []struct {
+		name string
+		info ActivityInfo
+		want string
+	}{
+		{name: "no git", info: ActivityInfo{}, want: "no git"},
+		{name: "no commits", info: ActivityInfo{HasGit: true}, want: "no commits"},
+		{name: "dirty", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, want: "dirty"},
+		{name: "unpushed", info: ActivityInfo{HasGit: true, HasCommits: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, want: "unpushed"},
+		{name: "stale", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -60)}, want: "stale"},
+		{name: "active", info: ActivityInfo{HasGit: true, HasCommits: true, LastCommitAt: now.AddDate(0, 0, -2)}, want: "active"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := State(tc.info, cfg, now); got != tc.want {
+				t.Fatalf("State() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNoteFallbackChain(t *testing.T) {
 	cfg := config.Default()
 	info := gitactivity.Info{Branch: "feat/checkin", LastCommitMessage: "commit msg"}

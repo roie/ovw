@@ -57,6 +57,30 @@ func Activity(info gitactivity.Info, cfg config.Config, now time.Time) ActivityI
 	return out
 }
 
+func State(activity ActivityInfo, cfg config.Config, now time.Time) string {
+	switch {
+	case !activity.HasGit:
+		return "no git"
+	case !activity.HasCommits:
+		return "no commits"
+	case activity.Dirty:
+		return "dirty"
+	case activity.Unpushed > 0:
+		return "unpushed"
+	case isStale(activity, cfg, now):
+		return "stale"
+	default:
+		return "active"
+	}
+}
+
+func isStale(activity ActivityInfo, cfg config.Config, now time.Time) bool {
+	if !activity.HasCommits || activity.LastCommitAt.IsZero() {
+		return false
+	}
+	return now.Sub(activity.LastCommitAt) > time.Duration(cfg.StaleDays)*24*time.Hour
+}
+
 func RelativeAge(then, now time.Time) string {
 	if then.IsZero() {
 		return ""

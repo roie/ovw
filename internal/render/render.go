@@ -96,6 +96,7 @@ type jsonProject struct {
 	Name     string       `json:"name"`
 	Path     string       `json:"path"`
 	Stack    []string     `json:"stack"`
+	State    string       `json:"state"`
 	Status   string       `json:"status"`
 	Note     string       `json:"note"`
 	Activity jsonActivity `json:"activity"`
@@ -127,6 +128,7 @@ func newJSONProject(project project.Project) jsonProject {
 		Name:     project.Name,
 		Path:     project.Path,
 		Stack:    project.Stack,
+		State:    project.State,
 		Status:   project.Status,
 		Note:     project.Note.Display,
 		Activity: activity,
@@ -154,6 +156,8 @@ func value(p project.Project, column, displayName string) string {
 		return p.StackDisplay
 	case "activity":
 		return p.Activity.Display
+	case "state":
+		return p.State
 	case "status":
 		return p.Status
 	case "note":

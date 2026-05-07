@@ -27,6 +27,9 @@ func TestDefaultConfigValues(t *testing.T) {
 	if !reflect.DeepEqual(cfg.Statuses, []string{"active", "parked", "shipped", "idea"}) {
 		t.Fatalf("Statuses = %#v", cfg.Statuses)
 	}
+	if !reflect.DeepEqual(cfg.Columns, []string{"name", "stack", "activity", "state", "note"}) {
+		t.Fatalf("Columns = %#v", cfg.Columns)
+	}
 	if cfg.SortBy != "activity" || cfg.SortDir != "desc" {
 		t.Fatalf("sort = %q %q", cfg.SortBy, cfg.SortDir)
 	}
@@ -114,6 +117,9 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	}
 	if !strings.Contains(text, `"Cloudflare Workers" = "CF"`) {
 		t.Fatalf("stack alias key is not a quoted string:\n%s", text)
+	}
+	if !strings.Contains(text, `columns = ["name", "stack", "activity", "state", "note"]`) {
+		t.Fatalf("default config missing state column:\n%s", text)
 	}
 	loaded, err := Load(path)
 	if err != nil {

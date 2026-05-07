@@ -436,6 +436,7 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 	fmt.Fprintf(out, "%s\n", filepath.Base(path))
 	fmt.Fprintf(out, "Path      %s\n", path)
 	fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
+	fmt.Fprintf(out, "State     %s\n", enriched.State)
 	fmt.Fprintf(out, "Status    %s\n", enriched.Status)
 	fmt.Fprintf(out, "Note      %s\n", enriched.Note.Display)
 	if enriched.Activity.HasGit && enriched.Activity.Branch != "" {
