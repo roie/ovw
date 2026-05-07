@@ -90,3 +90,19 @@ func TestCompactTableViewOmitsNoteColumnForInlineDetail(t *testing.T) {
 		}
 	}
 }
+
+func TestCompactTableViewDoesNotConsumeAllAvailableWidth(t *testing.T) {
+	got := compactTableView([]project.Project{
+		{
+			Name:         "eventca",
+			StackDisplay: "SvelteKit+CF",
+			Activity:     ovwformat.ActivityInfo{Display: "18m"},
+			Tags:         []string{"dirty", "active"},
+		},
+	}, 0, 100, 8)
+
+	lines := strings.Split(got, "\n")
+	if len([]rune(lines[1])) > 78 {
+		t.Fatalf("compact separator width = %d, want <= 78:\n%s", len([]rune(lines[1])), got)
+	}
+}

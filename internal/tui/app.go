@@ -619,7 +619,7 @@ func joinColumns(left, right string, gap int) string {
 		if i < len(rightLines) {
 			rightLine = rightLines[i]
 		}
-		lines = append(lines, padRight(leftLine, leftWidth)+spacer+rightLine)
+		lines = append(lines, padRight(leftLine, leftWidth)+spacer+"│ "+rightLine)
 	}
 	return strings.Join(lines, "\n")
 }

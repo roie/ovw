@@ -172,6 +172,9 @@ func fitCompactTableColumns(width int) compactTableColumnWidths {
 		Activity: 8,
 	}
 	widths.Status = width - widths.Name - widths.Stack - widths.Activity - compactTableGapWidth()
+	if widths.Status > 24 {
+		widths.Status = 24
+	}
 	if widths.Status >= 12 {
 		return widths
 	}
@@ -179,6 +182,9 @@ func fitCompactTableColumns(width int) compactTableColumnWidths {
 	widths.Stack = 14
 	widths.Activity = 7
 	widths.Status = width - widths.Name - widths.Stack - widths.Activity - compactTableGapWidth()
+	if widths.Status > 18 {
+		widths.Status = 18
+	}
 	if widths.Status < 8 {
 		widths.Status = 8
 	}
