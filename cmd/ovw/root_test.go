@@ -210,6 +210,28 @@ func TestAddHideUnhideRemoveCommands(t *testing.T) {
 	}
 }
 
+func TestAddExpandsQuotedHomePathAndDisplaysShortPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := filepath.Join(home, "dev", "manual")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	out := runCommand(t, []string{"add", "~/dev/manual"})
+	if !strings.Contains(out, "Added ~/dev/manual to ovw.") {
+		t.Fatalf("add output = %q", out)
+	}
+	metaPath := filepath.Join(home, ".local", "share", "ovw", "projects.json")
+	data, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte(project)) {
+		t.Fatalf("metadata should store absolute path, got %s", data)
+	}
+}
+
 func TestHideCanTargetScannedProjectByName(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()
@@ -426,7 +448,7 @@ func TestShowJSONOutputsSingleProject(t *testing.T) {
 
 func TestRootArgShowsSingleProject(t *testing.T) {
 	home := t.TempDir()
-	root := t.TempDir()
+	root := filepath.Join(home, "dev")
 	t.Setenv("HOME", home)
 	if err := os.MkdirAll(filepath.Join(root, "scanned"), 0o755); err != nil {
 		t.Fatal(err)
@@ -446,11 +468,14 @@ func TestRootArgShowsSingleProject(t *testing.T) {
 			t.Fatalf("root project output missing %q: %s", want, out)
 		}
 	}
+	if !strings.Contains(out, "Path      ~/dev/scanned") {
+		t.Fatalf("root project output should shorten home path: %s", out)
+	}
 }
 
 func TestRootArgShowsSingleProjectJSON(t *testing.T) {
 	home := t.TempDir()
-	root := t.TempDir()
+	root := filepath.Join(home, "dev")
 	t.Setenv("HOME", home)
 	if err := os.MkdirAll(filepath.Join(root, "scanned"), 0o755); err != nil {
 		t.Fatal(err)
@@ -469,6 +494,12 @@ func TestRootArgShowsSingleProjectJSON(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("root project json missing %q: %s", want, out)
 		}
+	}
+	if !strings.Contains(out, `"path": "`+filepath.Join(root, "scanned")+`"`) {
+		t.Fatalf("root project json should keep absolute path: %s", out)
+	}
+	if strings.Contains(out, `"path": "~`) {
+		t.Fatalf("root project json should not shorten path: %s", out)
 	}
 }
 

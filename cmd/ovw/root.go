@@ -311,6 +311,15 @@ func resolveProject(target string, store metadata.Store) (string, error) {
 
 func displayPath(path string) string {
 	if abs, err := filepath.Abs(path); err == nil {
+		home, homeErr := os.UserHomeDir()
+		if homeErr == nil {
+			if filepath.Clean(abs) == filepath.Clean(home) {
+				return "~"
+			}
+			if rel, relErr := filepath.Rel(home, abs); relErr == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return filepath.Join("~", rel)
+			}
+		}
 		return abs
 	}
 	return path
@@ -442,7 +451,7 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 		return render.ProjectJSON(out, enriched)
 	}
 	fmt.Fprintf(out, "%s\n", filepath.Base(path))
-	fmt.Fprintf(out, "Path      %s\n", path)
+	fmt.Fprintf(out, "Path      %s\n", displayPath(path))
 	fmt.Fprintf(out, "Stack     %s\n", strings.Join(enriched.Stack, ", "))
 	fmt.Fprintf(out, "Status    %s\n", ovwformat.TagDisplay(enriched.Tags))
 	fmt.Fprintf(out, "Note      %s\n", enriched.Note.Display)
