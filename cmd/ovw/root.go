@@ -333,6 +333,9 @@ func newSetCommand() *cobra.Command {
 		Short: "Set project status or note",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if status == "" && note == "" {
+				return fmt.Errorf("nothing to set; pass --status or --note")
+			}
 			paths, cfg, store, err := commandState()
 			if err != nil {
 				return err
@@ -375,6 +378,9 @@ func newUnsetCommand() *cobra.Command {
 		Short: "Clear project status or note",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !clearStatus && !clearNote {
+				return fmt.Errorf("nothing to unset; pass --status or --note")
+			}
 			paths, cfg, store, err := commandState()
 			if err != nil {
 				return err
@@ -515,13 +521,6 @@ func resolveProjectWithConfig(target string, cfg config.Config, store metadata.S
 	return "", err
 }
 
-func yesNo(value bool) string {
-	if value {
-		return "yes"
-	}
-	return "no"
-}
-
 func showTime(value time.Time) string {
 	if value.IsZero() {
 		return ""
@@ -550,11 +549,4 @@ func detailActivity(project project.Project) string {
 		parts = append(parts, fmt.Sprintf("%d unpushed", activity.Unpushed))
 	}
 	return strings.Join(parts, " · ")
-}
-
-func noteSourceSuffix(source string) string {
-	if source == "" || source == "none" {
-		return ""
-	}
-	return " (" + source + ")"
 }

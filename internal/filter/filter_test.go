@@ -62,21 +62,41 @@ func TestApplyHiddenFilter(t *testing.T) {
 
 func TestSortModes(t *testing.T) {
 	now := time.Date(2026, 5, 6, 0, 0, 0, 0, time.Local)
+	cfg := config.Default()
+	cfg.SortDir = "asc"
 	projects := []project.Project{
 		{Name: "beta", Status: "parked", Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -1), HasCommits: true}},
 		{Name: "alpha", Status: "active", Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -3), HasCommits: true}},
 	}
 
-	got := Sort(projects, "name", config.Default())
+	got := Sort(projects, "name", cfg)
 	if got[0].Name != "alpha" {
 		t.Fatalf("name sort = %#v", got)
 	}
-	got = Sort(projects, "status", config.Default())
+	got = Sort(projects, "status", cfg)
 	if got[0].Status != "active" {
 		t.Fatalf("status sort = %#v", got)
 	}
 	got = Sort(projects, "activity", config.Default())
 	if got[0].Name != "beta" {
 		t.Fatalf("activity sort = %#v", got)
+	}
+}
+
+func TestSortDirectionAppliesToNameAndStatus(t *testing.T) {
+	cfg := config.Default()
+	cfg.SortDir = "desc"
+	projects := []project.Project{
+		{Name: "alpha", Status: "active"},
+		{Name: "beta", Status: "parked"},
+	}
+
+	got := Sort(projects, "name", cfg)
+	if got[0].Name != "beta" {
+		t.Fatalf("name desc sort = %#v", got)
+	}
+	got = Sort(projects, "status", cfg)
+	if got[0].Status != "parked" {
+		t.Fatalf("status desc sort = %#v", got)
 	}
 }

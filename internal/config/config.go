@@ -65,7 +65,7 @@ func Default() Config {
 			"venv", "__pycache__",
 		},
 		ProjectMarkers: []string{
-			".git", "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "deno.json", "bun.lock",
+			".git", "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "deno.json", "bun.lock", "bun.lockb",
 		},
 		StaleDays:               30,
 		ShowUnpushed:            true,
@@ -335,7 +335,8 @@ project_markers = [
   "go.mod",
   "pyproject.toml",
   "deno.json",
-  "bun.lock"
+  "bun.lock",
+  "bun.lockb"
 ]
 
 # ─────────────────────────────────────────

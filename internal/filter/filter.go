@@ -50,8 +50,14 @@ func Sort(projects []project.Project, mode string, cfg config.Config) []project.
 	sort.SliceStable(out, func(i, j int) bool {
 		switch mode {
 		case "name":
+			if desc {
+				return out[i].Name > out[j].Name
+			}
 			return out[i].Name < out[j].Name
 		case "status":
+			if desc {
+				return out[i].Status > out[j].Status
+			}
 			return out[i].Status < out[j].Status
 		case "activity":
 			fallthrough

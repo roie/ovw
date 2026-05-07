@@ -33,6 +33,20 @@ func TestScanDetectsConfiguredMarkers(t *testing.T) {
 	}
 }
 
+func TestScanDetectsBunLockbMarker(t *testing.T) {
+	root := t.TempDir()
+	touch(t, filepath.Join(root, "bunapp", "bun.lockb"))
+
+	projects, err := Scan(configForRoot(root), metadata.New())
+	if err != nil {
+		t.Fatalf("Scan() error = %v", err)
+	}
+	names := projectNames(projects)
+	if !names["bunapp"] {
+		t.Fatalf("missing bunapp in %#v", names)
+	}
+}
+
 func TestScanIgnoresConfiguredDirectories(t *testing.T) {
 	root := t.TempDir()
 	touch(t, filepath.Join(root, "node_modules", "dep", "package.json"))

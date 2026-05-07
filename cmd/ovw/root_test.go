@@ -349,6 +349,36 @@ func TestSetUnsetShowCommands(t *testing.T) {
 	}
 }
 
+func TestSetRequiresStatusOrNote(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "manual")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	runCommand(t, []string{"add", project})
+
+	_, err := executeCommand([]string{"set", "manual"})
+	if err == nil || !strings.Contains(err.Error(), "pass --status or --note") {
+		t.Fatalf("set without fields error = %v", err)
+	}
+}
+
+func TestUnsetRequiresStatusOrNote(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "manual")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	runCommand(t, []string{"add", project})
+
+	_, err := executeCommand([]string{"unset", "manual"})
+	if err == nil || !strings.Contains(err.Error(), "pass --status or --note") {
+		t.Fatalf("unset without fields error = %v", err)
+	}
+}
+
 func TestSetAllowsFreeFormStatus(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "manual")
