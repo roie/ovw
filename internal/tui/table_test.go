@@ -49,6 +49,29 @@ func TestTableViewTruncatesToWidth(t *testing.T) {
 	}
 }
 
+func TestTableViewCollapsesMultilineNotes(t *testing.T) {
+	got := tableView([]project.Project{
+		{
+			Name:         "instaview",
+			StackDisplay: "WXT",
+			Activity:     ovwformat.ActivityInfo{Display: "3w"},
+			Tags:         []string{"dirty"},
+			Note:         ovwformat.NoteInfo{Display: "fix: extract carousel\n- Add SJS script\n- Increase timeout"},
+		},
+	}, 0, 120, 8)
+
+	lines := strings.Split(stripANSI(got), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("table should render one row per project, got %d lines:\n%s", len(lines), got)
+	}
+	if strings.Contains(got, "\n- Add") {
+		t.Fatalf("table note should not contain embedded newlines:\n%s", got)
+	}
+	if !strings.Contains(got, "fix: extract carousel - Add SJS") {
+		t.Fatalf("table note missing collapsed text:\n%s", got)
+	}
+}
+
 func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 	projects := make([]project.Project, 0, 20)
 	for i := range 20 {

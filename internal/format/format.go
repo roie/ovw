@@ -153,6 +153,10 @@ func Note(manual, description string, activity gitactivity.Info, cfg config.Conf
 	return note
 }
 
+func SingleLine(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
 func isDefaultBranch(branch string, defaults []string) bool {
 	for _, value := range defaults {
 		if branch == value {

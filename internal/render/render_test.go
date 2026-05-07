@@ -98,6 +98,28 @@ func TestTableWidthTruncatesNoteAndSeparator(t *testing.T) {
 	}
 }
 
+func TestTableCollapsesMultilineNotes(t *testing.T) {
+	projects := []project.Project{{
+		Name:         "instaview",
+		Path:         "/tmp/instaview",
+		StackDisplay: "WXT",
+		Activity:     format.ActivityInfo{Display: "3w"},
+		Tags:         []string{"dirty"},
+		Note:         format.NoteInfo{Display: "fix: extract carousel\n- Add SJS script\n- Increase timeout"},
+	}}
+	var out bytes.Buffer
+	if err := TableWithWidth(&out, projects, config.Default(), 100*time.Millisecond, 120); err != nil {
+		t.Fatalf("TableWithWidth() error = %v", err)
+	}
+	got := out.String()
+	if strings.Contains(got, "\n- Add") {
+		t.Fatalf("table note should not contain embedded newlines:\n%s", got)
+	}
+	if !strings.Contains(got, "fix: extract carousel - Add SJS") {
+		t.Fatalf("table note missing collapsed text:\n%s", got)
+	}
+}
+
 func TestTableSupportsManagerColumn(t *testing.T) {
 	cfg := config.Default()
 	cfg.Columns = []string{"name", "stack", "manager", "activity", "status", "note"}

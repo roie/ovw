@@ -37,7 +37,7 @@ func tableView(projects []project.Project, selected, width, height int) string {
 			project.StackDisplay,
 			project.Activity.Display,
 			ovwformat.TagDisplay(project.Tags),
-			project.Note.Display,
+			ovwformat.SingleLine(project.Note.Display),
 			widths,
 		)
 		if index == selected {

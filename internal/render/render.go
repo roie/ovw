@@ -164,7 +164,7 @@ func value(p project.Project, column, displayName string) string {
 	case "status":
 		return ovwformat.TagDisplay(p.Tags)
 	case "note":
-		return p.Note.Display
+		return ovwformat.SingleLine(p.Note.Display)
 	default:
 		return ""
 	}

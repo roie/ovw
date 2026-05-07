@@ -148,3 +148,11 @@ func TestNoteHidesDefaultBranchAndDisabledFallbacks(t *testing.T) {
 		t.Fatalf("note = %#v", got)
 	}
 }
+
+func TestSingleLineCollapsesWhitespace(t *testing.T) {
+	got := SingleLine("fix: extract carousel\n- Add SJS script\n\n- Add fallback")
+	want := "fix: extract carousel - Add SJS script - Add fallback"
+	if got != want {
+		t.Fatalf("SingleLine() = %q, want %q", got, want)
+	}
+}
