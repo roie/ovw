@@ -2,21 +2,52 @@ package tui
 
 import (
 	"fmt"
+	"io"
+
+	"ovw/internal/app"
+	"ovw/internal/config"
+	"ovw/internal/project"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type overviewLoader func(app.Options) (app.OverviewResult, error)
+
 type Model struct {
-	width  int
-	height int
+	request app.Options
+	loader  overviewLoader
+
+	width    int
+	height   int
+	loading  bool
+	loadErr  error
+	config   config.Config
+	projects []project.Project
 }
 
 func New() Model {
-	return Model{}
+	return NewWithOptions(app.Options{})
+}
+
+func NewWithOptions(opts app.Options) Model {
+	if opts.Out == nil {
+		opts.Out = io.Discard
+	}
+	return Model{
+		request: opts,
+		loader:  app.LoadOverview,
+		loading: true,
+	}
+}
+
+func NewWithLoader(loader overviewLoader) Model {
+	model := NewWithOptions(app.Options{})
+	model.loader = loader
+	return model
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return m.loadOverview()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -28,6 +59,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	case overviewLoadedMsg:
+		m.loading = false
+		m.loadErr = nil
+		m.config = msg.result.Config
+		m.projects = msg.result.Projects
+	case overviewLoadFailedMsg:
+		m.loading = false
+		m.loadErr = msg.err
 	}
 	return m, nil
 }
@@ -46,12 +85,44 @@ func Run() error {
 	return err
 }
 
+type overviewLoadedMsg struct {
+	result app.OverviewResult
+}
+
+type overviewLoadFailedMsg struct {
+	err error
+}
+
+func (m Model) loadOverview() tea.Cmd {
+	return func() tea.Msg {
+		result, err := m.loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		return overviewLoadedMsg{result: result}
+	}
+}
+
 func renderShell(m Model) string {
 	body := titleStyle.Render("ovw")
 	if m.width > 0 && m.height > 0 {
 		body += "\n" + mutedStyle.Render(fmt.Sprintf("%dx%d", m.width, m.height))
 	}
-	body += "\n\n" + mutedStyle.Render("TUI loading...")
+	switch {
+	case m.loading:
+		body += "\n\n" + mutedStyle.Render("Loading projects...")
+	case m.loadErr != nil:
+		body += "\n\n" + errorStyle.Render("Failed to load projects: "+m.loadErr.Error())
+	default:
+		body += "\n\n" + mutedStyle.Render(formatProjectCount(len(m.projects))+" loaded")
+	}
 	body += "\n\n" + footerView()
 	return appStyle.Render(body)
+}
+
+func formatProjectCount(count int) string {
+	if count == 1 {
+		return "1 project"
+	}
+	return fmt.Sprintf("%d projects", count)
 }
