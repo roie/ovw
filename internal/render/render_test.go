@@ -16,9 +16,9 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 	projects := []project.Project{{
 		Name:         "eventca",
 		StackDisplay: "SvelteKit+CF",
-		Activity:     format.ActivityInfo{Display: "2d ↑2 !"},
+		Activity:     format.ActivityInfo{Display: "2d ↑2"},
 		State:        "dirty",
-		Status:       "active",
+		Status:       "shipped",
 		Note:         format.NoteInfo{Display: "feat/checkin · fix"},
 	}}
 	var out bytes.Buffer
@@ -26,7 +26,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 		t.Fatalf("Table() error = %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"ovw — 1 projects · scanned in 0.2s", "Name", "Stack", "Activity", "State", "Note", "----", "eventca", "SvelteKit+CF", "dirty"} {
+	for _, want := range []string{"ovw — 1 projects · scanned in 0.2s", "Name", "Stack", "Activity", "Status", "Note", "----", "eventca", "SvelteKit+CF", "2d ↑2", "dirty · shipped"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing %q:\n%s", want, got)
 		}
@@ -34,7 +34,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 	if strings.Contains(got, "----  -----") {
 		t.Fatalf("table uses disconnected column separators:\n%s", got)
 	}
-	for _, unwanted := range []string{"NAME", "STACK", "ACTIVITY", "STATE", "NOTE"} {
+	for _, unwanted := range []string{"NAME", "STACK", "ACTIVITY", "STATUS", "NOTE", "2d ↑2 !"} {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("table contains uppercase header %q:\n%s", unwanted, got)
 		}

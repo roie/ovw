@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"ovw/internal/config"
+	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
 )
 
@@ -159,7 +160,7 @@ func value(p project.Project, column, displayName string) string {
 	case "state":
 		return p.State
 	case "status":
-		return p.Status
+		return ovwformat.StatusDisplay(p.State, p.Status)
 	case "note":
 		return p.Note.Display
 	default:

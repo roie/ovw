@@ -8,7 +8,7 @@ import (
 	"ovw/internal/gitactivity"
 )
 
-func TestActivityDisplayIncludesAgeUnpushedAndDirty(t *testing.T) {
+func TestActivityDisplayIncludesAgeAndUnpushed(t *testing.T) {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
 	info := gitactivity.Info{
 		HasGit:       true,
@@ -18,7 +18,7 @@ func TestActivityDisplayIncludesAgeUnpushedAndDirty(t *testing.T) {
 		Dirty:        true,
 	}
 	got := Activity(info, config.Default(), now)
-	if got.Display != "2d ↑2 !" || got.LastCommitAge != "2d" {
+	if got.Display != "2d ↑2" || got.LastCommitAge != "2d" {
 		t.Fatalf("activity = %#v", got)
 	}
 }
@@ -26,7 +26,6 @@ func TestActivityDisplayIncludesAgeUnpushedAndDirty(t *testing.T) {
 func TestActivityDisplayHonorsDisabledFlags(t *testing.T) {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
 	cfg := config.Default()
-	cfg.ShowDirty = false
 	cfg.ShowUnpushed = false
 	info := gitactivity.Info{
 		HasGit:       true,
@@ -93,6 +92,24 @@ func TestStatePriority(t *testing.T) {
 				t.Fatalf("State() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestStatusDisplayCombinesStateAndManualStatus(t *testing.T) {
+	cases := []struct {
+		state  string
+		status string
+		want   string
+	}{
+		{state: "dirty", want: "dirty"},
+		{state: "dirty", status: "shipped", want: "dirty · shipped"},
+		{state: "active", status: "active", want: "active"},
+		{status: "parked", want: "parked"},
+	}
+	for _, tc := range cases {
+		if got := StatusDisplay(tc.state, tc.status); got != tc.want {
+			t.Fatalf("StatusDisplay(%q, %q) = %q, want %q", tc.state, tc.status, got, tc.want)
+		}
 	}
 }
 

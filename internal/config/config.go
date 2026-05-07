@@ -23,7 +23,6 @@ type Config struct {
 	ProjectMarkers          []string    `toml:"project_markers"`
 	StaleDays               int         `toml:"stale_days"`
 	ShowUnpushed            bool        `toml:"show_unpushed"`
-	ShowDirty               bool        `toml:"show_dirty"`
 	NoteFallbackCommit      bool        `toml:"note_fallback_commit"`
 	NoteFallbackDescription bool        `toml:"note_fallback_description"`
 	NoteShowBranch          bool        `toml:"note_show_branch"`
@@ -70,13 +69,12 @@ func Default() Config {
 		},
 		StaleDays:               30,
 		ShowUnpushed:            true,
-		ShowDirty:               true,
 		NoteFallbackCommit:      true,
 		NoteFallbackDescription: true,
 		NoteShowBranch:          true,
 		DefaultBranches:         []string{"main", "master", "trunk"},
 		Statuses:                []string{"active", "parked", "shipped", "idea"},
-		Columns:                 []string{"name", "stack", "activity", "state", "note"},
+		Columns:                 []string{"name", "stack", "activity", "status", "note"},
 		SortBy:                  "activity",
 		SortDir:                 "desc",
 		ShowUntagged:            true,
@@ -140,7 +138,16 @@ func Load(path string) (Config, error) {
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
+	normalizeColumns(&cfg)
 	return cfg, nil
+}
+
+func normalizeColumns(cfg *Config) {
+	for i, column := range cfg.Columns {
+		if column == "state" {
+			cfg.Columns[i] = "status"
+		}
+	}
 }
 
 func Write(path string, cfg Config) error {
@@ -350,9 +357,6 @@ stale_days = 30
 # Show unpushed commit count in activity column.
 show_unpushed = true
 
-# Show dirty flag in activity column.
-show_dirty = true
-
 # ─────────────────────────────────────────
 # Note column
 # ─────────────────────────────────────────
@@ -380,7 +384,7 @@ statuses = ["active", "parked", "shipped", "idea"]
 # ─────────────────────────────────────────
 
 # Columns to show and their order.
-columns = ["name", "stack", "activity", "state", "note"]
+columns = ["name", "stack", "activity", "status", "note"]
 
 # Default sort column. Options: activity, name, status
 sort_by = "activity"

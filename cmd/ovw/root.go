@@ -541,9 +541,6 @@ func detailActivity(project project.Project) string {
 	if activity.Unpushed > 0 {
 		parts = append(parts, fmt.Sprintf("%d unpushed", activity.Unpushed))
 	}
-	if activity.Dirty {
-		parts = append(parts, "dirty")
-	}
 	return strings.Join(parts, " · ")
 }
 

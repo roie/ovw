@@ -50,9 +50,6 @@ func Activity(info gitactivity.Info, cfg config.Config, now time.Time) ActivityI
 	if cfg.ShowUnpushed && info.Unpushed > 0 {
 		parts = append(parts, fmt.Sprintf("↑%d", info.Unpushed))
 	}
-	if cfg.ShowDirty && info.Dirty {
-		parts = append(parts, "!")
-	}
 	out.Display = strings.Join(parts, " ")
 	return out
 }
@@ -79,6 +76,17 @@ func isStale(activity ActivityInfo, cfg config.Config, now time.Time) bool {
 		return false
 	}
 	return now.Sub(activity.LastCommitAt) > time.Duration(cfg.StaleDays)*24*time.Hour
+}
+
+func StatusDisplay(state, status string) string {
+	switch {
+	case state == "":
+		return status
+	case status == "" || status == state:
+		return state
+	default:
+		return state + " · " + status
+	}
 }
 
 func RelativeAge(then, now time.Time) string {

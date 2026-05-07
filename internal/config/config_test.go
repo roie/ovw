@@ -27,7 +27,7 @@ func TestDefaultConfigValues(t *testing.T) {
 	if !reflect.DeepEqual(cfg.Statuses, []string{"active", "parked", "shipped", "idea"}) {
 		t.Fatalf("Statuses = %#v", cfg.Statuses)
 	}
-	if !reflect.DeepEqual(cfg.Columns, []string{"name", "stack", "activity", "state", "note"}) {
+	if !reflect.DeepEqual(cfg.Columns, []string{"name", "stack", "activity", "status", "note"}) {
 		t.Fatalf("Columns = %#v", cfg.Columns)
 	}
 	if cfg.SortBy != "activity" || cfg.SortDir != "desc" {
@@ -94,6 +94,34 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoadIgnoresDeprecatedShowDirty(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	data := strings.Replace(DefaultTemplate([]string{"~/Projects"}), "show_unpushed = true", "show_unpushed = true\nshow_dirty = true", 1)
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Load(path); err != nil {
+		t.Fatalf("Load() with deprecated show_dirty error = %v", err)
+	}
+}
+
+func TestLoadNormalizesDeprecatedStateColumn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	data := strings.Replace(DefaultTemplate([]string{"~/Projects"}), `columns = ["name", "stack", "activity", "status", "note"]`, `columns = ["name", "stack", "activity", "state", "note"]`, 1)
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !reflect.DeepEqual(cfg.Columns, []string{"name", "stack", "activity", "status", "note"}) {
+		t.Fatalf("Columns = %#v", cfg.Columns)
+	}
+}
+
 func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
@@ -118,8 +146,8 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !strings.Contains(text, `"Cloudflare Workers" = "CF"`) {
 		t.Fatalf("stack alias key is not a quoted string:\n%s", text)
 	}
-	if !strings.Contains(text, `columns = ["name", "stack", "activity", "state", "note"]`) {
-		t.Fatalf("default config missing state column:\n%s", text)
+	if !strings.Contains(text, `columns = ["name", "stack", "activity", "status", "note"]`) {
+		t.Fatalf("default config missing status column:\n%s", text)
 	}
 	loaded, err := Load(path)
 	if err != nil {
