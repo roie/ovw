@@ -226,7 +226,7 @@ func TestSetUnsetShowCommands(t *testing.T) {
 	}
 }
 
-func TestSetRejectsUnknownStatus(t *testing.T) {
+func TestSetAllowsFreeFormStatus(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "manual")
 	if err := os.MkdirAll(project, 0o755); err != nil {
@@ -235,12 +235,13 @@ func TestSetRejectsUnknownStatus(t *testing.T) {
 	t.Setenv("HOME", home)
 	runCommand(t, []string{"add", project})
 
-	_, err := executeCommand([]string{"set", "manual", "--status", "building"})
-	if err == nil {
-		t.Fatal("expected unknown status error")
+	out := runCommand(t, []string{"set", "manual", "--status", "needs review"})
+	if !strings.Contains(out, "Status  needs review") {
+		t.Fatalf("set output = %q", out)
 	}
-	if !strings.Contains(err.Error(), "Unknown status: building") {
-		t.Fatalf("error = %v", err)
+	show := runCommand(t, []string{"show", "manual"})
+	if !strings.Contains(show, "Status    needs review") {
+		t.Fatalf("show output = %q", show)
 	}
 }
 

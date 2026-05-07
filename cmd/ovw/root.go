@@ -320,9 +320,6 @@ func newSetCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if status != "" && !statusAllowed(status, cfg.Statuses) {
-				return fmt.Errorf("Unknown status: %s\nAvailable: %s", status, joinStatuses(cfg.Statuses))
-			}
 			path, err := resolveProjectWithConfig(args[0], cfg, store)
 			if err != nil {
 				return err
@@ -498,26 +495,6 @@ func resolveProjectWithConfig(target string, cfg config.Config, store metadata.S
 		return "", fmt.Errorf("Project %q is ambiguous; use full path", target)
 	}
 	return "", err
-}
-
-func statusAllowed(status string, statuses []string) bool {
-	for _, value := range statuses {
-		if status == value {
-			return true
-		}
-	}
-	return false
-}
-
-func joinStatuses(statuses []string) string {
-	out := ""
-	for i, status := range statuses {
-		if i > 0 {
-			out += ", "
-		}
-		out += status
-	}
-	return out
 }
 
 func yesNo(value bool) string {
