@@ -521,6 +521,51 @@ func TestModelStatusPickerClearSavesEmptyStatus(t *testing.T) {
 	}
 }
 
+func TestModelReloadPreservesSelectionByPath(t *testing.T) {
+	reloaded := false
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			reloaded = true
+			return app.OverviewResult{
+				Config: config.Default(),
+				Projects: []project.Project{
+					{Name: "c", Path: "/tmp/c"},
+					{Name: "b", Path: "/tmp/b"},
+					{Name: "a", Path: "/tmp/a"},
+				},
+			}, nil
+		},
+		projects: []project.Project{
+			{Name: "a", Path: "/tmp/a"},
+			{Name: "b", Path: "/tmp/b"},
+			{Name: "c", Path: "/tmp/c"},
+		},
+		selected: 1,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected reload command")
+	}
+	if !model.loading {
+		t.Fatal("model should be loading")
+	}
+	model = updateMsg(t, model, cmd())
+	if !reloaded {
+		t.Fatal("loader was not called")
+	}
+	if model.selected != 1 {
+		t.Fatalf("selected = %d, want index of /tmp/b", model.selected)
+	}
+	if model.projects[model.selected].Path != "/tmp/b" {
+		t.Fatalf("selected project = %#v", model.projects[model.selected])
+	}
+	if model.message != "Reloaded" {
+		t.Fatalf("message = %q, want Reloaded", model.message)
+	}
+}
+
 func updateKey(t *testing.T, model Model, value string) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})

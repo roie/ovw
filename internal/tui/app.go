@@ -139,6 +139,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusSelected = 0
 			return m, nil
 		}
+		if isReloadKey(msg.String()) {
+			path := m.selectedProjectPath()
+			m.screen = screenTable
+			m.loading = true
+			return m, m.reloadOverview(path, "Reloaded")
+		}
 		if isDownKey(msg.String()) {
 			m.moveSelection(1)
 			return m, nil
@@ -155,7 +161,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
-		if m.selected >= len(m.projects) {
+		if msg.message != "" {
+			m.message = msg.message
+		}
+		if msg.preservePath != "" {
+			m.selectProjectPath(msg.preservePath)
+		} else if m.selected >= len(m.projects) {
 			m.selected = 0
 		}
 	case overviewLoadFailedMsg:
@@ -364,7 +375,9 @@ func Run() error {
 }
 
 type overviewLoadedMsg struct {
-	result app.OverviewResult
+	result       app.OverviewResult
+	preservePath string
+	message      string
 }
 
 type overviewLoadFailedMsg struct {
@@ -381,12 +394,16 @@ type metadataFailedMsg struct {
 }
 
 func (m Model) loadOverview() tea.Cmd {
+	return m.reloadOverview("", "")
+}
+
+func (m Model) reloadOverview(preservePath, message string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := m.loader(m.request)
 		if err != nil {
 			return overviewLoadFailedMsg{err: err}
 		}
-		return overviewLoadedMsg{result: result}
+		return overviewLoadedMsg{result: result, preservePath: preservePath, message: message}
 	}
 }
 
@@ -487,6 +504,25 @@ func (m Model) currentProject() (project.Project, bool) {
 		return project.Project{}, false
 	}
 	return visible[m.selected], true
+}
+
+func (m Model) selectedProjectPath() string {
+	project, ok := m.currentProject()
+	if !ok {
+		return ""
+	}
+	return project.Path
+}
+
+func (m *Model) selectProjectPath(path string) {
+	visible := m.visibleProjects()
+	for index, project := range visible {
+		if project.Path == path {
+			m.selected = index
+			return
+		}
+	}
+	m.clampSelection()
 }
 
 func (m Model) visibleProjects() []project.Project {
