@@ -47,6 +47,16 @@ func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 	}
 }
 
+func TestDetailModalShowsUnhideActionForHiddenProject(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.Hidden = true
+
+	got := stripANSI(detailModalView(project, true, 60))
+	if !strings.Contains(got, "x unhide") {
+		t.Fatalf("detail modal missing unhide action:\n%s", got)
+	}
+}
+
 func TestDetailSummaryWrapsNote(t *testing.T) {
 	project := detailTestProject("eventca")
 	project.Note.Display = "chore: add biome and apply repository-wide formatting"
@@ -101,6 +111,7 @@ func TestDetailModalWrapsDescriptionAndNote(t *testing.T) {
 		"Note",
 		"release/refactor · refactor:",
 		"into workspaces and packages",
+		"x hide",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("detail modal missing wrapped text %q:\n%s", want, got)

@@ -373,6 +373,9 @@ func TestModelOpensAndClosesDetailView(t *testing.T) {
 	if strings.Contains(view, "NoteSource") {
 		t.Fatalf("detail view contains noisy internal field:\n%s", view)
 	}
+	if !strings.Contains(stripANSI(view), "x hide") {
+		t.Fatalf("detail view missing hide action:\n%s", view)
+	}
 
 	updated = updateSpecialKey(t, updated, tea.KeyEsc)
 	if updated.screen != screenTable {
@@ -380,6 +383,94 @@ func TestModelOpensAndClosesDetailView(t *testing.T) {
 	}
 	if updated.selected != 1 {
 		t.Fatalf("selected after esc = %d, want 1", updated.selected)
+	}
+}
+
+func TestModelDetailVisibilityKeyHidesProject(t *testing.T) {
+	var hiddenPath string
+	var hiddenValue bool
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: config.Default(), Projects: []project.Project{{Name: "other", Path: "/tmp/other"}}}, nil
+		},
+		visible: func(path string, hidden bool) (app.MetadataUpdateResult, error) {
+			hiddenPath = path
+			hiddenValue = hidden
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		screen:   screenDetail,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected hide command")
+	}
+	model = updateMsg(t, model, cmd())
+	if hiddenPath != "/tmp/app" || !hiddenValue {
+		t.Fatalf("hidden update = %s %v, want /tmp/app true", hiddenPath, hiddenValue)
+	}
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
+	}
+	if model.message != "Project hidden" {
+		t.Fatalf("message = %q, want Project hidden", model.message)
+	}
+	if len(model.projects) != 1 || model.projects[0].Name != "other" {
+		t.Fatalf("projects = %#v", model.projects)
+	}
+}
+
+func TestModelDetailEnterDoesNotToggleVisibility(t *testing.T) {
+	called := false
+	model := Model{
+		visible: func(path string, hidden bool) (app.MetadataUpdateResult, error) {
+			called = true
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		screen:   screenDetail,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("enter should not return a visibility command")
+	}
+	if called {
+		t.Fatal("enter should not toggle visibility")
+	}
+	if model.screen != screenDetail {
+		t.Fatalf("screen = %v, want detail", model.screen)
+	}
+}
+
+func TestModelDetailVisibilityKeyUnhidesProject(t *testing.T) {
+	var hiddenValue bool
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: config.Default(), Projects: []project.Project{{Name: "app", Path: "/tmp/app"}}}, nil
+		},
+		visible: func(path string, hidden bool) (app.MetadataUpdateResult, error) {
+			hiddenValue = hidden
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app", Hidden: true}},
+		screen:   screenDetail,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected unhide command")
+	}
+	model = updateMsg(t, model, cmd())
+	if hiddenValue {
+		t.Fatal("hiddenValue = true, want false")
+	}
+	if model.message != "Project unhidden" {
+		t.Fatalf("message = %q, want Project unhidden", model.message)
 	}
 }
 

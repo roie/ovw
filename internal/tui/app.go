@@ -18,6 +18,7 @@ import (
 
 type overviewLoader func(app.Options) (app.OverviewResult, error)
 type metadataUpdater func(string, app.MetadataUpdate) (app.MetadataUpdateResult, error)
+type visibilityUpdater func(string, bool) (app.MetadataUpdateResult, error)
 type editorRunner func(string, string) error
 type terminalRunner func(string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
@@ -39,6 +40,7 @@ type Model struct {
 	request  app.Options
 	loader   overviewLoader
 	updater  metadataUpdater
+	visible  visibilityUpdater
 	editor   editorRunner
 	terminal terminalRunner
 	recent   recentLoader
@@ -76,6 +78,7 @@ func NewWithOptions(opts app.Options) Model {
 		request:      opts,
 		loader:       app.LoadOverview,
 		updater:      app.UpdateProjectMetadata,
+		visible:      app.SetProjectHidden,
 		editor:       runEditor,
 		terminal:     runTerminal,
 		recent:       loadRecentCommits,
@@ -117,7 +120,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenStatusInput {
 			return m.updateStatusInput(msg)
 		}
-		if isEscapeKey(msg.String()) && (m.screen == screenDetail || m.screen == screenHelp) {
+		if m.screen == screenDetail {
+			return m.updateDetail(msg)
+		}
+		if isEscapeKey(msg.String()) && m.screen == screenHelp {
 			m.screen = screenTable
 			return m, nil
 		}
@@ -231,6 +237,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.recentByPath[msg.path] = msg.commits
 		}
+	}
+	return m, nil
+}
+
+func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+	case isVisibilityKey(value):
+		m.screen = screenTable
+		m.loading = true
+		return m, m.toggleVisibility()
 	}
 	return m, nil
 }
@@ -525,6 +543,36 @@ func (m Model) saveStatus(status, message string) tea.Cmd {
 			return overviewLoadFailedMsg{err: err}
 		}
 		return metadataSavedMsg{message: message, result: result, preservePath: project.Path}
+	}
+}
+
+func (m Model) toggleVisibility() tea.Cmd {
+	project, ok := m.currentProject()
+	hidden := !project.Hidden
+	return func() tea.Msg {
+		if !ok {
+			return metadataFailedMsg{err: errNoProjectSelected{}}
+		}
+		visible := m.visible
+		if visible == nil {
+			visible = app.SetProjectHidden
+		}
+		if _, err := visible(project.Path, hidden); err != nil {
+			return metadataFailedMsg{err: err}
+		}
+		result, err := m.loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		message := "Project hidden"
+		if !hidden {
+			message = "Project unhidden"
+		}
+		preservePath := project.Path
+		if hidden {
+			preservePath = ""
+		}
+		return metadataSavedMsg{message: message, result: result, preservePath: preservePath}
 	}
 }
 

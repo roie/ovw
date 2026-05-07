@@ -82,6 +82,10 @@ func isTerminalKey(value string) bool {
 	return value == "t"
 }
 
+func isVisibilityKey(value string) bool {
+	return value == "x"
+}
+
 func isHelpKey(value string) bool {
 	return value == "?"
 }

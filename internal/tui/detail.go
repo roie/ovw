@@ -66,7 +66,15 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int) []st
 			lines = append(lines, detailLine("", line))
 		}
 	}
+	lines = append(lines, "", actionHint("x", visibilityAction(project)))
 	return lines
+}
+
+func visibilityAction(project project.Project) string {
+	if project.Hidden {
+		return "unhide"
+	}
+	return "hide"
 }
 
 func detailSummaryView(project project.Project, width int) string {
