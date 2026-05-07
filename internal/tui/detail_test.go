@@ -26,6 +26,22 @@ func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 	}
 }
 
+func TestDetailSummaryWrapsNote(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.Note.Display = "chore: add biome and apply repository-wide formatting"
+
+	got := stripANSI(detailSummaryView(project, 28))
+
+	if strings.Contains(got, "...") {
+		t.Fatalf("detail summary note should wrap instead of truncate:\n%s", got)
+	}
+	for _, want := range []string{"chore: add biome and apply", "repository-wide formatting"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("detail summary note missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestShortPathUsesHomePrefix(t *testing.T) {
 	t.Setenv("HOME", "/home/roie")
 

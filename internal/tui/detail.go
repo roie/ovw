@@ -89,7 +89,7 @@ func addSummaryNote(lines *[]string, note string, width int) {
 		*lines = append(*lines, "")
 	}
 	*lines = append(*lines, truncateText("Note", width))
-	*lines = append(*lines, truncateText(note, width))
+	*lines = append(*lines, wrapText(note, width)...)
 }
 
 func shortPath(path string) string {
@@ -110,6 +110,34 @@ func shortPath(path string) string {
 
 func detailLine(label, value string) string {
 	return fmt.Sprintf("%-8s %s", label, value)
+}
+
+func wrapText(value string, width int) []string {
+	if width <= 0 || len([]rune(value)) <= width {
+		return []string{value}
+	}
+	words := strings.Fields(value)
+	if len(words) == 0 {
+		return []string{""}
+	}
+	lines := []string{}
+	line := ""
+	for _, word := range words {
+		if line == "" {
+			line = word
+			continue
+		}
+		if len([]rune(line))+1+len([]rune(word)) <= width {
+			line += " " + word
+			continue
+		}
+		lines = append(lines, line)
+		line = word
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 func dirtyDetail(project project.Project) string {
