@@ -603,6 +603,7 @@ func (m Model) tableHeight() int {
 }
 
 func splitPanelWidths(width, gap int) (int, int) {
+	dividerWidth := 2
 	detailWidth := width * 30 / 100
 	if detailWidth < 38 {
 		detailWidth = 38
@@ -610,13 +611,13 @@ func splitPanelWidths(width, gap int) (int, int) {
 	if detailWidth > 48 {
 		detailWidth = 48
 	}
-	tableWidth := width - detailWidth - gap
+	tableWidth := width - detailWidth - gap - dividerWidth
 	if tableWidth < 72 {
-		detailWidth = width - 72 - gap
+		detailWidth = width - 72 - gap - dividerWidth
 		if detailWidth < 0 {
 			detailWidth = 0
 		}
-		tableWidth = width - detailWidth - gap
+		tableWidth = width - detailWidth - gap - dividerWidth
 	}
 	return tableWidth, detailWidth
 }

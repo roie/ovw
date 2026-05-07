@@ -837,6 +837,27 @@ func TestModelWideViewShowsInlineDetailPane(t *testing.T) {
 	t.Fatalf("wide view missing table header divider:\n%s", view)
 }
 
+func TestModelWideViewFitsTerminalWidth(t *testing.T) {
+	selection := detailTestProject("instaview")
+	selection.Note.Display = "fix: extract carousel from SJS for long-format shortcodes\n- Add SJS script extraction for carousel posts"
+	model := Model{
+		width:    157,
+		height:   31,
+		projects: []project.Project{selection},
+	}
+
+	view := model.View()
+	lines := strings.Split(stripANSI(view), "\n")
+	for _, line := range lines {
+		if len([]rune(line)) > model.width {
+			t.Fatalf("line width = %d, want <= %d:\n%s", len([]rune(line)), model.width, view)
+		}
+	}
+	if !strings.Contains(view, "long-format") {
+		t.Fatalf("wide view should preserve full word in detail note:\n%s", view)
+	}
+}
+
 func TestSplitDividerAlignsOnSelectedRows(t *testing.T) {
 	got := joinColumns(
 		strings.Join([]string{
