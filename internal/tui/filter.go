@@ -1,10 +1,6 @@
 package tui
 
-import (
-	"strings"
-
-	"ovw/internal/app"
-)
+import "ovw/internal/app"
 
 type filterOption struct {
 	Label    string
@@ -50,9 +46,9 @@ func (m *Model) applyFilter(option filterOption) {
 
 func filterView(options []filterOption, selected int) string {
 	if len(options) == 0 {
-		return mutedStyle.Render("No filters available")
+		return modalView("Filter", []string{mutedStyle.Render("No filters available")}, 42)
 	}
-	lines := []string{titleStyle.Render("Filter")}
+	lines := []string{}
 	for index, option := range options {
 		line := option.Label
 		if index == selected {
@@ -60,7 +56,8 @@ func filterView(options []filterOption, selected int) string {
 		}
 		lines = append(lines, line)
 	}
-	return strings.Join(lines, "\n")
+	lines = append(lines, "", actionHint("enter", "apply"))
+	return modalView("Filter", lines, 42)
 }
 
 func optionsFromRequest(request app.Options) string {

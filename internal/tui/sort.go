@@ -1,10 +1,6 @@
 package tui
 
-import (
-	"strings"
-
-	"ovw/internal/app"
-)
+import "ovw/internal/app"
 
 type sortOption struct {
 	Label string
@@ -35,7 +31,7 @@ func (m *Model) applySort(option sortOption) {
 }
 
 func sortView(options []sortOption, selected int) string {
-	lines := []string{titleStyle.Render("Sort")}
+	lines := []string{}
 	for index, option := range options {
 		line := option.Label
 		if index == selected {
@@ -43,7 +39,8 @@ func sortView(options []sortOption, selected int) string {
 		}
 		lines = append(lines, line)
 	}
-	return strings.Join(lines, "\n")
+	lines = append(lines, "", actionHint("enter", "apply"))
+	return modalView("Sort", lines, 42)
 }
 
 func sortFromRequest(request app.Options) string {

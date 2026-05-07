@@ -234,6 +234,8 @@ func TestModelSearchNoMatchesState(t *testing.T) {
 func TestModelFilterPickerAppliesDirtyFilter(t *testing.T) {
 	var captured app.Options
 	model := Model{
+		width:  140,
+		height: 24,
 		loader: func(opts app.Options) (app.OverviewResult, error) {
 			captured = opts
 			return app.OverviewResult{
@@ -242,6 +244,9 @@ func TestModelFilterPickerAppliesDirtyFilter(t *testing.T) {
 			}, nil
 		},
 		config: config.Default(),
+		projects: []project.Project{
+			{Name: "dirty-project"},
+		},
 	}
 
 	model = updateKey(t, model, "f")
@@ -250,6 +255,11 @@ func TestModelFilterPickerAppliesDirtyFilter(t *testing.T) {
 	}
 	if !strings.Contains(model.View(), "dirty") {
 		t.Fatalf("filter view missing dirty option:\n%s", model.View())
+	}
+	for _, want := range []string{"Name", "Filter", "dirty-project", "esc"} {
+		if !strings.Contains(model.View(), want) {
+			t.Fatalf("filter modal view missing %q:\n%s", want, model.View())
+		}
 	}
 	model = updateKey(t, model, "j")
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -286,6 +296,8 @@ func TestModelFilterPickerIncludesConfiguredStatuses(t *testing.T) {
 func TestModelSortPickerAppliesNameSort(t *testing.T) {
 	var captured app.Options
 	model := Model{
+		width:  140,
+		height: 24,
 		loader: func(opts app.Options) (app.OverviewResult, error) {
 			captured = opts
 			return app.OverviewResult{
@@ -294,6 +306,7 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 			}, nil
 		},
 		activeSort: "activity",
+		projects:   []project.Project{{Name: "a"}, {Name: "b"}},
 	}
 
 	model = updateKey(t, model, "s")
@@ -302,6 +315,11 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 	}
 	if !strings.Contains(model.View(), "name") {
 		t.Fatalf("sort view missing name option:\n%s", model.View())
+	}
+	for _, want := range []string{"Name", "Sort", "activity", "esc"} {
+		if !strings.Contains(model.View(), want) {
+			t.Fatalf("sort modal view missing %q:\n%s", want, model.View())
+		}
 	}
 	model = updateKey(t, model, "j")
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -333,6 +351,8 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 	var target string
 	var savedNote string
 	model := Model{
+		width:  140,
+		height: 24,
 		loader: func(opts app.Options) (app.OverviewResult, error) {
 			return app.OverviewResult{
 				Config: config.Default(),
@@ -369,6 +389,12 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 	if model.noteInput != "old" {
 		t.Fatalf("noteInput = %q, want old", model.noteInput)
 	}
+	view := model.View()
+	for _, want := range []string{"Name", "Note 1/1", "app", "Note", "old▌", "enter", "save", "esc"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("note modal view missing %q:\n%s", want, view)
+		}
+	}
 	model = updateKey(t, model, "!")
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
@@ -390,6 +416,17 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 	}
 }
 
+func TestModelNoteEditorAcceptsSpaces(t *testing.T) {
+	model := Model{screen: screenNote}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model = updated.(Model)
+
+	if model.noteInput != " " {
+		t.Fatalf("noteInput = %q, want space", model.noteInput)
+	}
+}
+
 func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 	var savedNote *string
 	model := Model{
@@ -404,6 +441,12 @@ func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 		screen:   screenNote,
 	}
 
+	view := model.View()
+	for _, want := range []string{"empty clears manual note▌", "enter", "save"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("empty note modal missing %q:\n%s", want, view)
+		}
+	}
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	if cmd == nil {
@@ -443,6 +486,8 @@ func TestModelStatusPickerSavesConfiguredStatus(t *testing.T) {
 	cfg := config.Default()
 	cfg.Statuses = []string{"parked", "shipped"}
 	model := Model{
+		width:  140,
+		height: 24,
 		config: cfg,
 		loader: func(opts app.Options) (app.OverviewResult, error) {
 			return app.OverviewResult{Config: cfg, Projects: []project.Project{{Name: "app", Path: "/tmp/app", Status: savedStatus}}}, nil
@@ -461,8 +506,11 @@ func TestModelStatusPickerSavesConfiguredStatus(t *testing.T) {
 	if model.screen != screenStatus {
 		t.Fatalf("screen = %v, want status", model.screen)
 	}
-	if !strings.Contains(model.View(), "parked") {
-		t.Fatalf("status view missing parked:\n%s", model.View())
+	view := model.View()
+	for _, want := range []string{"Name", "Note 1/1", "app", "Status", "parked", "shipped", "enter select", "esc"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("status modal view missing %q:\n%s", want, view)
+		}
 	}
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
@@ -499,8 +547,14 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 	if model.screen != screenStatusInput {
 		t.Fatalf("screen = %v, want status input", model.screen)
 	}
+	if !strings.Contains(model.View(), "empty clears manual status▌") {
+		t.Fatalf("empty custom status modal missing cursor placeholder:\n%s", model.View())
+	}
 	for _, value := range []string{"b", "l", "o", "c", "k", "e", "d"} {
 		model = updateKey(t, model, value)
+	}
+	if !strings.Contains(model.View(), "blocked▌") {
+		t.Fatalf("custom status modal missing cursor:\n%s", model.View())
 	}
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
@@ -510,6 +564,45 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 	model = updateMsg(t, model, cmd())
 	if savedStatus != "blocked" {
 		t.Fatalf("savedStatus = %q, want blocked", savedStatus)
+	}
+}
+
+func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
+	got := stripANSI(statusInputView(""))
+
+	if !strings.Contains(got, "empty clears manual status▌") {
+		t.Fatalf("status input placeholder was truncated:\n%s", got)
+	}
+	if !strings.Contains(got, "enter save") {
+		t.Fatalf("status input action hint missing:\n%s", got)
+	}
+}
+
+func TestNoteInputWrapsInsteadOfTruncating(t *testing.T) {
+	got := stripANSI(noteView(strings.Repeat("f", 80)))
+
+	if strings.Contains(got, "...") {
+		t.Fatalf("note input should wrap instead of truncate:\n%s", got)
+	}
+	if !strings.Contains(got, strings.Repeat("f", 52)) {
+		t.Fatalf("note input missing first wrapped line:\n%s", got)
+	}
+	if !strings.Contains(got, strings.Repeat("f", 28)+"▌") {
+		t.Fatalf("note input missing second wrapped line with cursor:\n%s", got)
+	}
+}
+
+func TestStatusInputWrapsInsteadOfTruncating(t *testing.T) {
+	got := stripANSI(statusInputView(strings.Repeat("f", 60)))
+
+	if strings.Contains(got, "...") {
+		t.Fatalf("status input should wrap instead of truncate:\n%s", got)
+	}
+	if !strings.Contains(got, strings.Repeat("f", 38)) {
+		t.Fatalf("status input missing first wrapped line:\n%s", got)
+	}
+	if !strings.Contains(got, strings.Repeat("f", 22)+"▌") {
+		t.Fatalf("status input missing second wrapped line with cursor:\n%s", got)
 	}
 }
 
@@ -646,12 +739,16 @@ func TestModelOpenEditorShowsError(t *testing.T) {
 }
 
 func TestModelHelpOpensAndCloses(t *testing.T) {
-	model := updateKey(t, Model{}, "?")
+	model := updateKey(t, Model{
+		width:    140,
+		height:   24,
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}, "?")
 	if model.screen != screenHelp {
 		t.Fatalf("screen = %v, want help", model.screen)
 	}
 	view := model.View()
-	for _, want := range []string{"Help", "search", "filter", "sort", "reload", "quit"} {
+	for _, want := range []string{"Name", "app", "Help", "search", "filter", "sort", "reload", "quit", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("help view missing %q:\n%s", want, view)
 		}
@@ -728,6 +825,43 @@ func TestSplitDividerAlignsOnSelectedRows(t *testing.T) {
 		if index := strings.Index(line, "│"); index != want {
 			t.Fatalf("divider index = %d, want %d:\n%s", index, want, got)
 		}
+	}
+}
+
+func TestOverlayModalPreservesBackgroundAroundModal(t *testing.T) {
+	base := strings.Join([]string{
+		"left row keeps visible right side",
+		"prefix background middle suffix",
+		"bottom row remains visible",
+		"final row remains visible",
+	}, "\n")
+	modal := strings.Join([]string{
+		"modal",
+		"body",
+	}, "\n")
+
+	got := overlayModal(base, modal, 40)
+
+	for _, want := range []string{"prefix", "suffix", "final row remains visible", "modal", "body"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("overlay missing %q:\n%s", want, got)
+		}
+	}
+	for _, notWant := range []string{"background middle"} {
+		if strings.Contains(got, notWant) {
+			t.Fatalf("overlay did not clear covered background %q:\n%s", notWant, got)
+		}
+	}
+}
+
+func TestOverlayLinePreservesBackgroundOutsideModal(t *testing.T) {
+	got := stripANSI(overlayLine("abcdefghijklmnopqrstuvwxyz", "MODAL", 10, 30))
+
+	if !strings.Contains(got, "abcdefghijMODALpqrstuvwxyz") {
+		t.Fatalf("overlay line did not preserve outside background:\n%q", got)
+	}
+	if strings.Contains(got, "klmno") {
+		t.Fatalf("overlay line preserved covered background:\n%q", got)
 	}
 }
 

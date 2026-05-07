@@ -289,8 +289,8 @@ func (m Model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(runes) > 0 {
 			m.noteInput = string(runes[:len(runes)-1])
 		}
-	case msg.Type == tea.KeyRunes:
-		m.noteInput += string(msg.Runes)
+	default:
+		m.noteInput += inputText(msg)
 	}
 	return m, nil
 }
@@ -340,10 +340,20 @@ func (m Model) updateStatusInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(runes) > 0 {
 			m.statusInput = string(runes[:len(runes)-1])
 		}
-	case msg.Type == tea.KeyRunes:
-		m.statusInput += string(msg.Runes)
+	default:
+		m.statusInput += inputText(msg)
 	}
 	return m, nil
+}
+
+func inputText(msg tea.KeyMsg) string {
+	if msg.Type == tea.KeySpace {
+		return " "
+	}
+	if msg.Type == tea.KeyRunes {
+		return string(msg.Runes)
+	}
+	return ""
 }
 
 func (m Model) View() string {
@@ -525,22 +535,25 @@ func renderShell(m Model) string {
 		}
 		if m.screen == screenDetail {
 			body += "\n\n" + detailView(m.currentProject())
-		} else if m.screen == screenHelp {
-			body += "\n\n" + helpView()
-		} else if m.screen == screenFilter {
-			body += "\n\n" + filterView(m.filterOptions(), m.filterSelected)
-		} else if m.screen == screenSort {
-			body += "\n\n" + sortView(sortOptions(), m.sortSelected)
-		} else if m.screen == screenNote {
-			body += "\n\n" + noteView(m.noteInput)
-		} else if m.screen == screenStatus {
-			body += "\n\n" + statusView(m.statusOptions(), m.statusSelected)
-		} else if m.screen == screenStatusInput {
-			body += "\n\n" + statusInputView(m.statusInput)
 		} else if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
 		} else {
-			body += "\n\n" + m.tablePanel(visible)
+			content := m.tablePanel(visible)
+			switch m.screen {
+			case screenHelp:
+				content = overlayModal(content, helpView(), m.contentWidth())
+			case screenFilter:
+				content = overlayModal(content, filterView(m.filterOptions(), m.filterSelected), m.contentWidth())
+			case screenSort:
+				content = overlayModal(content, sortView(sortOptions(), m.sortSelected), m.contentWidth())
+			case screenNote:
+				content = overlayModal(content, noteView(m.noteInput), m.contentWidth())
+			case screenStatus:
+				content = overlayModal(content, statusView(m.statusOptions(), m.statusSelected), m.contentWidth())
+			case screenStatusInput:
+				content = overlayModal(content, statusInputView(m.statusInput), m.contentWidth())
+			}
+			body += "\n\n" + content
 		}
 	}
 	body += "\n\n" + footerView()
@@ -568,7 +581,16 @@ func (m Model) tablePanel(visible []project.Project) string {
 }
 
 func (m Model) showInlineDetail() bool {
-	return m.screen == screenTable && m.contentWidth() >= 110 && len(m.visibleProjects()) > 0
+	return m.isTableLayoutScreen() && m.contentWidth() >= 110 && len(m.visibleProjects()) > 0
+}
+
+func (m Model) isTableLayoutScreen() bool {
+	switch m.screen {
+	case screenTable, screenHelp, screenFilter, screenSort, screenNote, screenStatus, screenStatusInput:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m Model) contentWidth() int {

@@ -1,21 +1,25 @@
 package tui
 
-import "strings"
-
 func helpView() string {
-	lines := []string{
-		titleStyle.Render("Help"),
-		"up/down or j/k  move",
-		"/               search",
-		"f               filter",
-		"s               sort",
-		"enter           details",
-		"n               note",
-		"m               status",
-		"r               reload",
-		"o               open",
-		"esc             back",
-		"q               quit",
+	entries := []struct {
+		key    string
+		action string
+	}{
+		{key: "up/down or j/k", action: "move"},
+		{key: "/", action: "search"},
+		{key: "f", action: "filter"},
+		{key: "s", action: "sort"},
+		{key: "enter", action: "details"},
+		{key: "n", action: "note"},
+		{key: "m", action: "status"},
+		{key: "r", action: "reload"},
+		{key: "o", action: "open"},
+		{key: "esc", action: "back"},
+		{key: "q", action: "quit"},
 	}
-	return strings.Join(lines, "\n")
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		lines = append(lines, keyActionLine(entry.key, entry.action, 16))
+	}
+	return modalView("Help", lines, 54)
 }

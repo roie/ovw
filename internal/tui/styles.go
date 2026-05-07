@@ -13,6 +13,9 @@ var (
 	mutedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("244"))
 
+	hintKeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252"))
+
 	errorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("203"))
 
