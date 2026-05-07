@@ -365,10 +365,13 @@ func TestModelOpensAndClosesDetailView(t *testing.T) {
 		t.Fatalf("selected = %d, want 1", updated.selected)
 	}
 	view := updated.View()
-	for _, want := range []string{"Details", "one", "two", " │ ", "/tmp/two", "Go, Cobra", "go modules", "1.2.3", "dirty", "2 unpushed", "Value note"} {
+	for _, want := range []string{"one", "two", " │ ", "/tmp/two", "Go, Cobra", "go modules", "1.2.3", "dirty", "2 unpushed", "Value note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("detail view missing %q:\n%s", want, view)
 		}
+	}
+	if strings.Contains(view, "Details") {
+		t.Fatalf("detail view should use project name as modal title:\n%s", view)
 	}
 	if strings.Contains(view, "NoteSource") {
 		t.Fatalf("detail view contains noisy internal field:\n%s", view)

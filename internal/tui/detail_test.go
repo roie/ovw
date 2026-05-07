@@ -52,8 +52,25 @@ func TestDetailModalShowsUnhideActionForHiddenProject(t *testing.T) {
 	project.Hidden = true
 
 	got := stripANSI(detailModalView(project, true, 60))
+	if !strings.Contains(got, "eventca") {
+		t.Fatalf("detail modal missing project title:\n%s", got)
+	}
+	if strings.Contains(got, "Details") {
+		t.Fatalf("detail modal should use project name as title:\n%s", got)
+	}
 	if !strings.Contains(got, "x unhide") {
 		t.Fatalf("detail modal missing unhide action:\n%s", got)
+	}
+}
+
+func TestDetailModalUsesFallbackTitleWithoutProject(t *testing.T) {
+	got := stripANSI(detailModalView(detailTestProject("eventca"), false, 60))
+
+	if !strings.Contains(got, "Details") {
+		t.Fatalf("detail modal missing fallback title:\n%s", got)
+	}
+	if !strings.Contains(got, "No project selected") {
+		t.Fatalf("detail modal missing empty state:\n%s", got)
 	}
 }
 

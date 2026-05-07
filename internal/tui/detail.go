@@ -33,7 +33,11 @@ func detailModalView(project project.Project, ok bool, width int) string {
 	if width < 32 {
 		width = 32
 	}
-	return modalView("Details", detailModalLinesWithWidth(project, ok, width-4), width)
+	title := "Details"
+	if ok && project.Name != "" {
+		title = project.Name
+	}
+	return modalView(title, detailModalLinesWithWidth(project, ok, width-4), width)
 }
 
 func detailModalLines(project project.Project, ok bool) []string {
@@ -48,7 +52,7 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int) []st
 	if valueWidth < 8 {
 		valueWidth = width
 	}
-	lines := []string{project.Name}
+	var lines []string
 	if subtitle := projectview.Subtitle(project); subtitle != "" {
 		lines = append(lines, textwrap.Lines(subtitle, width)...)
 		lines = append(lines, "")
