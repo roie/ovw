@@ -686,12 +686,22 @@ func TestModelWideViewShowsInlineDetailPane(t *testing.T) {
 			t.Fatalf("wide view missing %q:\n%s", want, view)
 		}
 	}
-	if strings.Contains(view, "Note 2/2") {
-		t.Fatalf("wide table should move notes to detail pane:\n%s", view)
+	if !strings.Contains(view, "Note 2/2") {
+		t.Fatalf("wide table should keep note column:\n%s", view)
 	}
 	if !strings.Contains(view, " │ ") {
 		t.Fatalf("wide view missing split divider:\n%s", view)
 	}
+	lines := strings.Split(stripANSI(view), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "Name") && strings.Contains(line, "│") {
+			if index := strings.Index(line, "│"); index < 80 {
+				t.Fatalf("divider starts too early at %d:\n%s", index, view)
+			}
+			return
+		}
+	}
+	t.Fatalf("wide view missing table header divider:\n%s", view)
 }
 
 func TestSplitDividerAlignsOnSelectedRows(t *testing.T) {

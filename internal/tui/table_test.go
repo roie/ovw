@@ -71,43 +71,6 @@ func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 	}
 }
 
-func TestCompactTableViewOmitsNoteColumnForInlineDetail(t *testing.T) {
-	got := compactTableView([]project.Project{
-		{
-			Name:         "eventca",
-			StackDisplay: "SvelteKit+CF",
-			Activity:     ovwformat.ActivityInfo{Display: "18m"},
-			Tags:         []string{"dirty", "active"},
-			Note:         ovwformat.NoteInfo{Display: "long note belongs in detail pane"},
-		},
-	}, 0, 72, 8)
-
-	if strings.Contains(got, "Note") || strings.Contains(got, "long note") {
-		t.Fatalf("compact table should omit note column:\n%s", got)
-	}
-	for _, want := range []string{"Name", "Stack", "Activity", "Status", "eventca", "SvelteKit+CF", "dirty"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("compact table missing %q:\n%s", want, got)
-		}
-	}
-}
-
-func TestCompactTableViewDoesNotConsumeAllAvailableWidth(t *testing.T) {
-	got := compactTableView([]project.Project{
-		{
-			Name:         "eventca",
-			StackDisplay: "SvelteKit+CF",
-			Activity:     ovwformat.ActivityInfo{Display: "18m"},
-			Tags:         []string{"dirty", "active"},
-		},
-	}, 0, 100, 8)
-
-	lines := strings.Split(got, "\n")
-	if len([]rune(lines[1])) > 78 {
-		t.Fatalf("compact separator width = %d, want <= 78:\n%s", len([]rune(lines[1])), got)
-	}
-}
-
 func stripANSI(value string) string {
 	return ansiPattern.ReplaceAllString(value, "")
 }

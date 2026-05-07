@@ -551,15 +551,14 @@ func (m Model) tablePanel(visible []project.Project) string {
 	contentWidth := m.contentWidth()
 	tableHeight := m.tableHeight()
 	if m.showInlineDetail() {
-		detailWidth := inlineDetailWidth(contentWidth)
 		gap := 3
-		tableWidth := contentWidth - detailWidth - gap
+		tableWidth, detailWidth := splitPanelWidths(contentWidth, gap)
 		if tableWidth < 40 {
 			tableWidth = contentWidth
 		} else {
 			detail, _ := m.currentProject()
 			return joinColumns(
-				compactTableView(visible, m.selected, tableWidth, tableHeight),
+				tableView(visible, m.selected, tableWidth, tableHeight),
 				detailSummaryView(detail, detailWidth),
 				gap,
 			)
@@ -590,15 +589,23 @@ func (m Model) tableHeight() int {
 	return height
 }
 
-func inlineDetailWidth(width int) int {
-	detailWidth := width / 3
-	if detailWidth < 34 {
-		return 34
+func splitPanelWidths(width, gap int) (int, int) {
+	detailWidth := width * 30 / 100
+	if detailWidth < 38 {
+		detailWidth = 38
 	}
-	if detailWidth > 52 {
-		return 52
+	if detailWidth > 48 {
+		detailWidth = 48
 	}
-	return detailWidth
+	tableWidth := width - detailWidth - gap
+	if tableWidth < 72 {
+		detailWidth = width - 72 - gap
+		if detailWidth < 0 {
+			detailWidth = 0
+		}
+		tableWidth = width - detailWidth - gap
+	}
+	return tableWidth, detailWidth
 }
 
 func joinColumns(left, right string, gap int) string {

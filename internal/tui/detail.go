@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	ovwformat "ovw/internal/format"
@@ -63,20 +65,47 @@ func detailSummaryView(project project.Project, width int) string {
 		}
 		lines = append(lines, truncateText(detailLine(label, value), width))
 	}
-	addSummaryLine("Path", project.Path)
+	addSummaryLine("Path", shortPath(project.Path))
 	if len(project.Stack) > 0 {
 		addSummaryLine("Stack", strings.Join(project.Stack, ", "))
 	}
+	addSummaryLine("Activity", project.Activity.Display)
 	if status := ovwformat.TagDisplay(project.Tags); status != "" {
 		addSummaryLine("Status", status)
 	}
-	if project.Note.Display != "" {
-		addSummaryLine("Note", project.Note.Display)
-	}
+	addSummaryLine("Branch", project.Activity.Branch)
 	if len(project.Managers) > 0 {
 		addSummaryLine("Manager", strings.Join(project.Managers, ", "))
 	}
+	addSummaryNote(&lines, project.Note.Display, width)
 	return strings.Join(lines, "\n")
+}
+
+func addSummaryNote(lines *[]string, note string, width int) {
+	if note == "" {
+		return
+	}
+	if len(*lines) > 1 {
+		*lines = append(*lines, "")
+	}
+	*lines = append(*lines, truncateText("Note", width))
+	*lines = append(*lines, truncateText(note, width))
+}
+
+func shortPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		if rel, relErr := filepath.Rel(home, path); relErr == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+			return filepath.Join("~", rel)
+		}
+		if path == home {
+			return "~"
+		}
+	}
+	return path
 }
 
 func detailLine(label, value string) string {
