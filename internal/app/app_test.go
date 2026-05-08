@@ -245,7 +245,7 @@ func TestCreateConfigWritesDefaultConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "# ovw — local project overview") || !strings.Contains(string(data), quote(root)) {
+	if !strings.Contains(string(data), "# ovw — A terminal overview for your local projects.") || !strings.Contains(string(data), quote(root)) {
 		t.Fatalf("config not written from default template:\n%s", string(data))
 	}
 }

@@ -116,7 +116,7 @@ func TestModelStartsOnboardingWhenConfigIsMissing(t *testing.T) {
 		t.Fatalf("screen = %v, want onboarding", got.screen)
 	}
 	view := stripANSI(got.View())
-	for _, want := range []string{"ovw", "A terminal overview for your local projects", "Select project folders to scan", "> [x] /tmp/dev", "[ ] ~/Projects", "custom path", "space toggle", "enter continue"} {
+	for _, want := range []string{"ovw", "A terminal overview for your local projects.", "Select project folders to scan", "> [x] /tmp/dev", "[ ] ~/Projects", "custom path", "space toggle", "enter continue"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("onboarding view missing %q:\n%s", want, view)
 		}

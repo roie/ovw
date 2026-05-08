@@ -32,7 +32,7 @@ func NewRootCommand() *cobra.Command {
 	cobra.EnableCommandSorting = false
 	cmd := &cobra.Command{
 		Use:           "ovw",
-		Short:         "A terminal overview for your local projects",
+		Short:         "A terminal overview for your local projects.",
 		Version:       buildinfo.Version,
 		Args:          cobra.MaximumNArgs(1),
 		SilenceErrors: true,

@@ -80,7 +80,7 @@ func onboardingInputView(value, err string) string {
 func onboardingHeaderLines(prompt string) []string {
 	return []string{
 		titleStyle.Render("ovw"),
-		mutedStyle.Render("A terminal overview for your local projects"),
+		mutedStyle.Render("A terminal overview for your local projects."),
 		"",
 		mutedStyle.Render(prompt),
 		"",

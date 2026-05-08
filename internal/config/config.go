@@ -355,7 +355,7 @@ func formatStringList(values []string, indent string) string {
 	return strings.Join(lines, ",\n")
 }
 
-const defaultConfigTemplate = `# ovw — local project overview
+const defaultConfigTemplate = `# ovw — A terminal overview for your local projects.
 # Config location:
 #   Linux/macOS: ~/.config/ovw/config.toml
 #   Windows:     %AppData%\ovw\config.toml

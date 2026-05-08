@@ -163,7 +163,7 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
 	text := string(data)
-	if !strings.Contains(text, "# ovw — local project overview") {
+	if !strings.Contains(text, "# ovw — A terminal overview for your local projects.") {
 		t.Fatalf("default config missing comments:\n%s", text)
 	}
 	if !strings.Contains(text, `"Cloudflare Workers" = "CF"`) {
@@ -222,7 +222,7 @@ func TestEnsurePromptsWithDetectedRootDefault(t *testing.T) {
 
 func TestEnsureExistingConfigDoesNotRewriteComments(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	original := strings.Replace(DefaultTemplate([]string{"~/Projects"}), "# ovw — local project overview", "# custom user comment", 1)
+	original := strings.Replace(DefaultTemplate([]string{"~/Projects"}), "# ovw — A terminal overview for your local projects.", "# custom user comment", 1)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}

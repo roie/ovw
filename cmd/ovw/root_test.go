@@ -37,7 +37,7 @@ func TestHelpIncludesUsage(t *testing.T) {
 
 func TestHelpTextDescriptions(t *testing.T) {
 	cmd := NewRootCommand()
-	if cmd.Short != "A terminal overview for your local projects" {
+	if cmd.Short != "A terminal overview for your local projects." {
 		t.Fatalf("Short = %q", cmd.Short)
 	}
 	var out bytes.Buffer
@@ -51,7 +51,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 
 	got := out.String()
 	for _, want := range []string{
-		"A terminal overview for your local projects",
+		"A terminal overview for your local projects.",
 		"ovw [project] [flags]",
 		"Commands:",
 		"add       Add a project manually",
