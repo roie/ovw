@@ -1,0 +1,44 @@
+version: 2
+
+project_name: ovw
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ovw
+    main: .
+    binary: ovw
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X ovw/internal/buildinfo.Version={{ .Version }}
+
+archives:
+  - id: ovw
+    ids:
+      - ovw
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
