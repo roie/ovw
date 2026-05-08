@@ -36,6 +36,16 @@ func TestDetectPyprojectVersion(t *testing.T) {
 	}
 }
 
+func TestDetectManifestVersion(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "manifest.json"), `{"manifest_version":3,"version":"1.0.0"}`)
+
+	got := Detect(dir)
+	if got != "1.0.0" {
+		t.Fatalf("Detect() = %q", got)
+	}
+}
+
 func TestDetectWorkspaceVersion(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "package.json"), `{"workspaces":["apps/*"]}`)

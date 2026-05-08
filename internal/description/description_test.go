@@ -36,6 +36,16 @@ func TestDetectPyprojectDescription(t *testing.T) {
 	}
 }
 
+func TestDetectManifestDescription(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "manifest.json"), `{"manifest_version":3,"description":"Domain diagnostics when things vanish"}`)
+
+	got := Detect(dir)
+	if got != "Domain diagnostics when things vanish" {
+		t.Fatalf("Detect() = %q", got)
+	}
+}
+
 func TestDetectReturnsEmptyWhenMissing(t *testing.T) {
 	if got := Detect(t.TempDir()); got != "" {
 		t.Fatalf("Detect() = %q", got)

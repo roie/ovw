@@ -28,12 +28,31 @@ func detectAtRoot(path string) string {
 		packageJSONDescription,
 		cargoDescription,
 		pyprojectDescription,
+		manifestDescription,
 	} {
 		if description := detect(path); description != "" {
 			return description
 		}
 	}
 	return ""
+}
+
+func manifestDescription(path string) string {
+	data, err := os.ReadFile(filepath.Join(path, "manifest.json"))
+	if err != nil {
+		return ""
+	}
+	var manifest struct {
+		ManifestVersion int    `json:"manifest_version"`
+		Description     string `json:"description"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return ""
+	}
+	if manifest.ManifestVersion == 0 {
+		return ""
+	}
+	return manifest.Description
 }
 
 func packageJSONDescription(path string) string {

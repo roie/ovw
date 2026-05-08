@@ -28,12 +28,31 @@ func detectAtRoot(path string) string {
 		packageJSONVersion,
 		cargoVersion,
 		pyprojectVersion,
+		manifestVersion,
 	} {
 		if version := detect(path); version != "" {
 			return version
 		}
 	}
 	return ""
+}
+
+func manifestVersion(path string) string {
+	data, err := os.ReadFile(filepath.Join(path, "manifest.json"))
+	if err != nil {
+		return ""
+	}
+	var manifest struct {
+		ManifestVersion int    `json:"manifest_version"`
+		Version         string `json:"version"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return ""
+	}
+	if manifest.ManifestVersion == 0 {
+		return ""
+	}
+	return manifest.Version
 }
 
 func packageJSONVersion(path string) string {
