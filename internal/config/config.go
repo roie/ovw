@@ -199,6 +199,44 @@ func DefaultTemplate(roots []string) string {
 	return strings.Replace(defaultConfigTemplate, "{{ROOTS}}", formatStringList(roots, "  "), 1)
 }
 
+func RootCandidates(cwd string) ([]string, error) {
+	values := []string{}
+	add := func(value string) {
+		if value == "" {
+			return
+		}
+		expanded, err := ExpandPath(value)
+		if err != nil {
+			return
+		}
+		info, err := os.Stat(expanded)
+		if err != nil || !info.IsDir() {
+			return
+		}
+		for _, existing := range values {
+			if existing == value {
+				return
+			}
+			if existingExpanded, err := ExpandPath(existing); err == nil && filepath.Clean(existingExpanded) == filepath.Clean(expanded) {
+				return
+			}
+		}
+		values = append(values, value)
+	}
+	detected, err := DetectRoot(cwd)
+	if err != nil {
+		return nil, err
+	}
+	add(detected)
+	for _, candidate := range []string{"~/dev", "~/Projects", "~/Code", "~/Developer"} {
+		add(candidate)
+	}
+	if len(values) == 0 {
+		values = append(values, "~/Projects")
+	}
+	return values, nil
+}
+
 func Ensure(path, cwd string, in io.Reader, out io.Writer) (Config, bool, error) {
 	cfg, err := Load(path)
 	if err == nil {
@@ -213,16 +251,15 @@ func Ensure(path, cwd string, in io.Reader, out io.Writer) (Config, bool, error)
 		return Config{}, false, err
 	}
 	if root == "" {
-		fmt.Fprintln(out, "No config found.")
-		fmt.Fprint(out, "Where are your projects? [~/Projects]: ")
-		line, readErr := bufio.NewReader(in).ReadString('\n')
-		if readErr != nil && !errors.Is(readErr, io.EOF) {
-			return Config{}, false, readErr
-		}
-		root = strings.TrimSpace(line)
-		if root == "" {
-			root = "~/Projects"
-		}
+		root = "~/Projects"
+	}
+	fmt.Fprintf(out, "Project root to scan [%s]: ", root)
+	line, readErr := bufio.NewReader(in).ReadString('\n')
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		return Config{}, false, readErr
+	}
+	if value := strings.TrimSpace(line); value != "" {
+		root = value
 	}
 	expanded, err := ExpandPath(root)
 	if err != nil {

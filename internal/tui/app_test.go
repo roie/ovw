@@ -102,6 +102,206 @@ func TestModelLoadsOverviewData(t *testing.T) {
 	}
 }
 
+func TestModelStartsOnboardingWhenConfigIsMissing(t *testing.T) {
+	model := NewWithOptions(app.Options{})
+	model.width = 100
+	model.setup = func(app.Options) (app.ConfigSetup, error) {
+		return app.ConfigSetup{Candidates: []string{"/tmp/dev", "~/Projects"}}, nil
+	}
+
+	cmd := model.Init()
+	updated, _ := model.Update(cmd())
+	got := updated.(Model)
+	if got.screen != screenOnboarding {
+		t.Fatalf("screen = %v, want onboarding", got.screen)
+	}
+	view := stripANSI(got.View())
+	for _, want := range []string{"ovw", "A terminal overview for your local projects", "Select project folders to scan", "> [x] /tmp/dev", "[ ] ~/Projects", "custom path", "space toggle", "enter continue"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("onboarding view missing %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestModelOnboardingSelectionCreatesConfigAndLoadsOverview(t *testing.T) {
+	var createdRoot string
+	model := Model{
+		width:          100,
+		screen:         screenOnboarding,
+		onboardOptions: []string{"/tmp/dev", "~/Projects"},
+		onboardChecked: map[string]bool{"/tmp/dev": true},
+		roots: func(roots []string) (config.FilePaths, config.Config, error) {
+			if len(roots) > 0 {
+				createdRoot = roots[0]
+			}
+			cfg := config.Default()
+			cfg.Roots = roots
+			return config.FilePaths{}, cfg, nil
+		},
+		loader: func(app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config:   config.Default(),
+				Projects: []project.Project{{Name: "app", Path: "/tmp/dev/app"}},
+			}, nil
+		},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected onboarding create command")
+	}
+	model = updateMsg(t, model, cmd())
+	if createdRoot != "/tmp/dev" {
+		t.Fatalf("createdRoot = %q, want /tmp/dev", createdRoot)
+	}
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
+	}
+	if len(model.projects) != 1 || model.projects[0].Name != "app" {
+		t.Fatalf("projects = %#v", model.projects)
+	}
+}
+
+func TestModelOnboardingCustomPathValidationStaysInInput(t *testing.T) {
+	model := Model{
+		width:          100,
+		screen:         screenOnboarding,
+		onboardOptions: []string{"/tmp/dev"},
+		onboardChecked: map[string]bool{"/tmp/dev": true},
+		roots: func(roots []string) (config.FilePaths, config.Config, error) {
+			return config.FilePaths{}, config.Config{}, errors.New("path does not exist")
+		},
+	}
+	model.onboardSelected = 1
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	if model.screen != screenOnboardingInput {
+		t.Fatalf("screen = %v, want onboarding input", model.screen)
+	}
+	for _, value := range []string{"/", "n", "o", "p", "e"} {
+		model = updateKey(t, model, value)
+	}
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected onboarding create command")
+	}
+	model = updateMsg(t, model, cmd())
+	if model.screen != screenOnboardingInput {
+		t.Fatalf("screen = %v, want onboarding input", model.screen)
+	}
+	if !strings.Contains(stripANSI(model.View()), "path does not exist") {
+		t.Fatalf("onboarding input should show validation error:\n%s", stripANSI(model.View()))
+	}
+}
+
+func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
+	var created []string
+	model := setupModel{
+		options:  []string{"~/dev"},
+		checked:  map[string]bool{"~/dev": true},
+		expanded: map[string]bool{},
+		children: map[string][]string{
+			"~/dev": {"~/dev/web", "~/dev/extensions"},
+		},
+		creator: func(roots []string) (config.FilePaths, config.Config, error) {
+			created = append([]string{}, roots...)
+			return config.FilePaths{}, config.Default(), nil
+		},
+	}
+
+	model = updateSetupSpecialKey(t, model, tea.KeyRight)
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "▾") || !strings.Contains(view, "web") || !strings.Contains(view, "extensions") {
+		t.Fatalf("expanded setup view missing child folders:\n%s", view)
+	}
+	model = updateSetupSpecialKey(t, model, tea.KeyDown)
+	model = updateSetupKey(t, model, " ")
+	if model.checked["~/dev"] {
+		t.Fatal("parent root should be unchecked when child is selected")
+	}
+	if !model.checked["~/dev/web"] {
+		t.Fatal("child root should be checked")
+	}
+	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
+	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "[-] ~/dev") {
+		t.Fatalf("collapsed parent should show partial child selection:\n%s", view)
+	}
+	model = updateSetupSpecialKey(t, model, tea.KeyRight)
+	model = updateSetupSpecialKey(t, model, tea.KeyDown)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(setupModel)
+	if cmd == nil {
+		t.Fatal("expected setup create command")
+	}
+	model = updateSetupMsg(t, model, cmd())
+	if len(created) != 1 || created[0] != "~/dev/web" {
+		t.Fatalf("created roots = %#v, want ~/dev/web", created)
+	}
+}
+
+func TestSetupExpandsNestedFoldersLazily(t *testing.T) {
+	var created []string
+	model := setupModel{
+		options:  []string{"~/dev"},
+		checked:  map[string]bool{"~/dev": true},
+		expanded: map[string]bool{},
+		children: map[string][]string{
+			"~/dev":     {"~/dev/web"},
+			"~/dev/web": {"~/dev/web/eventca"},
+		},
+		creator: func(roots []string) (config.FilePaths, config.Config, error) {
+			created = append([]string{}, roots...)
+			return config.FilePaths{}, config.Default(), nil
+		},
+	}
+
+	model = updateSetupSpecialKey(t, model, tea.KeyRight)
+	model = updateSetupSpecialKey(t, model, tea.KeyDown)
+	model = updateSetupSpecialKey(t, model, tea.KeyRight)
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "eventca") {
+		t.Fatalf("nested setup view missing grandchild folder:\n%s", view)
+	}
+	model = updateSetupSpecialKey(t, model, tea.KeyDown)
+	model = updateSetupKey(t, model, " ")
+	if model.checked["~/dev"] || model.checked["~/dev/web"] {
+		t.Fatal("ancestors should be unchecked when nested child is selected")
+	}
+	if !model.checked["~/dev/web/eventca"] {
+		t.Fatal("nested child should be checked")
+	}
+	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
+	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "[-] web") {
+		t.Fatalf("collapsed child should show partial nested selection:\n%s", view)
+	}
+	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
+	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "[-] ~/dev") {
+		t.Fatalf("collapsed root should show partial nested selection:\n%s", view)
+	}
+
+	model = updateSetupSpecialKey(t, model, tea.KeyRight)
+	model = updateSetupSpecialKey(t, model, tea.KeyDown)
+	model = updateSetupSpecialKey(t, model, tea.KeyRight)
+	model = updateSetupSpecialKey(t, model, tea.KeyDown)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(setupModel)
+	if cmd == nil {
+		t.Fatal("expected setup create command")
+	}
+	model = updateSetupMsg(t, model, cmd())
+	if len(created) != 1 || created[0] != "~/dev/web/eventca" {
+		t.Fatalf("created roots = %#v, want ~/dev/web/eventca", created)
+	}
+}
+
 func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 	model := Model{
 		width:        120,
@@ -1728,6 +1928,24 @@ func updateMsg(t *testing.T, model Model, msg tea.Msg) Model {
 	t.Helper()
 	updated, _ := model.Update(msg)
 	return updated.(Model)
+}
+
+func updateSetupKey(t *testing.T, model setupModel, value string) setupModel {
+	t.Helper()
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
+	return updated.(setupModel)
+}
+
+func updateSetupSpecialKey(t *testing.T, model setupModel, key tea.KeyType) setupModel {
+	t.Helper()
+	updated, _ := model.Update(tea.KeyMsg{Type: key})
+	return updated.(setupModel)
+}
+
+func updateSetupMsg(t *testing.T, model setupModel, msg tea.Msg) setupModel {
+	t.Helper()
+	updated, _ := model.Update(msg)
+	return updated.(setupModel)
 }
 
 func detailTestProject(name string) project.Project {

@@ -210,6 +210,46 @@ func TestLoadOverviewAcceptsInlineSortDirection(t *testing.T) {
 	}
 }
 
+func TestCheckConfigReturnsCandidatesWhenMissing(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, "dev")
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	writePackage(t, filepath.Join(root, "api"), `{}`)
+
+	setup, err := CheckConfig(Options{Cwd: root})
+	if err != nil {
+		t.Fatalf("CheckConfig() error = %v", err)
+	}
+	if setup.Exists {
+		t.Fatal("Exists = true")
+	}
+	if len(setup.Candidates) == 0 || setup.Candidates[0] != root {
+		t.Fatalf("Candidates = %#v, want first %q", setup.Candidates, root)
+	}
+}
+
+func TestCreateConfigWritesDefaultConfig(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, cfg, err := CreateConfig(root)
+	if err != nil {
+		t.Fatalf("CreateConfig() error = %v", err)
+	}
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != root {
+		t.Fatalf("Roots = %#v, want %q", cfg.Roots, root)
+	}
+	data, err := os.ReadFile(paths.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "# ovw — local project overview") || !strings.Contains(string(data), quote(root)) {
+		t.Fatalf("config not written from default template:\n%s", string(data))
+	}
+}
+
 func TestLoadOverviewHandlesLargeProjectSet(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()

@@ -12,6 +12,7 @@ import (
 	"ovw/internal/config"
 	"ovw/internal/format"
 	"ovw/internal/project"
+	"ovw/internal/tui"
 )
 
 func TestHelpIncludesUsage(t *testing.T) {
@@ -375,6 +376,60 @@ func TestInteractiveRootPassesFlagsToTUI(t *testing.T) {
 	}
 	if !got.Dirty || got.Sort != "name" {
 		t.Fatalf("TUI options = %#v", got)
+	}
+}
+
+func TestInteractiveFirstRunRunsSetupBeforeTUI(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, "dev")
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	previousSetup := runFirstRunSetup
+	defer func() { runFirstRunSetup = previousSetup }()
+	var setupCandidates []string
+	setupCalled := false
+	tuiCalled := false
+	withTerminalRouting(t, true, func(opts app.Options) error {
+		tuiCalled = true
+		return nil
+	})
+	runFirstRunSetup = func(opts app.Options, candidates []string) error {
+		setupCalled = true
+		setupCandidates = candidates
+		return nil
+	}
+
+	if _, err := executeCommand(nil); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !setupCalled {
+		t.Fatal("expected first-run setup to be called")
+	}
+	if len(setupCandidates) == 0 || setupCandidates[0] != "~/dev" {
+		t.Fatalf("setup candidates = %#v, want first ~/dev", setupCandidates)
+	}
+	if !tuiCalled {
+		t.Fatal("expected TUI runner after setup")
+	}
+}
+
+func TestInteractiveFirstRunCancelSkipsTUI(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, "dev")
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	previousSetup := runFirstRunSetup
+	defer func() { runFirstRunSetup = previousSetup }()
+	withTerminalRouting(t, true, func(opts app.Options) error {
+		t.Fatal("TUI runner should not be called after cancelled setup")
+		return nil
+	})
+	runFirstRunSetup = func(opts app.Options, candidates []string) error {
+		return tui.ErrSetupCancelled
+	}
+
+	if _, err := executeCommand(nil); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
 }
 

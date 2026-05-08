@@ -18,6 +18,8 @@ import (
 )
 
 type overviewLoader func(app.Options) (app.OverviewResult, error)
+type configSetupLoader func(app.Options) (app.ConfigSetup, error)
+type configRootsCreator func([]string) (config.FilePaths, config.Config, error)
 type metadataUpdater func(string, app.MetadataUpdate) (app.MetadataUpdateResult, error)
 type visibilityUpdater func(string, bool) (app.MetadataUpdateResult, error)
 type projectAdder func(string) (app.AddProjectResult, error)
@@ -39,11 +41,15 @@ const (
 	screenStatus
 	screenStatusInput
 	screenHelp
+	screenOnboarding
+	screenOnboardingInput
 )
 
 type Model struct {
 	request  app.Options
 	loader   overviewLoader
+	setup    configSetupLoader
+	roots    configRootsCreator
 	updater  metadataUpdater
 	visible  visibilityUpdater
 	adder    projectAdder
@@ -51,29 +57,34 @@ type Model struct {
 	terminal terminalRunner
 	recent   recentLoader
 
-	width          int
-	height         int
-	selected       int
-	tableXOffset   int
-	screen         screenMode
-	search         string
-	searching      bool
-	filterSelected int
-	activeFilter   string
-	sortSelected   int
-	activeSort     string
-	activeSortDir  string
-	noteInput      string
-	addInput       string
-	addErr         string
-	statusSelected int
-	statusInput    string
-	message        string
-	loading        bool
-	loadErr        error
-	config         config.Config
-	projects       []project.Project
-	recentByPath   map[string][]ovwformat.RecentCommit
+	width           int
+	height          int
+	selected        int
+	tableXOffset    int
+	screen          screenMode
+	search          string
+	searching       bool
+	filterSelected  int
+	activeFilter    string
+	sortSelected    int
+	activeSort      string
+	activeSortDir   string
+	noteInput       string
+	addInput        string
+	addErr          string
+	statusSelected  int
+	statusInput     string
+	onboardOptions  []string
+	onboardChecked  map[string]bool
+	onboardSelected int
+	onboardInput    string
+	onboardErr      string
+	message         string
+	loading         bool
+	loadErr         error
+	config          config.Config
+	projects        []project.Project
+	recentByPath    map[string][]ovwformat.RecentCommit
 }
 
 func New() Model {
@@ -87,6 +98,8 @@ func NewWithOptions(opts app.Options) Model {
 	return Model{
 		request:       opts,
 		loader:        app.LoadOverview,
+		setup:         app.CheckConfig,
+		roots:         app.CreateConfigRoots,
 		updater:       app.UpdateProjectMetadata,
 		visible:       app.SetProjectHidden,
 		adder:         app.AddProject,
@@ -104,16 +117,25 @@ func NewWithOptions(opts app.Options) Model {
 func NewWithLoader(loader overviewLoader) Model {
 	model := NewWithOptions(app.Options{})
 	model.loader = loader
+	model.setup = func(app.Options) (app.ConfigSetup, error) {
+		return app.ConfigSetup{Exists: true}, nil
+	}
 	return model
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.loadOverview()
+	return m.startup()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.screen == screenOnboarding {
+			return m.updateOnboarding(msg)
+		}
+		if m.screen == screenOnboardingInput {
+			return m.updateOnboardingInput(msg)
+		}
 		if m.screen == screenFilter {
 			return m.updateFilter(msg)
 		}
@@ -233,6 +255,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case overviewLoadedMsg:
 		m.loading = false
 		m.loadErr = nil
+		m.screen = screenTable
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
 		m.syncActiveSort()
@@ -249,6 +272,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case overviewLoadFailedMsg:
 		m.loading = false
 		m.loadErr = msg.err
+	case onboardingLoadedMsg:
+		m.loading = false
+		m.loadErr = nil
+		m.screen = screenOnboarding
+		m.onboardOptions = msg.candidates
+		m.onboardChecked = checkedOnboardingOptions(msg.candidates)
+		m.onboardSelected = 0
+		m.onboardInput = ""
+		m.onboardErr = ""
+	case onboardingFailedMsg:
+		m.loading = false
+		m.onboardErr = msg.err.Error()
+	case onboardingCreatedMsg:
+		m.loading = false
+		m.loadErr = nil
+		m.screen = screenTable
+		m.config = msg.result.Config
+		m.projects = msg.result.Projects
+		m.syncActiveSort()
+		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.message = "Project root saved"
+		return m, m.loadSelectedRecent()
 	case metadataSavedMsg:
 		m.loading = false
 		m.loadErr = nil
@@ -399,6 +444,87 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.loadOverview()
 	}
 	return m, nil
+}
+
+func (m Model) updateOnboarding(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isQuitKey(value):
+		return m, tea.Quit
+	case isDownKey(value):
+		if m.onboardSelected < len(m.onboardOptions) {
+			m.onboardSelected++
+		}
+	case isUpKey(value):
+		if m.onboardSelected > 0 {
+			m.onboardSelected--
+		}
+	case value == " ":
+		if m.onboardSelected < len(m.onboardOptions) {
+			m.toggleOnboardingOption(m.onboardOptions[m.onboardSelected])
+		}
+	case isEnterKey(value):
+		if m.onboardSelected >= len(m.onboardOptions) {
+			m.screen = screenOnboardingInput
+			m.onboardInput = ""
+			m.onboardErr = ""
+			return m, nil
+		}
+		m.loading = true
+		m.onboardErr = ""
+		return m, m.createOnboardingConfigRoots(m.selectedOnboardingRoots())
+	}
+	return m, nil
+}
+
+func (m Model) updateOnboardingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenOnboarding
+		m.onboardErr = ""
+	case isEnterKey(value):
+		m.loading = true
+		m.onboardErr = ""
+		root := strings.TrimSpace(m.onboardInput)
+		if root == "" {
+			return m, m.createOnboardingConfigRoots(nil)
+		}
+		roots := m.selectedOnboardingRoots()
+		roots = append(roots, root)
+		return m, m.createOnboardingConfigRoots(roots)
+	case isBackspaceKey(value):
+		runes := []rune(m.onboardInput)
+		if len(runes) > 0 {
+			m.onboardInput = string(runes[:len(runes)-1])
+		}
+	default:
+		m.onboardInput += inputText(msg)
+	}
+	return m, nil
+}
+
+func checkedOnboardingOptions(options []string) map[string]bool {
+	checked := make(map[string]bool, len(options))
+	if len(options) > 0 {
+		checked[options[0]] = true
+	}
+	return checked
+}
+
+func (m *Model) toggleOnboardingOption(value string) {
+	if m.onboardChecked == nil {
+		m.onboardChecked = checkedOnboardingOptions(m.onboardOptions)
+	}
+	m.onboardChecked[value] = !m.onboardChecked[value]
+}
+
+func (m Model) selectedOnboardingRoots() []string {
+	roots := make([]string, 0, len(m.onboardOptions))
+	for _, option := range m.onboardOptions {
+		if m.onboardChecked[option] {
+			roots = append(roots, option)
+		}
+	}
+	return roots
 }
 
 func (m Model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -552,6 +678,18 @@ type overviewLoadFailedMsg struct {
 	err error
 }
 
+type onboardingLoadedMsg struct {
+	candidates []string
+}
+
+type onboardingCreatedMsg struct {
+	result app.OverviewResult
+}
+
+type onboardingFailedMsg struct {
+	err error
+}
+
 type metadataSavedMsg struct {
 	message      string
 	result       app.OverviewResult
@@ -598,6 +736,31 @@ func (m Model) loadOverview() tea.Cmd {
 	return m.reloadOverview("", "")
 }
 
+func (m Model) startup() tea.Cmd {
+	return func() tea.Msg {
+		setup := m.setup
+		if setup == nil {
+			setup = app.CheckConfig
+		}
+		result, err := setup(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		if !result.Exists {
+			return onboardingLoadedMsg{candidates: result.Candidates}
+		}
+		loader := m.loader
+		if loader == nil {
+			loader = app.LoadOverview
+		}
+		overview, err := loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		return overviewLoadedMsg{result: overview}
+	}
+}
+
 func (m Model) reloadOverview(preservePath, message string) tea.Cmd {
 	return func() tea.Msg {
 		result, err := m.loader(m.request)
@@ -605,6 +768,35 @@ func (m Model) reloadOverview(preservePath, message string) tea.Cmd {
 			return overviewLoadFailedMsg{err: err}
 		}
 		return overviewLoadedMsg{result: result, preservePath: preservePath, message: message}
+	}
+}
+
+func (m Model) createOnboardingConfigRoots(roots []string) tea.Cmd {
+	return func() tea.Msg {
+		if len(roots) == 0 {
+			return onboardingFailedMsg{err: errEmptyProjectPath{}}
+		}
+		for _, root := range roots {
+			if strings.TrimSpace(root) == "" {
+				return onboardingFailedMsg{err: errEmptyProjectPath{}}
+			}
+		}
+		creator := m.roots
+		if creator == nil {
+			creator = app.CreateConfigRoots
+		}
+		if _, _, err := creator(roots); err != nil {
+			return onboardingFailedMsg{err: err}
+		}
+		loader := m.loader
+		if loader == nil {
+			loader = app.LoadOverview
+		}
+		result, err := loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		return onboardingCreatedMsg{result: result}
 	}
 }
 
@@ -780,6 +972,10 @@ func renderShell(m Model) string {
 		body += "\n\n" + mutedStyle.Render("Loading projects...")
 	case m.loadErr != nil:
 		body += "\n\n" + errorStyle.Render("Failed to load projects: "+m.loadErr.Error())
+	case m.screen == screenOnboarding:
+		body = onboardingCheckedView(m.onboardOptions, m.onboardChecked, m.onboardSelected, m.onboardErr)
+	case m.screen == screenOnboardingInput:
+		body = onboardingInputView(m.onboardInput, m.onboardErr)
 	default:
 		visible := m.visibleProjects()
 		body = headerView(m)
@@ -816,7 +1012,9 @@ func renderShell(m Model) string {
 			body += "\n\n" + content
 		}
 	}
-	body += "\n\n" + footerView(m.contentWidth())
+	if m.screen != screenOnboarding && m.screen != screenOnboardingInput {
+		body += "\n\n" + footerView(m.contentWidth())
+	}
 	return body
 }
 

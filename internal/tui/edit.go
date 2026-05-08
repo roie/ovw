@@ -23,6 +23,70 @@ func addProjectView(value, err string) string {
 	return modalView("Add project", lines, 56)
 }
 
+func onboardingView(options []string, selected int, err string) string {
+	if len(options) == 0 {
+		options = []string{"~/Projects"}
+	}
+	checked := checkedOnboardingOptions(options)
+	return onboardingCheckedView(options, checked, selected, err)
+}
+
+func onboardingCheckedView(options []string, checked map[string]bool, selected int, err string) string {
+	if len(options) == 0 {
+		options = []string{"~/Projects"}
+	}
+	lines := onboardingHeaderLines("Select project folders to scan")
+	lines = append(lines, inlineCheckboxLines(options, checked, selected)...)
+	lines = append(lines, onboardingCustomPathLine(selected == len(options)))
+	if err != "" {
+		lines = append(lines, "", errorStyle.Render(err))
+	}
+	lines = append(lines, "", inlineActionHint("space", "toggle")+" · "+inlineActionHint("enter", "continue")+" · "+inlineActionHint("q", "quit"))
+	return strings.Join(lines, "\n")
+}
+
+type setupRow struct {
+	Path       string
+	Label      string
+	Parent     string
+	Depth      int
+	Checked    bool
+	Partial    bool
+	Expandable bool
+	Expanded   bool
+}
+
+func onboardingSetupView(rows []setupRow, selected int, err string) string {
+	lines := onboardingHeaderLines("Select project folders to scan")
+	lines = append(lines, inlineSetupRowLines(rows, selected)...)
+	lines = append(lines, onboardingCustomPathLine(selected == len(rows)))
+	if err != "" {
+		lines = append(lines, "", errorStyle.Render(err))
+	}
+	lines = append(lines, "", inlineActionHint("space", "toggle")+" · "+inlineActionHint("←→", "expand/collapse")+" · "+inlineActionHint("enter", "continue")+" · "+inlineActionHint("q", "quit"))
+	return strings.Join(lines, "\n")
+}
+
+func onboardingInputView(value, err string) string {
+	lines := onboardingHeaderLines("Enter a custom project folder")
+	lines = append(lines, inlineInputLines(value, "~/Projects", 52)...)
+	if err != "" {
+		lines = append(lines, "", errorStyle.Render(err))
+	}
+	lines = append(lines, "", inlineActionHint("enter", "continue")+" · "+inlineActionHint("esc", "back"))
+	return strings.Join(lines, "\n")
+}
+
+func onboardingHeaderLines(prompt string) []string {
+	return []string{
+		titleStyle.Render("ovw"),
+		mutedStyle.Render("A terminal overview for your local projects"),
+		"",
+		mutedStyle.Render(prompt),
+		"",
+	}
+}
+
 type statusOptionKind int
 
 const (
@@ -269,6 +333,96 @@ func modalOptionLines(labels []string, selected int) []string {
 		lines = append(lines, "  "+modalMuted(label))
 	}
 	return lines
+}
+
+func modalCheckboxLines(labels []string, checked map[string]bool, selected int) []string {
+	lines := make([]string, 0, len(labels))
+	for index, label := range labels {
+		box := "[ ]"
+		if checked[label] {
+			box = "[x]"
+		}
+		line := box + " " + label
+		if index == selected {
+			lines = append(lines, modalAccent("> "+line))
+			continue
+		}
+		lines = append(lines, "  "+modalMuted(line))
+	}
+	return lines
+}
+
+func inlineCheckboxLines(labels []string, checked map[string]bool, selected int) []string {
+	lines := make([]string, 0, len(labels))
+	for index, label := range labels {
+		box := "[ ]"
+		if checked[label] {
+			box = "[x]"
+		}
+		line := box + " " + label
+		if index == selected {
+			lines = append(lines, titleStyle.Render("> "+line))
+			continue
+		}
+		lines = append(lines, "  "+mutedStyle.Render(line))
+	}
+	return lines
+}
+
+func inlineSetupRowLines(rows []setupRow, selected int) []string {
+	lines := make([]string, 0, len(rows))
+	for index, row := range rows {
+		box := "[ ]"
+		if row.Checked {
+			box = "[x]"
+		} else if row.Partial {
+			box = "[-]"
+		}
+		prefix := "  "
+		if row.Expandable {
+			if row.Expanded {
+				prefix = "▾ "
+			} else {
+				prefix = "▸ "
+			}
+		}
+		indent := strings.Repeat("  ", row.Depth)
+		line := indent + prefix + box + " " + row.Label
+		if index == selected {
+			lines = append(lines, titleStyle.Render("> "+line))
+			continue
+		}
+		lines = append(lines, "  "+mutedStyle.Render(line))
+	}
+	return lines
+}
+
+func onboardingCustomPathLine(selected bool) string {
+	label := "custom path..."
+	if selected {
+		return titleStyle.Render("> " + label)
+	}
+	return "  " + mutedStyle.Render(label)
+}
+
+func inlineInputLines(value, placeholder string, width int) []string {
+	if value == "" {
+		lines := wrapInputPlaceholderLines(placeholder, width)
+		for index := range lines {
+			lines[index] = mutedStyle.Render(lines[index])
+		}
+		last := len(lines) - 1
+		lines[last] += activeCursor()
+		return lines
+	}
+	lines := wrapInputLines(value, width)
+	last := len(lines) - 1
+	lines[last] += activeCursor()
+	return lines
+}
+
+func inlineActionHint(key, action string) string {
+	return hintKeyStyle.Render(key) + " " + mutedStyle.Render(action)
 }
 
 func modalANSI(code, value string) string {

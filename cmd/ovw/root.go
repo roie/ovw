@@ -1,6 +1,7 @@
 package ovw
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -22,6 +23,7 @@ import (
 var (
 	interactiveTerminal = streamsAreTerminal
 	runTUI              = tui.RunWithOptions
+	runFirstRunSetup    = tui.RunSetupWithOptions
 )
 
 func NewRootCommand() *cobra.Command {
@@ -49,8 +51,17 @@ func NewRootCommand() *cobra.Command {
 			opts.In = cmd.InOrStdin()
 			opts.Out = cmd.OutOrStdout()
 			if !opts.Plain && !opts.JSON && interactiveTerminal(opts.In, opts.Out) {
-				if _, _, err := app.EnsureConfig(opts); err != nil {
+				setup, err := app.CheckConfig(opts)
+				if err != nil {
 					return err
+				}
+				if !setup.Exists {
+					if err := runFirstRunSetup(opts, setup.Candidates); err != nil {
+						if errors.Is(err, tui.ErrSetupCancelled) {
+							return nil
+						}
+						return err
+					}
 				}
 				return runTUI(opts)
 			}

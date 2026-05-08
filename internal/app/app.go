@@ -41,6 +41,12 @@ type OverviewResult struct {
 	Elapsed  time.Duration
 }
 
+type ConfigSetup struct {
+	Paths      config.FilePaths
+	Exists     bool
+	Candidates []string
+}
+
 type State struct {
 	Paths  config.FilePaths
 	Config config.Config
@@ -61,6 +67,12 @@ type AddProjectResult struct {
 	Path           string
 	Entry          metadata.Entry
 	AlreadyTracked bool
+}
+
+type errEmptyProjectPath struct{}
+
+func (errEmptyProjectPath) Error() string {
+	return "select at least one project root"
 }
 
 func Run(opts Options) error {
@@ -137,6 +149,59 @@ func EnsureConfig(opts Options) (config.FilePaths, config.Config, error) {
 	}
 	cfg, _, err := config.Ensure(paths.Config, opts.Cwd, opts.In, firstRunWriter(opts))
 	if err != nil {
+		return config.FilePaths{}, config.Config{}, err
+	}
+	return paths, cfg, nil
+}
+
+func CheckConfig(opts Options) (ConfigSetup, error) {
+	paths, err := config.Paths()
+	if err != nil {
+		return ConfigSetup{}, err
+	}
+	if _, err := config.Load(paths.Config); err == nil {
+		return ConfigSetup{Paths: paths, Exists: true}, nil
+	} else if !os.IsNotExist(err) {
+		return ConfigSetup{}, err
+	}
+	candidates, err := config.RootCandidates(opts.Cwd)
+	if err != nil {
+		return ConfigSetup{}, err
+	}
+	return ConfigSetup{Paths: paths, Candidates: candidates}, nil
+}
+
+func CreateConfig(root string) (config.FilePaths, config.Config, error) {
+	return CreateConfigRoots([]string{root})
+}
+
+func CreateConfigRoots(roots []string) (config.FilePaths, config.Config, error) {
+	paths, err := config.Paths()
+	if err != nil {
+		return config.FilePaths{}, config.Config{}, err
+	}
+	if len(roots) == 0 {
+		return config.FilePaths{}, config.Config{}, errEmptyProjectPath{}
+	}
+	for _, root := range roots {
+		expanded, err := config.ExpandPath(root)
+		if err != nil {
+			return config.FilePaths{}, config.Config{}, err
+		}
+		info, err := os.Stat(expanded)
+		if err != nil {
+			return config.FilePaths{}, config.Config{}, err
+		}
+		if !info.IsDir() {
+			return config.FilePaths{}, config.Config{}, &NotDirectoryError{Path: root}
+		}
+	}
+	cfg := config.Default()
+	cfg.Roots = roots
+	if err := config.Validate(cfg); err != nil {
+		return config.FilePaths{}, config.Config{}, err
+	}
+	if err := config.WriteDefault(paths.Config, cfg.Roots); err != nil {
 		return config.FilePaths{}, config.Config{}, err
 	}
 	return paths, cfg, nil

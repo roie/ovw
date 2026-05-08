@@ -145,13 +145,17 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	path := filepath.Join(t.TempDir(), "config.toml")
+	var out strings.Builder
 
-	_, created, err := Ensure(path, "", strings.NewReader(root+"\n"), io.Discard)
+	_, created, err := Ensure(path, "", strings.NewReader(root+"\n"), &out)
 	if err != nil {
 		t.Fatalf("Ensure() error = %v", err)
 	}
 	if !created {
 		t.Fatal("created = false")
+	}
+	if !strings.Contains(out.String(), "Project root to scan [~/Projects]: ") {
+		t.Fatalf("first run prompt = %q", out.String())
 	}
 
 	data, err := os.ReadFile(path)
@@ -183,6 +187,36 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded.Roots, []string{root}) {
 		t.Fatalf("Roots = %#v", loaded.Roots)
+	}
+}
+
+func TestEnsurePromptsWithDetectedRootDefault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dev := filepath.Join(home, "dev")
+	for _, child := range []string{"one", "two"} {
+		if err := os.MkdirAll(filepath.Join(dev, child), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dev, child, "go.mod"), []byte("module "+child+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	var out strings.Builder
+
+	cfg, created, err := Ensure(path, dev, strings.NewReader("\n"), &out)
+	if err != nil {
+		t.Fatalf("Ensure() error = %v", err)
+	}
+	if !created {
+		t.Fatal("created = false")
+	}
+	if !strings.Contains(out.String(), "Project root to scan ["+dev+"]: ") {
+		t.Fatalf("first run prompt = %q", out.String())
+	}
+	if !reflect.DeepEqual(cfg.Roots, []string{dev}) {
+		t.Fatalf("Roots = %#v, want %q", cfg.Roots, dev)
 	}
 }
 
