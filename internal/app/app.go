@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -79,6 +80,9 @@ func Run(opts Options) error {
 	if opts.Out == nil {
 		opts.Out = io.Discard
 	}
+	if err := validateOutputModes(opts); err != nil {
+		return err
+	}
 	overview, err := LoadOverview(opts)
 	if err != nil {
 		return err
@@ -93,6 +97,9 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	start := time.Now()
 	if opts.Out == nil {
 		opts.Out = io.Discard
+	}
+	if err := validateOutputModes(opts); err != nil {
+		return OverviewResult{}, err
 	}
 	paths, cfg, err := EnsureConfig(opts)
 	if err != nil {
@@ -137,6 +144,13 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 		Projects: filtered,
 		Elapsed:  time.Since(start),
 	}, nil
+}
+
+func validateOutputModes(opts Options) error {
+	if opts.Plain && opts.JSON {
+		return errors.New("choose only one output mode: --plain or --json")
+	}
+	return nil
 }
 
 func EnsureConfig(opts Options) (config.FilePaths, config.Config, error) {

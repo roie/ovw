@@ -46,6 +46,18 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 	}
 }
 
+func TestRunRejectsConflictingOutputModes(t *testing.T) {
+	var out bytes.Buffer
+	err := Run(Options{Plain: true, JSON: true, Out: &out, In: strings.NewReader("\n")})
+
+	if err == nil || err.Error() != "choose only one output mode: --plain or --json" {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("Run() wrote output on invalid modes: %q", out.String())
+	}
+}
+
 func TestOverviewPlainAppliesStatusFilter(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()

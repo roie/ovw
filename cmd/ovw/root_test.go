@@ -784,6 +784,16 @@ func TestInvalidSortShowsClearErrorWithoutUsage(t *testing.T) {
 	}
 }
 
+func TestConflictingOutputModesShowClearErrorWithoutUsage(t *testing.T) {
+	out, err := executeCommand([]string{"--plain", "--json"})
+	if err == nil || err.Error() != "choose only one output mode: --plain or --json" {
+		t.Fatalf("conflicting output mode error = %v", err)
+	}
+	if strings.Contains(out, "Usage:") {
+		t.Fatalf("conflicting output mode printed usage:\n%s", out)
+	}
+}
+
 func TestUnsetRequiresStatusOrNote(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "custom")
