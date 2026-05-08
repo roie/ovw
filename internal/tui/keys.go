@@ -1,5 +1,11 @@
 package tui
 
+import (
+	"strings"
+
+	"ovw/internal/buildinfo"
+)
+
 import "github.com/charmbracelet/bubbles/key"
 
 type keyMap struct {
@@ -106,7 +112,16 @@ func isBackspaceKey(value string) bool {
 	return value == "backspace" || value == "ctrl+h"
 }
 
-func footerView() string {
+func footerView(width int) string {
 	keys := defaultKeyMap()
-	return mutedStyle.Render("↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
+	left := "↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
+	right := "ovw " + buildinfo.Version
+	if width <= 0 {
+		return mutedStyle.Render(left)
+	}
+	if lipglossWidth(left)+lipglossWidth(right)+2 > width {
+		return mutedStyle.Render(left)
+	}
+	gap := width - lipglossWidth(left) - lipglossWidth(right)
+	return mutedStyle.Render(left + strings.Repeat(" ", gap) + right)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ovw/internal/app"
+	"ovw/internal/buildinfo"
 	"ovw/internal/config"
 	"ovw/internal/project"
 	"ovw/internal/projectview"
@@ -17,8 +18,6 @@ import (
 
 	"github.com/spf13/cobra"
 )
-
-const version = "0.1.0"
 
 var (
 	interactiveTerminal = streamsAreTerminal
@@ -31,7 +30,7 @@ func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "ovw",
 		Short:         "A terminal overview for your local projects",
-		Version:       version,
+		Version:       buildinfo.Version,
 		Args:          cobra.MaximumNArgs(1),
 		SilenceErrors: true,
 		SilenceUsage:  true,

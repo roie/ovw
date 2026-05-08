@@ -816,14 +816,13 @@ func renderShell(m Model) string {
 			body += "\n\n" + content
 		}
 	}
-	body += "\n\n" + footerView()
+	body += "\n\n" + footerView(m.contentWidth())
 	return body
 }
 
 func headerView(m Model) string {
 	parts := []string{
 		formatProjectCount(len(m.projects)),
-		selectedPosition(m.selected, len(m.visibleProjects())),
 		"filter: " + headerFilter(m.activeFilter),
 	}
 	if m.activeSort != "" {
@@ -832,7 +831,14 @@ func headerView(m Model) string {
 	if m.search != "" || m.searching {
 		parts = append(parts, "search: "+m.searchDisplay())
 	}
-	return titleStyle.Render("ovw") + "  " + mutedStyle.Render(strings.Join(parts, "  "))
+	left := titleStyle.Render("ovw") + "  " + mutedStyle.Render(strings.Join(parts, "  "))
+	right := mutedStyle.Render(selectedPosition(m.selected, len(m.visibleProjects())))
+	width := m.contentWidth()
+	if width <= 0 || lipglossWidth(left)+lipglossWidth(right)+2 > width {
+		return left + "  " + right
+	}
+	gap := width - lipglossWidth(left) - lipglossWidth(right)
+	return left + strings.Repeat(" ", gap) + right
 }
 
 func selectedPosition(selected, total int) string {

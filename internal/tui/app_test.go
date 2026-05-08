@@ -104,6 +104,7 @@ func TestModelLoadsOverviewData(t *testing.T) {
 
 func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 	model := Model{
+		width:        120,
 		loading:      true,
 		activeFilter: "all",
 		activeSort:   "activity",
@@ -119,7 +120,7 @@ func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	for _, want := range []string{"ovw  1 project  1/1  filter: all  sort: activity", "app", "Go", "12m", "dirty", "user note"} {
+	for _, want := range []string{"ovw  1 project  filter: all  sort: activity", "1/1", "app", "Go", "12m", "dirty", "user note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("background loading view missing %q:\n%s", want, view)
 		}
@@ -133,6 +134,7 @@ func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 
 func TestModelHeaderShowsFilterAndSort(t *testing.T) {
 	model := Model{
+		width:         80,
 		activeFilter:  "dirty",
 		activeSort:    "name",
 		activeSortDir: "asc",
@@ -143,8 +145,12 @@ func TestModelHeaderShowsFilterAndSort(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "ovw  2 projects  1/2  filter: dirty  sort: name asc") {
+	header := strings.Split(view, "\n")[0]
+	if !strings.Contains(header, "ovw  2 projects  filter: dirty  sort: name asc") {
 		t.Fatalf("header missing filter and sort:\n%s", view)
+	}
+	if !strings.HasSuffix(header, "1/2") {
+		t.Fatalf("header should put position on the right:\n%s", header)
 	}
 	if strings.Contains(view, "ovw -") {
 		t.Fatalf("header should not use dash separator:\n%s", view)
@@ -153,15 +159,19 @@ func TestModelHeaderShowsFilterAndSort(t *testing.T) {
 
 func TestModelHeaderShowsAllFilter(t *testing.T) {
 	model := Model{
+		width:         80,
 		activeFilter:  "all",
 		activeSort:    "activity",
 		activeSortDir: "desc",
 		projects:      []project.Project{{Name: "app"}},
 	}
 
-	view := stripANSI(model.View())
-	if !strings.Contains(view, "ovw  1 project  1/1  filter: all  sort: activity desc") {
-		t.Fatalf("header missing all filter:\n%s", view)
+	header := strings.Split(stripANSI(model.View()), "\n")[0]
+	if !strings.Contains(header, "ovw  1 project  filter: all  sort: activity desc") {
+		t.Fatalf("header missing all filter:\n%s", header)
+	}
+	if !strings.HasSuffix(header, "1/1") {
+		t.Fatalf("header should put position on the right:\n%s", header)
 	}
 }
 
@@ -184,7 +194,7 @@ func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 }
 
 func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
-	got := stripANSI(footerView())
+	got := stripANSI(footerView(0))
 	for _, want := range []string{"↑↓ move", "←→ scroll", "/ search", "f filter", "s sort", "enter details", "n note", "m status", "r reload", "o open", "t terminal", "esc back", "? help", "q quit"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("footer missing %q:\n%s", want, got)
@@ -194,6 +204,16 @@ func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
 		if strings.Contains(got, notWant) {
 			t.Fatalf("footer should not include secondary action %q:\n%s", notWant, got)
 		}
+	}
+}
+
+func TestFooterShowsVersionWhenWide(t *testing.T) {
+	got := stripANSI(footerView(180))
+	if !strings.HasSuffix(got, "ovw 0.1.0") {
+		t.Fatalf("footer should put version on the right:\n%s", got)
+	}
+	if strings.Contains(stripANSI(footerView(40)), "ovw 0.1.0") {
+		t.Fatalf("narrow footer should hide version:\n%s", stripANSI(footerView(40)))
 	}
 }
 
@@ -1573,8 +1593,9 @@ func TestModelWideViewShowsInlineDetailPane(t *testing.T) {
 	if !strings.Contains(view, "Note") {
 		t.Fatalf("wide table should keep note column:\n%s", view)
 	}
-	if !strings.Contains(stripANSI(view), "ovw  2 projects  2/2  filter: all") {
-		t.Fatalf("wide header should show selection position:\n%s", view)
+	header := strings.Split(stripANSI(view), "\n")[0]
+	if !strings.Contains(header, "ovw  2 projects  filter: all") || !strings.HasSuffix(header, "2/2") {
+		t.Fatalf("wide header should show selection position on the right:\n%s", view)
 	}
 	if !strings.Contains(view, " │ ") {
 		t.Fatalf("wide view missing split divider:\n%s", view)
