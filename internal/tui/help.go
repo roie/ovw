@@ -5,8 +5,8 @@ func helpView() string {
 		key    string
 		action string
 	}{
-		{key: "up/down or j/k", action: "move"},
-		{key: "left/right or h/l", action: "scroll columns"},
+		{key: "↑↓ or j/k", action: "move"},
+		{key: "←→ or h/l", action: "scroll"},
 		{key: "/", action: "search"},
 		{key: "a", action: "add"},
 		{key: "f", action: "filter"},
@@ -22,7 +22,7 @@ func helpView() string {
 	}
 	lines := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		lines = append(lines, keyActionLine(entry.key, entry.action, 16))
+		lines = append(lines, keyActionLine(entry.key, entry.action, 14))
 	}
 	return modalView("Help", lines, 54)
 }
