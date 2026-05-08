@@ -112,9 +112,6 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.searching {
-			return m.updateSearch(msg)
-		}
 		if m.screen == screenFilter {
 			return m.updateFilter(msg)
 		}
@@ -140,12 +137,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = screenTable
 			return m, nil
 		}
+		if isEscapeKey(msg.String()) && m.searching {
+			m.searching = false
+			return m, nil
+		}
+		if isEscapeKey(msg.String()) && m.search != "" {
+			m.search = ""
+			m.clampSelection()
+			return m, m.loadSelectedRecent()
+		}
 		if isQuitKey(msg.String()) {
 			return m, tea.Quit
 		}
 		if isEnterKey(msg.String()) && m.canOpenDetail() {
 			m.screen = screenDetail
 			return m, nil
+		}
+		if isRightKey(msg.String()) {
+			m.tableXOffset += 8
+			return m, nil
+		}
+		if isLeftKey(msg.String()) {
+			m.tableXOffset -= 8
+			if m.tableXOffset < 0 {
+				m.tableXOffset = 0
+			}
+			return m, nil
+		}
+		if isHelpKey(msg.String()) {
+			m.screen = screenHelp
+			return m, nil
+		}
+		if isDownKey(msg.String()) {
+			m.moveSelection(1)
+			return m, m.loadSelectedRecent()
+		}
+		if isUpKey(msg.String()) {
+			m.moveSelection(-1)
+			return m, m.loadSelectedRecent()
+		}
+		if m.searching {
+			return m.updateSearch(msg)
 		}
 		if isSearchKey(msg.String()) {
 			m.screen = screenTable
@@ -190,29 +222,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isTerminalKey(msg.String()) && m.canOpenDetail() {
 			return m, m.openSelectedTerminal()
-		}
-		if isRightKey(msg.String()) {
-			m.tableXOffset += 8
-			return m, nil
-		}
-		if isLeftKey(msg.String()) {
-			m.tableXOffset -= 8
-			if m.tableXOffset < 0 {
-				m.tableXOffset = 0
-			}
-			return m, nil
-		}
-		if isHelpKey(msg.String()) {
-			m.screen = screenHelp
-			return m, nil
-		}
-		if isDownKey(msg.String()) {
-			m.moveSelection(1)
-			return m, m.loadSelectedRecent()
-		}
-		if isUpKey(msg.String()) {
-			m.moveSelection(-1)
-			return m, m.loadSelectedRecent()
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -323,11 +332,6 @@ func (m Model) updateAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	value := msg.String()
 	switch {
-	case isEscapeKey(value):
-		m.searching = false
-		m.search = ""
-	case isEnterKey(value):
-		m.searching = false
 	case isBackspaceKey(value):
 		runes := []rune(m.search)
 		if len(runes) > 0 {

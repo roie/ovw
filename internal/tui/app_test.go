@@ -584,7 +584,7 @@ func TestModelSearchCursorBlinks(t *testing.T) {
 	}
 }
 
-func TestModelSearchEscClearsSearch(t *testing.T) {
+func TestModelSearchEscBlursThenClearsSearch(t *testing.T) {
 	model := Model{
 		projects: []project.Project{
 			{Name: "api"},
@@ -596,13 +596,94 @@ func TestModelSearchEscClearsSearch(t *testing.T) {
 
 	model = updateSpecialKey(t, model, tea.KeyEsc)
 	if model.searching {
-		t.Fatal("search mode still active")
+		t.Fatal("search focus still active")
+	}
+	if model.search != "web" {
+		t.Fatalf("search = %q, want web", model.search)
+	}
+	if len(model.visibleProjects()) != 1 {
+		t.Fatalf("visible projects after blur = %#v", model.visibleProjects())
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	if model.searching {
+		t.Fatal("search focus active after clear")
 	}
 	if model.search != "" {
 		t.Fatalf("search = %q, want empty", model.search)
 	}
 	if len(model.visibleProjects()) != 2 {
 		t.Fatalf("visible projects = %#v", model.visibleProjects())
+	}
+}
+
+func TestModelSearchAllowsSelectionAndDetails(t *testing.T) {
+	model := Model{
+		projects: []project.Project{
+			{Name: "web-api", Path: "/tmp/web-api"},
+			{Name: "web-app", Path: "/tmp/web-app"},
+			{Name: "docs", Path: "/tmp/docs"},
+		},
+	}
+
+	model = updateKey(t, model, "/")
+	model = updateKey(t, model, "w")
+	model = updateKey(t, model, "e")
+	model = updateKey(t, model, "b")
+	if !model.searching {
+		t.Fatal("expected search focus")
+	}
+	model = updateSpecialKey(t, model, tea.KeyDown)
+	if !model.searching {
+		t.Fatal("search focus should stay active after moving")
+	}
+	if model.selected != 1 {
+		t.Fatalf("selected = %d, want 1", model.selected)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	if model.screen != screenDetail {
+		t.Fatalf("screen = %v, want detail", model.screen)
+	}
+	if model.search != "web" {
+		t.Fatalf("search = %q, want web", model.search)
+	}
+}
+
+func TestModelSearchKeepsLetterKeysInSearchInput(t *testing.T) {
+	model := Model{
+		projects: []project.Project{
+			{Name: "web", Path: "/tmp/web", Note: ovwformat.NoteInfo{Value: "note"}},
+		},
+		searching: true,
+		search:    "web",
+	}
+
+	model = updateKey(t, model, "n")
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
+	}
+	if model.search != "webn" {
+		t.Fatalf("search = %q, want webn", model.search)
+	}
+}
+
+func TestModelSearchBlurAllowsActions(t *testing.T) {
+	model := Model{
+		projects: []project.Project{
+			{Name: "web", Path: "/tmp/web", Note: ovwformat.NoteInfo{Value: "note"}},
+		},
+		searching: true,
+		search:    "web",
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	model = updateKey(t, model, "n")
+	if model.screen != screenNote {
+		t.Fatalf("screen = %v, want note", model.screen)
+	}
+	if model.noteInput != "note" {
+		t.Fatalf("noteInput = %q, want note", model.noteInput)
 	}
 }
 
