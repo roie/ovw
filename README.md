@@ -19,6 +19,13 @@ What needs attention?
 
 ## Install
 
+Homebrew:
+
+```sh
+brew tap roie/tap
+brew install ovw
+```
+
 macOS and Linux:
 
 ```sh
@@ -124,6 +131,13 @@ activity, and recent commits are read live from your local files and Git history
 Hiding a project never deletes files.
 
 ## Uninstall
+
+Homebrew:
+
+```sh
+brew uninstall ovw
+brew untap roie/tap
+```
 
 Remove the binary:
 
