@@ -98,9 +98,6 @@ func Tags(activity ActivityInfo, status string, cfg config.Config, now time.Time
 	if activity.Dirty {
 		tags = append(tags, "dirty")
 	}
-	if activity.Unpushed > 0 {
-		tags = append(tags, "unpushed")
-	}
 	if isStale(activity, cfg, now) {
 		tags = append(tags, "stale")
 	} else if len(tags) == 0 {

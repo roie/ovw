@@ -190,7 +190,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 			HasGit:            true,
 			HasCommits:        true,
 		},
-		Status:      format.StatusFromTags("active", []string{"dirty", "unpushed", "active"}),
+		Status:      format.StatusFromTags("active", []string{"dirty", "active"}),
 		Description: "Project description",
 		Note:        format.NoteInfo{Display: "note", Source: "user", Value: "note"},
 		Hidden:      true,
@@ -234,8 +234,8 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		t.Fatalf("managers = %#v, want go modules\n%s", item["managers"], out.String())
 	}
 	tags, ok := item["tags"].([]any)
-	if !ok || len(tags) != 3 || tags[0] != "dirty" || tags[1] != "unpushed" || tags[2] != "active" {
-		t.Fatalf("tags = %#v, want dirty/unpushed/active\n%s", item["tags"], out.String())
+	if !ok || len(tags) != 2 || tags[0] != "dirty" || tags[1] != "active" {
+		t.Fatalf("tags = %#v, want dirty/active\n%s", item["tags"], out.String())
 	}
 	activity, ok := item["activity"].(map[string]any)
 	if !ok {

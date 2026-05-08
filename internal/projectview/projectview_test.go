@@ -55,7 +55,7 @@ func TestFieldsDoNotExposeRedundantGitOrLastCommitFields(t *testing.T) {
 	project := project.Project{
 		Path:   "/tmp/eventca",
 		Stack:  []string{"Go"},
-		Status: format.StatusFromTags("", []string{"dirty", "unpushed"}),
+		Status: format.StatusFromTags("", []string{"dirty"}),
 		Activity: format.ActivityInfo{
 			Display:           "12m ↑2",
 			LastCommitAge:     "12m",

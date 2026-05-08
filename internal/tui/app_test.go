@@ -2547,7 +2547,7 @@ func detailTestProject(name string) project.Project {
 			HasGit:            true,
 			HasCommits:        true,
 		},
-		Status:      ovwformat.StatusFromTags("parked", []string{"dirty", "unpushed", "parked"}),
+		Status:      ovwformat.StatusFromTags("parked", []string{"dirty", "parked"}),
 		Note:        ovwformat.NoteInfo{Display: "Value note", Value: "Value note"},
 		Description: "Project description",
 	}

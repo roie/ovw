@@ -20,7 +20,7 @@ func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 		"Version  1.2.3",
 		"Branch   main",
 		"Activity 12m",
-		"Status   dirty · unpushed",
+		"Status   dirty · parked",
 		"Project description",
 		"Note",
 		"Value note",

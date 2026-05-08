@@ -35,7 +35,7 @@ func TestTableViewUsesHorizontalViewport(t *testing.T) {
 			Name:         "very-long-project-name",
 			StackDisplay: "SvelteKit+Cloudflare Workers+Tailwind",
 			Activity:     ovwformat.ActivityInfo{Display: "2w"},
-			Status:       ovwformat.StatusFromTags("", []string{"dirty", "unpushed", "stale"}),
+			Status:       ovwformat.StatusFromTags("", []string{"dirty", "stale"}),
 			Note:         ovwformat.NoteInfo{Display: "this is a long note that should not overflow the table width"},
 		},
 	}, -1, 72, 0, 0, config.Default(), "activity", "desc")
