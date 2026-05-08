@@ -380,8 +380,7 @@ func (m *setupModel) toggleSetupRow(row setupRow) {
 		m.checked = checkedOnboardingOptions(m.options)
 	}
 	if !m.checked[row.Path] && m.hasCheckedSetupAncestor(row.Path) {
-		m.checked[row.Path] = true
-		m.uncheckSetupAncestors(row.Path)
+		m.excludeSetupPathFromCheckedAncestor(row.Path)
 		m.uncheckSetupDescendants(row.Path)
 		return
 	}
@@ -397,6 +396,39 @@ func (m *setupModel) toggleSetupRow(row setupRow) {
 	if row.Parent != "" {
 		m.uncheckSetupAncestors(row.Path)
 		m.uncheckSetupDescendants(row.Path)
+	}
+}
+
+func (m *setupModel) excludeSetupPathFromCheckedAncestor(path string) {
+	ancestors := make([]string, 0, len(m.checked))
+	for checkedPath, checked := range m.checked {
+		if checked && setupIsDescendant(checkedPath, path) {
+			ancestors = append(ancestors, checkedPath)
+		}
+	}
+	sort.Slice(ancestors, func(i, j int) bool {
+		return len([]rune(ancestors[i])) > len([]rune(ancestors[j]))
+	})
+	for _, ancestor := range ancestors {
+		m.checked[ancestor] = false
+		m.checkSetupSiblingsAlongPath(ancestor, path)
+	}
+}
+
+func (m *setupModel) checkSetupSiblingsAlongPath(root, excluded string) {
+	current := root
+	for current != "" && current != excluded {
+		children := m.ensureSetupChildren(current)
+		next := setupDirectChildOnPath(current, excluded, children)
+		for _, child := range children {
+			if child != next && child != excluded {
+				m.checked[child] = true
+			}
+		}
+		if next == "" {
+			return
+		}
+		current = next
 	}
 }
 

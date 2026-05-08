@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -292,16 +293,19 @@ func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
 	model = updateSetupSpecialKey(t, model, tea.KeyDown)
 	model = updateSetupKey(t, model, " ")
 	if model.checked["~/dev"] {
-		t.Fatal("parent root should be unchecked when child is selected")
+		t.Fatal("parent root should be unchecked when child is excluded")
 	}
-	if !model.checked["~/dev/web"] {
-		t.Fatal("child root should be checked")
+	if model.checked["~/dev/web"] {
+		t.Fatal("excluded child root should be unchecked")
+	}
+	if !model.checked["~/dev/extensions"] {
+		t.Fatal("sibling child root should remain checked")
 	}
 	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
 	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
 	view = stripANSI(model.View())
 	if !strings.Contains(view, "[-] ~/dev") {
-		t.Fatalf("collapsed parent should show partial child selection:\n%s", view)
+		t.Fatalf("collapsed parent should show partial child exclusion:\n%s", view)
 	}
 	model = updateSetupSpecialKey(t, model, tea.KeyRight)
 	model = updateSetupSpecialKey(t, model, tea.KeyDown)
@@ -312,8 +316,8 @@ func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
 		t.Fatal("expected setup create command")
 	}
 	model = updateSetupMsg(t, model, cmd())
-	if len(created) != 1 || created[0] != "~/dev/web" {
-		t.Fatalf("created roots = %#v, want ~/dev/web", created)
+	if len(created) != 1 || created[0] != "~/dev/extensions" {
+		t.Fatalf("created roots = %#v, want ~/dev/extensions", created)
 	}
 }
 
@@ -362,8 +366,8 @@ func TestSetupExpandsNestedFoldersLazily(t *testing.T) {
 		checked:  map[string]bool{"~/dev": true},
 		expanded: map[string]bool{},
 		children: map[string][]string{
-			"~/dev":     {"~/dev/web"},
-			"~/dev/web": {"~/dev/web/eventca"},
+			"~/dev":     {"~/dev/web", "~/dev/extensions"},
+			"~/dev/web": {"~/dev/web/eventca", "~/dev/web/other"},
 		},
 		creator: func(roots []string) (config.FilePaths, config.Config, error) {
 			created = append([]string{}, roots...)
@@ -381,22 +385,25 @@ func TestSetupExpandsNestedFoldersLazily(t *testing.T) {
 	model = updateSetupSpecialKey(t, model, tea.KeyDown)
 	model = updateSetupKey(t, model, " ")
 	if model.checked["~/dev"] || model.checked["~/dev/web"] {
-		t.Fatal("ancestors should be unchecked when nested child is selected")
+		t.Fatal("ancestors should be unchecked when nested child is excluded")
 	}
-	if !model.checked["~/dev/web/eventca"] {
-		t.Fatal("nested child should be checked")
+	if model.checked["~/dev/web/eventca"] {
+		t.Fatal("nested child should be unchecked")
+	}
+	if !model.checked["~/dev/extensions"] || !model.checked["~/dev/web/other"] {
+		t.Fatalf("sibling branches should stay checked: %#v", model.checked)
 	}
 	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
 	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
 	view = stripANSI(model.View())
 	if !strings.Contains(view, "[-] web") {
-		t.Fatalf("collapsed child should show partial nested selection:\n%s", view)
+		t.Fatalf("collapsed child should show partial selection:\n%s", view)
 	}
 	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
 	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
 	view = stripANSI(model.View())
 	if !strings.Contains(view, "[-] ~/dev") {
-		t.Fatalf("collapsed root should show partial nested selection:\n%s", view)
+		t.Fatalf("collapsed root should show partial selection:\n%s", view)
 	}
 
 	model = updateSetupSpecialKey(t, model, tea.KeyRight)
@@ -409,8 +416,9 @@ func TestSetupExpandsNestedFoldersLazily(t *testing.T) {
 		t.Fatal("expected setup create command")
 	}
 	model = updateSetupMsg(t, model, cmd())
-	if len(created) != 1 || created[0] != "~/dev/web/eventca" {
-		t.Fatalf("created roots = %#v, want ~/dev/web/eventca", created)
+	want := []string{"~/dev/web/other", "~/dev/extensions"}
+	if !reflect.DeepEqual(created, want) {
+		t.Fatalf("created roots = %#v, want %#v", created, want)
 	}
 }
 
