@@ -1803,10 +1803,15 @@ func TestModelOpenEditorShowsError(t *testing.T) {
 func TestModelOpenTerminalUsesSelectedProject(t *testing.T) {
 	var gotPath string
 	var gotName string
+	var gotShell string
+	cfg := config.Default()
+	cfg.Shell = "zsh"
 	model := Model{
-		terminal: func(path, name string) tea.Cmd {
+		config: cfg,
+		terminal: func(path, name, shell string) tea.Cmd {
 			gotPath = path
 			gotName = name
+			gotShell = shell
 			return func() tea.Msg {
 				return terminalOpenedMsg{message: "Opened terminal two"}
 			}
@@ -1830,6 +1835,9 @@ func TestModelOpenTerminalUsesSelectedProject(t *testing.T) {
 	if gotName != "two" {
 		t.Fatalf("name = %q, want two", gotName)
 	}
+	if gotShell != "zsh" {
+		t.Fatalf("shell = %q, want zsh", gotShell)
+	}
 	if model.message != "Opened terminal two" {
 		t.Fatalf("message = %q, want Opened terminal two", model.message)
 	}
@@ -1837,7 +1845,7 @@ func TestModelOpenTerminalUsesSelectedProject(t *testing.T) {
 
 func TestModelOpenTerminalShowsError(t *testing.T) {
 	model := Model{
-		terminal: func(path, name string) tea.Cmd {
+		terminal: func(path, name, shell string) tea.Cmd {
 			return func() tea.Msg {
 				return terminalFailedMsg{err: errors.New("no shell")}
 			}

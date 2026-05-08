@@ -24,7 +24,7 @@ type metadataUpdater func(string, app.MetadataUpdate) (app.MetadataUpdateResult,
 type visibilityUpdater func(string, bool) (app.MetadataUpdateResult, error)
 type projectAdder func(string) (app.AddProjectResult, error)
 type editorRunner func(string, string) error
-type terminalRunner func(string, string) tea.Cmd
+type terminalRunner func(string, string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
 
 var terminalTitleWriter io.Writer = os.Stdout
@@ -925,7 +925,7 @@ func (m Model) openSelectedTerminal() tea.Cmd {
 	if runner == nil {
 		runner = runTerminal
 	}
-	return runner(project.Path, project.Name)
+	return runner(project.Path, project.Name, m.config.Shell)
 }
 
 func (m Model) loadSelectedRecent() tea.Cmd {

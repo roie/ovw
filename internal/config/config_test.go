@@ -108,7 +108,7 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				cfg.Columns = []string{"name", "url"}
 				return cfg
 			},
-			want: `invalid column "url": expected name, path, stack, manager, version, activity, status, or note`,
+			want: `invalid column "url": expected name, path, stack, manager, scripts, version, activity, status, or note`,
 		},
 		{
 			name: "unknown sort",
@@ -172,14 +172,23 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !strings.Contains(text, `columns = ["name", "stack", "activity", "status", "note"]`) {
 		t.Fatalf("default config missing status column:\n%s", text)
 	}
+	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, activity, status, note") {
+		t.Fatalf("default config missing column options comment:\n%s", text)
+	}
 	if strings.Contains(text, "show_untagged") || strings.Contains(text, "relative_dates") {
 		t.Fatalf("default config contains stale display fields:\n%s", text)
+	}
+	if strings.Contains(text, "Phase 2") || strings.Contains(text, "future TUI actions") {
+		t.Fatalf("default config contains future placeholder text:\n%s", text)
 	}
 	if strings.Contains(text, "[cache]") {
 		t.Fatalf("default config contains cache section:\n%s", text)
 	}
 	if !strings.Contains(text, "# Suggested statuses. Status is free-form.") {
 		t.Fatalf("default config missing suggested status comment:\n%s", text)
+	}
+	if !strings.Contains(text, "# Commands used by TUI open and terminal actions.") {
+		t.Fatalf("default config missing editor/shell action comment:\n%s", text)
 	}
 	loaded, err := Load(path)
 	if err != nil {

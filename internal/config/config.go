@@ -144,7 +144,7 @@ func Validate(cfg Config) error {
 	}
 	for _, column := range cfg.Columns {
 		if !validColumn(column) {
-			return fmt.Errorf("invalid column %q: expected name, path, stack, manager, version, activity, status, or note", column)
+			return fmt.Errorf("invalid column %q: expected name, path, stack, manager, scripts, version, activity, status, or note", column)
 		}
 	}
 	if !validSortBy(cfg.SortBy) {
@@ -158,7 +158,7 @@ func Validate(cfg Config) error {
 
 func validColumn(column string) bool {
 	switch column {
-	case "name", "path", "stack", "manager", "version", "activity", "status", "note":
+	case "name", "path", "stack", "manager", "scripts", "version", "activity", "status", "note":
 		return true
 	default:
 		return false
@@ -364,8 +364,8 @@ const defaultConfigTemplate = `# ovw — A terminal overview for your local proj
 # Roots
 # ─────────────────────────────────────────
 
-# Folders ovw will scan for projects.
-# Auto-detected on first run if not set.
+# Folders ovw scans for projects.
+# Edit this list or run ovw config setup to choose roots again.
 roots = [
 {{ROOTS}}
 ]
@@ -449,12 +449,13 @@ statuses = ["active", "parked", "shipped", "idea"]
 # ─────────────────────────────────────────
 
 # Columns to show and their order.
+# Options: name, path, stack, manager, scripts, version, activity, status, note
 columns = ["name", "stack", "activity", "status", "note"]
 
 # Default sort column. Options: activity, name, status
 sort_by = "activity"
 
-# Sort direction: asc or desc
+# Sort direction. Options: asc, desc
 sort_dir = "desc"
 
 # ─────────────────────────────────────────
@@ -470,17 +471,11 @@ show_unknown = true
 "TypeScript"         = "TS"
 "JavaScript"         = "JS"
 
-# Phase 2: user-defined stack rules
-# [[stack.rules]]
-# name = "SvelteKit"
-# packages = ["@sveltejs/kit"]
-# files = ["svelte.config.js", "svelte.config.ts"]
-
 # ─────────────────────────────────────────
 # Editor and Shell
 # ─────────────────────────────────────────
 
-# Used by future TUI actions.
+# Commands used by TUI open and terminal actions.
 editor = "code"
 shell = ""
 `

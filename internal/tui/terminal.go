@@ -9,8 +9,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func runTerminal(path, name string) tea.Cmd {
-	shell := os.Getenv("SHELL")
+func runTerminal(path, name, configuredShell string) tea.Cmd {
+	shell := configuredShell
+	if shell == "" {
+		shell = os.Getenv("SHELL")
+	}
 	if shell == "" && runtime.GOOS == "windows" {
 		shell = os.Getenv("COMSPEC")
 	}
