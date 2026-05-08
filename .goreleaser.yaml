@@ -37,6 +37,18 @@ archives:
 checksum:
   name_template: checksums.txt
 
+brews:
+  - name: ovw
+    repository:
+      owner: roie
+      name: homebrew-tap
+    directory: Formula
+    homepage: https://github.com/roie/ovw
+    description: A terminal overview for your local projects.
+    license: MIT
+    test: |
+      system "#{bin}/ovw", "--version"
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
