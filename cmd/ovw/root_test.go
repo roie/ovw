@@ -115,7 +115,7 @@ func TestVersionOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute(-v) error = %v", err)
 	}
-	if out != "ovw 1.0.0\n" {
+	if out != "ovw 1.0.1\n" {
 		t.Fatalf("version output = %q", out)
 	}
 }

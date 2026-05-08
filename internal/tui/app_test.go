@@ -681,10 +681,10 @@ func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
 
 func TestFooterShowsVersionWhenWide(t *testing.T) {
 	got := stripANSI(footerView(180))
-	if !strings.HasSuffix(got, "ovw 1.0.0") {
+	if !strings.HasSuffix(got, "ovw 1.0.1") {
 		t.Fatalf("footer should put version on the right:\n%s", got)
 	}
-	if strings.Contains(stripANSI(footerView(40)), "ovw 1.0.0") {
+	if strings.Contains(stripANSI(footerView(40)), "ovw 1.0.1") {
 		t.Fatalf("narrow footer should hide version:\n%s", stripANSI(footerView(40)))
 	}
 }
