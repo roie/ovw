@@ -97,18 +97,19 @@ func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 
 func TestTableViewFollowsConfiguredColumns(t *testing.T) {
 	cfg := config.Default()
-	cfg.Columns = []string{"name", "path", "manager", "version", "status"}
+	cfg.Columns = []string{"name", "path", "manager", "scripts", "version", "status"}
 	got := tableView([]project.Project{
 		{
 			Name:     "eventca",
 			Path:     "/tmp/eventca",
 			Managers: []string{"pnpm"},
+			Scripts:  []string{"dev", "build"},
 			Version:  "1.2.3",
 			Status:   ovwformat.StatusFromTags("", []string{"active"}),
 		},
 	}, -1, 100, 0, 0, cfg)
 
-	for _, want := range []string{"Name", "Path", "Manager", "Version", "Status", "eventca", "/tmp/eventca", "pnpm", "1.2.3", "active"} {
+	for _, want := range []string{"Name", "Path", "Manager", "Scripts", "Version", "Status", "eventca", "/tmp/eventca", "pnpm", "dev, build", "1.2.3", "active"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing configured column value %q:\n%s", want, got)
 		}

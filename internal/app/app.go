@@ -17,6 +17,7 @@ import (
 	projectversion "ovw/internal/projectversion"
 	"ovw/internal/render"
 	"ovw/internal/scanner"
+	"ovw/internal/scripts"
 	"ovw/internal/stack"
 )
 
@@ -413,6 +414,7 @@ func (err *ProjectNotFoundError) Error() string {
 func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.Project {
 	stackResult, _ := stack.Detect(scanned.Path, cfg.Stack)
 	managers := manager.Detect(scanned.Path)
+	detectedScripts := scripts.Detect(scanned.Path)
 	gitInfo := gitactivity.Detect(scanned.Path)
 	description := projectdescription.Detect(scanned.Path)
 	version := projectversion.Detect(scanned.Path)
@@ -425,6 +427,7 @@ func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.P
 		Stack:        stackResult.Labels,
 		StackDisplay: stackResult.Display,
 		Managers:     managers,
+		Scripts:      detectedScripts,
 		Version:      version,
 		Activity:     activity,
 		Status:       status,

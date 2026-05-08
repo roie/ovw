@@ -12,6 +12,7 @@ type Project struct {
 	Stack        []string            `json:"stack"`
 	StackDisplay string              `json:"stack_display"`
 	Managers     []string            `json:"managers"`
+	Scripts      []string            `json:"scripts"`
 	Version      string              `json:"version"`
 	Activity     format.ActivityInfo `json:"activity"`
 	Status       format.StatusInfo   `json:"status"`

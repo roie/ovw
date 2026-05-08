@@ -1995,6 +1995,7 @@ func detailTestProject(name string) project.Project {
 		Stack:        []string{"Go", "Cobra"},
 		StackDisplay: "Go",
 		Managers:     []string{"go modules"},
+		Scripts:      []string{"dev", "build", "check"},
 		Version:      "1.2.3",
 		Activity: ovwformat.ActivityInfo{
 			Display:           "12m ↑2",

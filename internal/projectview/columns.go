@@ -24,6 +24,8 @@ func ColumnValue(project project.Project, column, displayName string) string {
 		return project.StackDisplay
 	case "manager":
 		return strings.Join(project.Managers, ", ")
+	case "scripts":
+		return scriptsDisplay(project.Scripts)
 	case "version":
 		return project.Version
 	case "activity":

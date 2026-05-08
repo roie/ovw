@@ -177,6 +177,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		Stack:        []string{"Go"},
 		StackDisplay: "Go",
 		Managers:     []string{"go modules"},
+		Scripts:      []string{"dev", "build"},
 		Version:      "1.2.3",
 		Activity: format.ActivityInfo{
 			Display:           "1d !",
@@ -217,6 +218,10 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	}
 	if note, ok := item["note"].(string); !ok || note != "note" {
 		t.Fatalf("note = %#v, want string note\n%s", item["note"], out.String())
+	}
+	scripts, ok := item["scripts"].([]any)
+	if !ok || len(scripts) != 2 || scripts[0] != "dev" || scripts[1] != "build" {
+		t.Fatalf("scripts = %#v, want dev/build\n%s", item["scripts"], out.String())
 	}
 	if description, ok := item["description"].(string); !ok || description != "Project description" {
 		t.Fatalf("description = %#v, want Project description\n%s", item["description"], out.String())

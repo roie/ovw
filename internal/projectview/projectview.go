@@ -33,6 +33,7 @@ func Fields(project project.Project, opts Options) []Field {
 		{Label: "Path", Value: path},
 		{Label: "Stack", Value: stackDisplay(project.Stack)},
 		{Label: "Manager", Value: managerDisplay(project.Managers)},
+		{Label: "Scripts", Value: scriptsDisplay(project.Scripts)},
 	}
 	add := func(label, value string) {
 		if value != "" {
@@ -87,4 +88,11 @@ func managerDisplay(managers []string) string {
 		return "—"
 	}
 	return strings.Join(managers, ", ")
+}
+
+func scriptsDisplay(scripts []string) string {
+	if len(scripts) == 0 {
+		return "—"
+	}
+	return strings.Join(scripts, ", ")
 }

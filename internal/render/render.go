@@ -92,6 +92,7 @@ type jsonProject struct {
 	Path        string       `json:"path"`
 	Stack       []string     `json:"stack"`
 	Managers    []string     `json:"managers"`
+	Scripts     []string     `json:"scripts"`
 	Version     string       `json:"version,omitempty"`
 	Activity    jsonActivity `json:"activity"`
 	Tags        []string     `json:"tags"`
@@ -127,6 +128,7 @@ func newJSONProject(project project.Project) jsonProject {
 		Path:        project.Path,
 		Stack:       project.Stack,
 		Managers:    project.Managers,
+		Scripts:     project.Scripts,
 		Version:     project.Version,
 		Activity:    activity,
 		Tags:        project.Status.Tags,
