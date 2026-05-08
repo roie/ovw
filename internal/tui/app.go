@@ -63,6 +63,7 @@ type Model struct {
 	tableXOffset    int
 	screen          screenMode
 	search          string
+	searchCursor    int
 	searching       bool
 	filterSelected  int
 	activeFilter    string
@@ -70,14 +71,18 @@ type Model struct {
 	activeSort      string
 	activeSortDir   string
 	noteInput       string
+	noteCursor      int
 	addInput        string
+	addCursor       int
 	addErr          string
 	statusSelected  int
 	statusInput     string
+	statusCursor    int
 	onboardOptions  []string
 	onboardChecked  map[string]bool
 	onboardSelected int
 	onboardInput    string
+	onboardCursor   int
 	onboardErr      string
 	message         string
 	loading         bool
@@ -168,6 +173,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isEscapeKey(msg.String()) && m.search != "" {
 			m.search = ""
+			m.searchCursor = 0
 			m.clampSelection()
 			return m, m.loadSelectedRecent()
 		}
@@ -177,6 +183,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isEnterKey(msg.String()) && m.canOpenDetail() {
 			m.screen = screenDetail
 			return m, nil
+		}
+		if m.searching && isTextInputKey(msg) {
+			return m.updateSearch(msg)
 		}
 		if isRightKey(msg.String()) {
 			m.tableXOffset += 8
@@ -201,17 +210,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.moveSelection(-1)
 			return m, m.loadSelectedRecent()
 		}
-		if m.searching {
-			return m.updateSearch(msg)
-		}
 		if isSearchKey(msg.String()) {
 			m.screen = screenTable
 			m.searching = true
+			m.searchCursor = textCursor(m.search, m.searchCursor)
 			return m, nil
 		}
 		if isAddKey(msg.String()) && !m.loading {
 			m.screen = screenAdd
 			m.addInput = ""
+			m.addCursor = 0
 			m.addErr = ""
 			return m, nil
 		}
@@ -229,6 +237,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			project, _ := m.currentProject()
 			m.screen = screenNote
 			m.noteInput = project.Note.Value
+			m.noteCursor = len([]rune(m.noteInput))
 			return m, nil
 		}
 		if isStatusKey(msg.String()) && m.canOpenDetail() {
@@ -368,18 +377,22 @@ func (m Model) updateAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value):
 		m.screen = screenTable
 		m.addInput = ""
+		m.addCursor = 0
 		m.addErr = ""
 	case isEnterKey(value):
 		m.loading = true
 		m.addErr = ""
 		return m, m.addProject()
+	case value == "left":
+		m.addCursor = textMoveLeft(m.addInput, m.addCursor)
+	case value == "right":
+		m.addCursor = textMoveRight(m.addInput, m.addCursor)
 	case isBackspaceKey(value):
-		runes := []rune(m.addInput)
-		if len(runes) > 0 {
-			m.addInput = string(runes[:len(runes)-1])
-		}
+		m.addInput, m.addCursor = textBackspace(m.addInput, m.addCursor)
+	case isDeleteKey(value):
+		m.addInput, m.addCursor = textDelete(m.addInput, m.addCursor)
 	default:
-		m.addInput += inputText(msg)
+		m.addInput, m.addCursor = textInsert(m.addInput, m.addCursor, inputText(msg))
 	}
 	return m, nil
 }
@@ -387,13 +400,16 @@ func (m Model) updateAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	value := msg.String()
 	switch {
+	case value == "left":
+		m.searchCursor = textMoveLeft(m.search, m.searchCursor)
+	case value == "right":
+		m.searchCursor = textMoveRight(m.search, m.searchCursor)
 	case isBackspaceKey(value):
-		runes := []rune(m.search)
-		if len(runes) > 0 {
-			m.search = string(runes[:len(runes)-1])
-		}
+		m.search, m.searchCursor = textBackspace(m.search, m.searchCursor)
+	case isDeleteKey(value):
+		m.search, m.searchCursor = textDelete(m.search, m.searchCursor)
 	case msg.Type == tea.KeyRunes:
-		m.search += string(msg.Runes)
+		m.search, m.searchCursor = textInsert(m.search, m.searchCursor, string(msg.Runes))
 	}
 	m.clampSelection()
 	return m, m.loadSelectedRecent()
@@ -471,6 +487,7 @@ func (m Model) updateOnboarding(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.onboardSelected >= len(m.onboardOptions) {
 			m.screen = screenOnboardingInput
 			m.onboardInput = ""
+			m.onboardCursor = 0
 			m.onboardErr = ""
 			return m, nil
 		}
@@ -496,13 +513,16 @@ func (m Model) updateOnboardingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		roots := m.selectedOnboardingRoots()
 		roots = append(roots, root)
 		return m, m.createOnboardingConfigRoots(roots)
+	case value == "left":
+		m.onboardCursor = textMoveLeft(m.onboardInput, m.onboardCursor)
+	case value == "right":
+		m.onboardCursor = textMoveRight(m.onboardInput, m.onboardCursor)
 	case isBackspaceKey(value):
-		runes := []rune(m.onboardInput)
-		if len(runes) > 0 {
-			m.onboardInput = string(runes[:len(runes)-1])
-		}
+		m.onboardInput, m.onboardCursor = textBackspace(m.onboardInput, m.onboardCursor)
+	case isDeleteKey(value):
+		m.onboardInput, m.onboardCursor = textDelete(m.onboardInput, m.onboardCursor)
 	default:
-		m.onboardInput += inputText(msg)
+		m.onboardInput, m.onboardCursor = textInsert(m.onboardInput, m.onboardCursor, inputText(msg))
 	}
 	return m, nil
 }
@@ -540,13 +560,16 @@ func (m Model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenTable
 		m.loading = true
 		return m, m.saveNote()
+	case value == "left":
+		m.noteCursor = textMoveLeft(m.noteInput, m.noteCursor)
+	case value == "right":
+		m.noteCursor = textMoveRight(m.noteInput, m.noteCursor)
 	case isBackspaceKey(value):
-		runes := []rune(m.noteInput)
-		if len(runes) > 0 {
-			m.noteInput = string(runes[:len(runes)-1])
-		}
+		m.noteInput, m.noteCursor = textBackspace(m.noteInput, m.noteCursor)
+	case isDeleteKey(value):
+		m.noteInput, m.noteCursor = textDelete(m.noteInput, m.noteCursor)
 	default:
-		m.noteInput += inputText(msg)
+		m.noteInput, m.noteCursor = textInsert(m.noteInput, m.noteCursor, inputText(msg))
 	}
 	return m, nil
 }
@@ -571,6 +594,7 @@ func (m Model) updateStatusPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			project, _ := m.currentProject()
 			m.screen = screenStatusInput
 			m.statusInput = project.Status.Value
+			m.statusCursor = len([]rune(m.statusInput))
 		case statusOptionClear:
 			m.screen = screenTable
 			m.loading = true
@@ -592,13 +616,16 @@ func (m Model) updateStatusInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenTable
 		m.loading = true
 		return m, m.saveStatus(m.statusInput, "Status saved")
+	case value == "left":
+		m.statusCursor = textMoveLeft(m.statusInput, m.statusCursor)
+	case value == "right":
+		m.statusCursor = textMoveRight(m.statusInput, m.statusCursor)
 	case isBackspaceKey(value):
-		runes := []rune(m.statusInput)
-		if len(runes) > 0 {
-			m.statusInput = string(runes[:len(runes)-1])
-		}
+		m.statusInput, m.statusCursor = textBackspace(m.statusInput, m.statusCursor)
+	case isDeleteKey(value):
+		m.statusInput, m.statusCursor = textDelete(m.statusInput, m.statusCursor)
 	default:
-		m.statusInput += inputText(msg)
+		m.statusInput, m.statusCursor = textInsert(m.statusInput, m.statusCursor, inputText(msg))
 	}
 	return m, nil
 }
@@ -611,6 +638,11 @@ func inputText(msg tea.KeyMsg) string {
 		return string(msg.Runes)
 	}
 	return ""
+}
+
+func isTextInputKey(msg tea.KeyMsg) bool {
+	value := msg.String()
+	return value == "left" || value == "right" || isBackspaceKey(value) || isDeleteKey(value) || msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace
 }
 
 func (m Model) View() string {
@@ -980,7 +1012,7 @@ func renderShell(m Model) string {
 	case m.screen == screenOnboarding:
 		body = onboardingCheckedView(m.onboardOptions, m.onboardChecked, m.onboardSelected, m.onboardErr)
 	case m.screen == screenOnboardingInput:
-		body = onboardingInputView(m.onboardInput, m.onboardErr)
+		body = onboardingInputView(m.onboardInput, m.onboardCursor, m.onboardErr)
 	default:
 		visible := m.visibleProjects()
 		body = headerView(m)
@@ -997,7 +1029,7 @@ func renderShell(m Model) string {
 				project, ok := m.currentProject()
 				content = overlayModal(content, detailModalView(project, ok, m.contentWidth()), m.contentWidth())
 			case screenAdd:
-				content = overlayModal(content, addProjectView(m.addInput, m.addErr), m.contentWidth())
+				content = overlayModal(content, addProjectView(m.addInput, m.addCursor, m.addErr), m.contentWidth())
 			case screenHelp:
 				content = overlayModal(content, helpView(), m.contentWidth())
 			case screenFilter:
@@ -1006,13 +1038,13 @@ func renderShell(m Model) string {
 				content = overlayModal(content, sortView(sortOptions(), m.sortSelected, m.activeSortDir), m.contentWidth())
 			case screenNote:
 				project, _ := m.currentProject()
-				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display), m.contentWidth())
+				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display, m.noteCursor), m.contentWidth())
 			case screenStatus:
 				project, _ := m.currentProject()
 				content = overlayModal(content, statusView(project.Name, m.statusOptions(), m.statusSelected), m.contentWidth())
 			case screenStatusInput:
 				project, _ := m.currentProject()
-				content = overlayModal(content, statusInputView(project.Name, m.statusInput), m.contentWidth())
+				content = overlayModal(content, statusInputView(project.Name, m.statusInput, m.statusCursor), m.contentWidth())
 			}
 			body += "\n\n" + content
 		}
@@ -1253,7 +1285,7 @@ func (m Model) selectedProjectPath() string {
 
 func (m Model) searchDisplay() string {
 	if m.searching {
-		return searchInputLine(m.search, "")
+		return searchInputLine(m.search, "", m.searchCursor)
 	}
 	return m.search
 }

@@ -112,6 +112,10 @@ func isBackspaceKey(value string) bool {
 	return value == "backspace" || value == "ctrl+h"
 }
 
+func isDeleteKey(value string) bool {
+	return value == "delete" || value == "ctrl+d"
+}
+
 func footerView(width int) string {
 	keys := defaultKeyMap()
 	left := "↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc

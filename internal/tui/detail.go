@@ -97,7 +97,7 @@ func detailSummaryView(project project.Project, width int) string {
 			return
 		}
 		if label == "Note" {
-			addSummaryNote(&lines, value, width)
+			addSummaryNote(&lines, value, width, project.Note.Source)
 			return
 		}
 		lines = append(lines, truncateText(detailLine(label, value), contentWidth))
@@ -113,7 +113,9 @@ func detailSummaryView(project project.Project, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func addSummaryNote(lines *[]string, note string, width int) {
+const maxFallbackSummaryNoteLines = 4
+
+func addSummaryNote(lines *[]string, note string, width int, source string) {
 	if note == "" {
 		return
 	}
@@ -121,7 +123,15 @@ func addSummaryNote(lines *[]string, note string, width int) {
 		*lines = append(*lines, "")
 	}
 	*lines = append(*lines, truncateText("Note", width))
-	*lines = append(*lines, textwrap.Lines(note, width)...)
+	noteLines := textwrap.Lines(note, width)
+	if isFallbackNoteSource(source) && len(noteLines) > maxFallbackSummaryNoteLines {
+		noteLines = append(noteLines[:maxFallbackSummaryNoteLines], truncateText("...", width))
+	}
+	*lines = append(*lines, noteLines...)
+}
+
+func isFallbackNoteSource(source string) bool {
+	return source == "commit" || source == "description"
 }
 
 func addRecentCommits(lines *[]string, commits []ovwformat.RecentCommit, width int) {

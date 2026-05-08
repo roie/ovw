@@ -22,6 +22,7 @@ type setupModel struct {
 	children  map[string][]string
 	selected  int
 	input     string
+	cursor    int
 	inputting bool
 	err       error
 	done      bool
@@ -102,7 +103,7 @@ func (m setupModel) View() string {
 		if m.err != nil {
 			errText = m.err.Error()
 		}
-		return onboardingInputView(m.input, errText)
+		return onboardingInputView(m.input, m.cursor, errText)
 	}
 	errText := ""
 	if m.err != nil {
@@ -148,6 +149,7 @@ func (m setupModel) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selected >= len(rows) {
 			m.inputting = true
 			m.input = ""
+			m.cursor = 0
 			m.err = nil
 			return m, nil
 		}
@@ -171,13 +173,16 @@ func (m setupModel) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		roots = append(roots, root)
 		m.err = nil
 		return m, m.createConfig(roots)
+	case value == "left":
+		m.cursor = textMoveLeft(m.input, m.cursor)
+	case value == "right":
+		m.cursor = textMoveRight(m.input, m.cursor)
 	case isBackspaceKey(value):
-		runes := []rune(m.input)
-		if len(runes) > 0 {
-			m.input = string(runes[:len(runes)-1])
-		}
+		m.input, m.cursor = textBackspace(m.input, m.cursor)
+	case isDeleteKey(value):
+		m.input, m.cursor = textDelete(m.input, m.cursor)
 	default:
-		m.input += inputText(msg)
+		m.input, m.cursor = textInsert(m.input, m.cursor, inputText(msg))
 	}
 	return m, nil
 }

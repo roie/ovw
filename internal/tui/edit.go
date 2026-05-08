@@ -6,16 +6,16 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func noteView(projectName, value, placeholder string) string {
+func noteView(projectName, value, placeholder string, cursor int) string {
 	if placeholder == "" {
 		placeholder = "empty clears note"
 	}
-	return inputModalView(modalTitleWithProject("Note", projectName), value, placeholder, 56)
+	return inputModalView(modalTitleWithProject("Note", projectName), value, placeholder, 56, cursor)
 }
 
-func addProjectView(value, err string) string {
+func addProjectView(value string, cursor int, err string) string {
 	inputWidth := 52
-	lines := inputModalLines(value, "~/dev/my-project", inputWidth)
+	lines := inputModalLines(value, "~/dev/my-project", inputWidth, cursor)
 	if err != "" {
 		lines = append(lines, "", errorStyle.Render(err))
 	}
@@ -67,9 +67,9 @@ func onboardingSetupView(rows []setupRow, selected int, err string) string {
 	return strings.Join(lines, "\n")
 }
 
-func onboardingInputView(value, err string) string {
+func onboardingInputView(value string, cursor int, err string) string {
 	lines := onboardingHeaderLines("Enter a custom project folder")
-	lines = append(lines, inlineInputLines(value, "~/Projects", 52)...)
+	lines = append(lines, inlineInputLines(value, "~/Projects", 52, cursor)...)
 	if err != "" {
 		lines = append(lines, "", errorStyle.Render(err))
 	}
@@ -140,8 +140,8 @@ func statusView(projectName string, options []statusOption, selected int) string
 	return modalView(modalTitleWithProject("Status", projectName), lines, 42)
 }
 
-func statusInputView(projectName, value string) string {
-	return inputModalView(modalTitleWithProject("Custom status", projectName), value, "empty clears status", 42)
+func statusInputView(projectName, value string, cursor int) string {
+	return inputModalView(modalTitleWithProject("Custom status", projectName), value, "empty clears status", 42, cursor)
 }
 
 func modalTitleWithProject(title, projectName string) string {
@@ -151,21 +151,21 @@ func modalTitleWithProject(title, projectName string) string {
 	return title + " · " + projectName
 }
 
-func inputModalView(title, value, placeholder string, width int) string {
+func inputModalView(title, value, placeholder string, width int, cursor int) string {
 	inputWidth := width - 4
-	lines := inputModalLines(value, placeholder, inputWidth)
+	lines := inputModalLines(value, placeholder, inputWidth, cursor)
 	lines = append(lines, "", actionHint("enter", "save"))
 	return modalView(title, lines, width)
 }
 
-func searchInputLine(value, placeholder string) string {
+func searchInputLine(value, placeholder string, cursor int) string {
 	if value == "" {
 		return placeholder + activeCursor()
 	}
-	return value + activeCursor()
+	return stringWithCursor(value, cursor, activeCursor())
 }
 
-func inputModalLines(value, placeholder string, width int) []string {
+func inputModalLines(value, placeholder string, width int, cursor int) []string {
 	if value == "" {
 		lines := wrapInputPlaceholderLines(placeholder, width)
 		for index := range lines {
@@ -175,10 +175,13 @@ func inputModalLines(value, placeholder string, width int) []string {
 		lines[last] += modalCursor()
 		return lines
 	}
-	lines := wrapInputLines(value, width)
-	last := len(lines) - 1
-	lines[last] += modalCursor()
-	return lines
+	if textCursor(value, cursor) == len([]rune(value)) {
+		lines := wrapInputLines(value, width)
+		last := len(lines) - 1
+		lines[last] += modalCursor()
+		return lines
+	}
+	return wrapInputLinesWithCursor(value, width, cursor, modalCursor())
 }
 
 func actionHint(key, action string) string {
@@ -289,6 +292,39 @@ func wrapInputLine(value string, width int) []string {
 	}
 	lines = append(lines, string(runes))
 	return lines
+}
+
+func wrapInputLinesWithCursor(value string, width int, cursor int, cursorText string) []string {
+	runes := []rune(value)
+	cursor = textCursor(value, cursor)
+	if width <= 1 {
+		return []string{string(runes[:cursor]) + cursorText + string(runes[cursor:])}
+	}
+	lineWidth := width - 1
+	lines := []string{}
+	for start := 0; start <= len(runes); start += lineWidth {
+		end := start + lineWidth
+		if end > len(runes) {
+			end = len(runes)
+		}
+		line := string(runes[start:end])
+		if cursor >= start && (cursor < end || end == len(runes)) {
+			offset := cursor - start
+			lineRunes := []rune(line)
+			line = string(lineRunes[:offset]) + cursorText + string(lineRunes[offset:])
+		}
+		lines = append(lines, line)
+		if end == len(runes) {
+			break
+		}
+	}
+	return lines
+}
+
+func stringWithCursor(value string, cursor int, cursorText string) string {
+	runes := []rune(value)
+	cursor = textCursor(value, cursor)
+	return string(runes[:cursor]) + cursorText + string(runes[cursor:])
 }
 
 func modalLine(value string, width int) string {
@@ -405,7 +441,7 @@ func onboardingCustomPathLine(selected bool) string {
 	return "  " + mutedStyle.Render(label)
 }
 
-func inlineInputLines(value, placeholder string, width int) []string {
+func inlineInputLines(value, placeholder string, width int, cursor int) []string {
 	if value == "" {
 		lines := wrapInputPlaceholderLines(placeholder, width)
 		for index := range lines {
@@ -415,10 +451,13 @@ func inlineInputLines(value, placeholder string, width int) []string {
 		lines[last] += activeCursor()
 		return lines
 	}
-	lines := wrapInputLines(value, width)
-	last := len(lines) - 1
-	lines[last] += activeCursor()
-	return lines
+	if textCursor(value, cursor) == len([]rune(value)) {
+		lines := wrapInputLines(value, width)
+		last := len(lines) - 1
+		lines[last] += activeCursor()
+		return lines
+	}
+	return wrapInputLinesWithCursor(value, width, cursor, activeCursor())
 }
 
 func inlineActionHint(key, action string) string {

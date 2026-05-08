@@ -195,6 +195,36 @@ func TestModelOnboardingCustomPathValidationStaysInInput(t *testing.T) {
 	}
 }
 
+func TestModelOnboardingCustomPathSupportsCursorEditing(t *testing.T) {
+	model := Model{
+		screen:         screenOnboarding,
+		onboardOptions: []string{"/tmp/dev"},
+		onboardChecked: map[string]bool{},
+	}
+	model.onboardSelected = 1
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	for _, value := range []string{"/", "t", "m", "p", "/", "a", "p"} {
+		model = updateKey(t, model, value)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateKey(t, model, "p")
+
+	if model.onboardInput != "/tmp/app" {
+		t.Fatalf("onboardInput = %q, want /tmp/app", model.onboardInput)
+	}
+	if model.onboardCursor != len([]rune("/tmp/app"))-1 {
+		t.Fatalf("onboardCursor = %d, want before last p", model.onboardCursor)
+	}
+	if !strings.Contains(stripANSI(model.View()), "/tmp/ap▌p") {
+		t.Fatalf("onboarding input cursor not rendered in place:\n%s", stripANSI(model.View()))
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyDelete)
+	if model.onboardInput != "/tmp/ap" {
+		t.Fatalf("onboardInput after delete = %q, want /tmp/ap", model.onboardInput)
+	}
+}
+
 func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
 	var created []string
 	model := setupModel{
@@ -240,6 +270,44 @@ func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
 	model = updateSetupMsg(t, model, cmd())
 	if len(created) != 1 || created[0] != "~/dev/web" {
 		t.Fatalf("created roots = %#v, want ~/dev/web", created)
+	}
+}
+
+func TestSetupCustomPathSupportsCursorEditing(t *testing.T) {
+	model := setupModel{
+		options:   []string{"/tmp/dev"},
+		checked:   map[string]bool{},
+		expanded:  map[string]bool{},
+		children:  map[string][]string{},
+		selected:  1,
+		inputting: true,
+	}
+	for _, value := range []string{"/", "t", "m", "p", "/", "a", "p"} {
+		model = updateSetupKey(t, model, value)
+	}
+	model = updateSetupSpecialKey(t, model, tea.KeyLeft)
+	model = updateSetupKey(t, model, "p")
+
+	if model.input != "/tmp/app" {
+		t.Fatalf("input = %q, want /tmp/app", model.input)
+	}
+	if model.cursor != len([]rune("/tmp/app"))-1 {
+		t.Fatalf("cursor = %d, want before last p", model.cursor)
+	}
+	if !strings.Contains(stripANSI(model.View()), "/tmp/ap▌p") {
+		t.Fatalf("setup input cursor not rendered in place:\n%s", stripANSI(model.View()))
+	}
+
+	model = updateSetupSpecialKey(t, model, tea.KeyDelete)
+	if model.input != "/tmp/ap" {
+		t.Fatalf("input after delete = %q, want /tmp/ap", model.input)
+	}
+}
+
+func TestInputCursorRendersOnceAtWrapBoundary(t *testing.T) {
+	got := strings.Count(stripANSI(addProjectView(strings.Repeat("a", 60), 51, "")), "▌")
+	if got != 1 {
+		t.Fatalf("cursor count = %d, want 1", got)
 	}
 }
 
@@ -992,8 +1060,9 @@ func TestModelSearchKeepsLetterKeysInSearchInput(t *testing.T) {
 		projects: []project.Project{
 			{Name: "web", Path: "/tmp/web", Note: ovwformat.NoteInfo{Value: "note"}},
 		},
-		searching: true,
-		search:    "web",
+		searching:    true,
+		search:       "web",
+		searchCursor: 3,
 	}
 
 	model = updateKey(t, model, "n")
@@ -1005,13 +1074,44 @@ func TestModelSearchKeepsLetterKeysInSearchInput(t *testing.T) {
 	}
 }
 
+func TestModelSearchSupportsCursorEditing(t *testing.T) {
+	model := Model{
+		projects: []project.Project{
+			{Name: "web-api", Path: "/tmp/web-api"},
+			{Name: "web-app", Path: "/tmp/web-app"},
+		},
+		searching:    true,
+		search:       "web",
+		searchCursor: 3,
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateKey(t, model, "-")
+	if model.search != "we-b" {
+		t.Fatalf("search = %q, want we-b", model.search)
+	}
+	if !strings.Contains(stripANSI(model.View()), "search: we-▌b") {
+		t.Fatalf("search cursor not rendered in place:\n%s", stripANSI(model.View()))
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyBackspace)
+	if model.search != "web" {
+		t.Fatalf("search after backspace = %q, want web", model.search)
+	}
+	model = updateSpecialKey(t, model, tea.KeyDelete)
+	if model.search != "we" {
+		t.Fatalf("search after delete = %q, want we", model.search)
+	}
+}
+
 func TestModelSearchBlurAllowsActions(t *testing.T) {
 	model := Model{
 		projects: []project.Project{
 			{Name: "web", Path: "/tmp/web", Note: ovwformat.NoteInfo{Value: "note"}},
 		},
-		searching: true,
-		search:    "web",
+		searching:    true,
+		search:       "web",
+		searchCursor: 3,
 	}
 
 	model = updateSpecialKey(t, model, tea.KeyEsc)
@@ -1277,6 +1377,32 @@ func TestModelNoteEditorAcceptsSpaces(t *testing.T) {
 	}
 }
 
+func TestModelNoteEditorSupportsCursorEditing(t *testing.T) {
+	model := Model{
+		screen:     screenNote,
+		noteInput:  "old",
+		noteCursor: 3,
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateKey(t, model, "e")
+	if model.noteInput != "oled" {
+		t.Fatalf("noteInput = %q, want oled", model.noteInput)
+	}
+	if !strings.Contains(stripANSI(model.View()), "ole▌d") {
+		t.Fatalf("note cursor not rendered in place:\n%s", stripANSI(model.View()))
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyBackspace)
+	if model.noteInput != "old" {
+		t.Fatalf("noteInput after backspace = %q, want old", model.noteInput)
+	}
+	model = updateSpecialKey(t, model, tea.KeyDelete)
+	if model.noteInput != "ol" {
+		t.Fatalf("noteInput after delete = %q, want ol", model.noteInput)
+	}
+}
+
 func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 	var savedNote *string
 	model := Model{
@@ -1441,6 +1567,33 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 	}
 }
 
+func TestModelStatusInputSupportsCursorEditing(t *testing.T) {
+	model := Model{
+		screen:       screenStatusInput,
+		statusInput:  "todo",
+		statusCursor: 4,
+		projects:     []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateKey(t, model, "-")
+	if model.statusInput != "tod-o" {
+		t.Fatalf("statusInput = %q, want tod-o", model.statusInput)
+	}
+	if !strings.Contains(stripANSI(model.View()), "tod-▌o") {
+		t.Fatalf("status cursor not rendered in place:\n%s", stripANSI(model.View()))
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyBackspace)
+	if model.statusInput != "todo" {
+		t.Fatalf("statusInput after backspace = %q, want todo", model.statusInput)
+	}
+	model = updateSpecialKey(t, model, tea.KeyDelete)
+	if model.statusInput != "tod" {
+		t.Fatalf("statusInput after delete = %q, want tod", model.statusInput)
+	}
+}
+
 func TestModelStatusPickerPrefillsCurrentCustomStatus(t *testing.T) {
 	cfg := config.Default()
 	model := Model{
@@ -1508,7 +1661,7 @@ func TestModelStatusPickerSelectsCurrentStatus(t *testing.T) {
 }
 
 func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
-	got := stripANSI(statusInputView("", ""))
+	got := stripANSI(statusInputView("", "", 0))
 
 	if !strings.Contains(got, "empty clears status▌") {
 		t.Fatalf("status input placeholder was truncated:\n%s", got)
@@ -1519,7 +1672,7 @@ func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
 }
 
 func TestModalInputCursorBlinks(t *testing.T) {
-	got := noteView("", "", "")
+	got := noteView("", "", "", 0)
 
 	if !strings.Contains(got, "\x1b[5;38;5;252;48;5;236m▌\x1b[25;22;39;48;5;236m") {
 		t.Fatalf("modal cursor should use ANSI blink:\n%q", got)
@@ -1527,7 +1680,8 @@ func TestModalInputCursorBlinks(t *testing.T) {
 }
 
 func TestNoteInputWrapsInsteadOfTruncating(t *testing.T) {
-	got := stripANSI(noteView("", strings.Repeat("f", 80), ""))
+	value := strings.Repeat("f", 80)
+	got := stripANSI(noteView("", value, "", len([]rune(value))))
 
 	if strings.Contains(got, "...") {
 		t.Fatalf("note input should wrap instead of truncate:\n%s", got)
@@ -1541,7 +1695,7 @@ func TestNoteInputWrapsInsteadOfTruncating(t *testing.T) {
 }
 
 func TestNotePlaceholderWrapsInsteadOfTruncating(t *testing.T) {
-	got := stripANSI(noteView("", "", strings.Repeat("p", 80)))
+	got := stripANSI(noteView("", "", strings.Repeat("p", 80), 0))
 
 	if strings.Contains(got, "...") {
 		t.Fatalf("note placeholder should wrap instead of truncate:\n%s", got)
@@ -1555,7 +1709,7 @@ func TestNotePlaceholderWrapsInsteadOfTruncating(t *testing.T) {
 }
 
 func TestNotePlaceholderPreservesNewlinesAsModalRows(t *testing.T) {
-	got := stripANSI(noteView("", "", "first line\n- second line wraps here\n\nthird line"))
+	got := stripANSI(noteView("", "", "first line\n- second line wraps here\n\nthird line", 0))
 
 	for _, want := range []string{"first line", "- second line wraps here", "third line"} {
 		if !strings.Contains(got, want) {
@@ -1568,7 +1722,7 @@ func TestNotePlaceholderPreservesNewlinesAsModalRows(t *testing.T) {
 }
 
 func TestNotePlaceholderWrapsAtWordBoundaries(t *testing.T) {
-	got := stripANSI(noteView("", "", "refactor: create content-agnostic segmenter module replacing Bible-specific splitter"))
+	got := stripANSI(noteView("", "", "refactor: create content-agnostic segmenter module replacing Bible-specific splitter", 0))
 
 	if strings.Contains(got, "r\neplacing") {
 		t.Fatalf("note placeholder split word across lines:\n%s", got)
@@ -1579,7 +1733,8 @@ func TestNotePlaceholderWrapsAtWordBoundaries(t *testing.T) {
 }
 
 func TestStatusInputWrapsInsteadOfTruncating(t *testing.T) {
-	got := stripANSI(statusInputView("", strings.Repeat("f", 60)))
+	value := strings.Repeat("f", 60)
+	got := stripANSI(statusInputView("", value, len([]rune(value))))
 
 	if strings.Contains(got, "...") {
 		t.Fatalf("status input should wrap instead of truncate:\n%s", got)
@@ -1669,6 +1824,46 @@ func TestModelAddProjectModalSavesPath(t *testing.T) {
 	}
 	if len(model.projects) != 1 || model.projects[0].Path != "/tmp/custom" {
 		t.Fatalf("projects = %#v", model.projects)
+	}
+}
+
+func TestModelAddProjectModalSupportsCursorEditing(t *testing.T) {
+	var addedPath string
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: config.Default()}, nil
+		},
+		adder: func(path string) (app.AddProjectResult, error) {
+			addedPath = path
+			return app.AddProjectResult{Path: path}, nil
+		},
+		screen: screenAdd,
+	}
+	for _, value := range []string{"/", "t", "m", "p", "/", "a", "p"} {
+		model = updateKey(t, model, value)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateKey(t, model, "p")
+	if model.addInput != "/tmp/app" {
+		t.Fatalf("addInput = %q, want /tmp/app", model.addInput)
+	}
+	if !strings.Contains(stripANSI(model.View()), "/tmp/ap▌p") {
+		t.Fatalf("add input cursor not rendered in place:\n%s", stripANSI(model.View()))
+	}
+	model = updateSpecialKey(t, model, tea.KeyDelete)
+	if model.addInput != "/tmp/ap" {
+		t.Fatalf("addInput after delete = %q, want /tmp/ap", model.addInput)
+	}
+	model = updateKey(t, model, "p")
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected add command")
+	}
+	model = updateMsg(t, model, cmd())
+	if addedPath != "/tmp/app" {
+		t.Fatalf("addedPath = %q, want /tmp/app", addedPath)
 	}
 }
 

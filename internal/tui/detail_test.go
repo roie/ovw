@@ -167,6 +167,55 @@ func TestDetailSummaryShowsRecentCommits(t *testing.T) {
 	mustAppearInOrder(t, got, []string{"Note", "Value note", "Recent"})
 }
 
+func TestDetailSummaryLimitsFallbackNotePreview(t *testing.T) {
+	project := detailTestProject("ripgrep")
+	project.Note = ovwformat.NoteInfo{
+		Display: strings.Join([]string{
+			"doc: clarify half-boundary syntax for the -w flag",
+			"",
+			"In regex 1.10.0, the half-boundary assertions were introduced.",
+			"While the CLI help text was updated, the rationale was omitted.",
+			"Furthermore, GUIDE.md was still outdated.",
+			"This final sentence should not take over the side pane.",
+		}, "\n"),
+		Source: "commit",
+	}
+	project.Activity.RecentCommits = []ovwformat.RecentCommit{
+		{Hash: "abc1234", Subject: "doc: clarify half-boundary syntax", Age: "2mo"},
+	}
+
+	got := stripANSI(detailSummaryView(project, 48))
+	noteBlock := got[strings.Index(got, "Note"):]
+
+	if !strings.Contains(noteBlock, "...") {
+		t.Fatalf("fallback note should show a preview marker:\n%s", got)
+	}
+	if strings.Contains(noteBlock, "This final sentence should not take over") {
+		t.Fatalf("fallback note should be capped in side pane:\n%s", got)
+	}
+	if !strings.Contains(got, "Recent") {
+		t.Fatalf("recent commits should remain visible after fallback note:\n%s", got)
+	}
+}
+
+func TestDetailSummaryDoesNotLimitUserNote(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.Note = ovwformat.NoteInfo{
+		Display: "line one\nline two\nline three\nline four\nline five",
+		Source:  "user",
+		Value:   "line one\nline two\nline three\nline four\nline five",
+	}
+
+	got := stripANSI(detailSummaryView(project, 40))
+
+	if strings.Contains(got, "...") {
+		t.Fatalf("user note should not be capped:\n%s", got)
+	}
+	if !strings.Contains(got, "line five") {
+		t.Fatalf("user note should render all lines:\n%s", got)
+	}
+}
+
 func TestDetailSummaryHidesRecentCommitsWhenEmpty(t *testing.T) {
 	project := detailTestProject("eventca")
 	project.Activity.RecentCommits = nil
