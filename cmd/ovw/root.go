@@ -116,7 +116,7 @@ func rootUsageTemplate() string {
   {{.CommandPath}} [command]
 
 Commands:
-  add       Add a project manually
+  add       Add a project path
   hide      Hide a project from ovw
   unhide    Show a hidden project again
   set       Set project status or note
@@ -310,7 +310,7 @@ func normalizeSetupCandidate(value string) string {
 func newAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <path>",
-		Short: "Add a project manually",
+		Short: "Add a project path",
 		Long:  "Add one project path to ovw.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

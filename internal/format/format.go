@@ -167,12 +167,12 @@ func RelativeAge(then, now time.Time) string {
 	}
 }
 
-func Note(manual, description string, activity gitactivity.Info, cfg config.Config) NoteInfo {
-	note := NoteInfo{Value: manual, Source: "none"}
+func Note(userNote, description string, activity gitactivity.Info, cfg config.Config) NoteInfo {
+	note := NoteInfo{Value: userNote, Source: "none"}
 	text := ""
 	switch {
-	case manual != "":
-		text = manual
+	case userNote != "":
+		text = userNote
 		note.Source = "user"
 	case cfg.NoteFallbackCommit && activity.LastCommitMessage != "":
 		text = activity.LastCommitMessage

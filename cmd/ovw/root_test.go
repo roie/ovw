@@ -54,7 +54,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"A terminal overview for your local projects.",
 		"ovw [project] [flags]",
 		"Commands:",
-		"add       Add a project manually",
+		"add       Add a project path",
 		"hide      Hide a project from ovw",
 		"unhide    Show a hidden project again",
 		"set       Set project status or note",
@@ -89,7 +89,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 		t.Fatalf("help output should not include examples:\n%s", got)
 	}
 	mustAppearInOrder(t, got, []string{
-		"add       Add a project manually",
+		"add       Add a project path",
 		"hide      Hide a project from ovw",
 		"unhide    Show a hidden project again",
 		"set       Set project status or note",
@@ -284,7 +284,7 @@ func TestConfigHelpIsFocused(t *testing.T) {
 					t.Fatalf("%s help missing %q:\n%s", tc.name, want, out)
 				}
 			}
-			if strings.Contains(out, "--dirty") || strings.Contains(out, "add       Add a project manually") {
+			if strings.Contains(out, "--dirty") || strings.Contains(out, "add       Add a project path") {
 				t.Fatalf("%s help should not show root help:\n%s", tc.name, out)
 			}
 			if strings.Contains(out, "Flags:") {
