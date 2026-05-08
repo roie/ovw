@@ -128,14 +128,60 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.
 `
 }
 
+func addUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}} <path>
+
+Examples:
+  {{.CommandPath}} ~/dev/myproject
+`
+}
+
+func visibilityUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}} <name-or-path>
+
+Examples:
+  {{.CommandPath}} myproject
+  {{.CommandPath}} ~/dev/myproject
+`
+}
+
+func configUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}} <command>
+
+Commands:
+  path      Print config path
+  edit      Edit config
+
+Use "{{.CommandPath}} <command> --help" for more information about a command.
+`
+}
+
+func configPathUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}}
+`
+}
+
+func configEditUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}}
+`
+}
+
 func newConfigCommand() *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage ovw config",
+		Long:  "Manage the ovw config file.",
 	}
-	configCmd.AddCommand(&cobra.Command{
+	configCmd.SetUsageTemplate(configUsageTemplate())
+	pathCmd := &cobra.Command{
 		Use:   "path",
 		Short: "Print config path",
+		Long:  "Print the path to config.toml.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths, err := config.Paths()
 			if err != nil {
@@ -144,10 +190,12 @@ func newConfigCommand() *cobra.Command {
 			fmt.Fprintln(cmd.OutOrStdout(), paths.Config)
 			return nil
 		},
-	})
-	configCmd.AddCommand(&cobra.Command{
+	}
+	pathCmd.SetUsageTemplate(configPathUsageTemplate())
+	editCmd := &cobra.Command{
 		Use:   "edit",
 		Short: "Edit config",
+		Long:  "Open config.toml in your editor.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths, err := config.Paths()
 			if err != nil {
@@ -155,14 +203,18 @@ func newConfigCommand() *cobra.Command {
 			}
 			return config.Edit(paths.Config)
 		},
-	})
+	}
+	editCmd.SetUsageTemplate(configEditUsageTemplate())
+	configCmd.AddCommand(pathCmd)
+	configCmd.AddCommand(editCmd)
 	return configCmd
 }
 
 func newAddCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "add <path>",
 		Short: "Add a project manually",
+		Long:  "Add one project path to ovw.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectPath, err := config.ExpandPath(args[0])
@@ -181,20 +233,25 @@ func newAddCommand() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.SetUsageTemplate(addUsageTemplate())
+	return cmd
 }
 
 func newVisibilityCommand(name string, hidden bool) *cobra.Command {
 	short := "Hide a project from ovw"
+	long := "Hide one project from ovw without deleting files."
 	if name == "remove" {
 		short = "Hide a project from ovw without deleting files"
 	}
 	if !hidden {
 		short = "Show a hidden project again"
+		long = "Show one hidden project in ovw again."
 	}
 	hideFromHelp := name == "remove"
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:    name + " <name-or-path>",
 		Short:  short,
+		Long:   long,
 		Hidden: hideFromHelp,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -211,6 +268,8 @@ func newVisibilityCommand(name string, hidden bool) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.SetUsageTemplate(visibilityUsageTemplate())
+	return cmd
 }
 
 func displayPath(path string) string {
@@ -349,6 +408,7 @@ func newShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "show <name>",
 		Short:  "Show project details",
+		Long:   "Show details for one project.",
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -356,7 +416,19 @@ func newShowCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON")
+	cmd.SetUsageTemplate(showUsageTemplate())
 	return cmd
+}
+
+func showUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}} <project>
+  {{.CommandPath}} <project> --json
+
+Flags:
+  --json      output JSON
+  -h, --help  help for show
+`
 }
 
 func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {

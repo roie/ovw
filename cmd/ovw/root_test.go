@@ -165,6 +165,125 @@ func TestUnsetHelpShowsStatusAndNoteUsage(t *testing.T) {
 	}
 }
 
+func TestProjectCommandHelpIsFocused(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "add",
+			args: []string{"add", "--help"},
+			want: []string{
+				"Add one project path to ovw.",
+				"ovw add <path>",
+				"ovw add ~/dev/myproject",
+			},
+		},
+		{
+			name: "hide",
+			args: []string{"hide", "--help"},
+			want: []string{
+				"Hide one project from ovw without deleting files.",
+				"ovw hide <name-or-path>",
+				"ovw hide myproject",
+			},
+		},
+		{
+			name: "unhide",
+			args: []string{"unhide", "--help"},
+			want: []string{
+				"Show one hidden project in ovw again.",
+				"ovw unhide <name-or-path>",
+				"ovw unhide myproject",
+			},
+		},
+		{
+			name: "show",
+			args: []string{"show", "--help"},
+			want: []string{
+				"Show details for one project.",
+				"ovw show <project>",
+				"ovw show <project> --json",
+				"--json      output JSON",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := executeCommand(tc.args)
+			if err != nil {
+				t.Fatalf("Execute(%v) error = %v", tc.args, err)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(out, want) {
+					t.Fatalf("%s help missing %q:\n%s", tc.name, want, out)
+				}
+			}
+			if strings.Contains(out, "--dirty") || strings.Contains(out, "Commands:") {
+				t.Fatalf("%s help should not show root help:\n%s", tc.name, out)
+			}
+			if tc.name != "show" && strings.Contains(out, "Flags:") {
+				t.Fatalf("%s help should not show help-only flags:\n%s", tc.name, out)
+			}
+		})
+	}
+}
+
+func TestConfigHelpIsFocused(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "config",
+			args: []string{"config", "--help"},
+			want: []string{
+				"Manage the ovw config file.",
+				"ovw config <command>",
+				"path      Print config path",
+				"edit      Edit config",
+			},
+		},
+		{
+			name: "config path",
+			args: []string{"config", "path", "--help"},
+			want: []string{
+				"Print the path to config.toml.",
+				"ovw config path",
+			},
+		},
+		{
+			name: "config edit",
+			args: []string{"config", "edit", "--help"},
+			want: []string{
+				"Open config.toml in your editor.",
+				"ovw config edit",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := executeCommand(tc.args)
+			if err != nil {
+				t.Fatalf("Execute(%v) error = %v", tc.args, err)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(out, want) {
+					t.Fatalf("%s help missing %q:\n%s", tc.name, want, out)
+				}
+			}
+			if strings.Contains(out, "--dirty") || strings.Contains(out, "add       Add a project manually") {
+				t.Fatalf("%s help should not show root help:\n%s", tc.name, out)
+			}
+			if strings.Contains(out, "Flags:") {
+				t.Fatalf("%s help should not show help-only flags:\n%s", tc.name, out)
+			}
+		})
+	}
+}
+
 func TestRuntimeErrorsDoNotPrintUsage(t *testing.T) {
 	out, err := executeCommand([]string{"missing-project"})
 	if err == nil {
