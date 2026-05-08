@@ -6,11 +6,11 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func noteView(value, placeholder string) string {
+func noteView(projectName, value, placeholder string) string {
 	if placeholder == "" {
 		placeholder = "empty clears note"
 	}
-	return inputModalView("Note", value, placeholder, 56)
+	return inputModalView(modalTitleWithProject("Note", projectName), value, placeholder, 56)
 }
 
 func addProjectView(value, err string) string {
@@ -49,18 +49,25 @@ func (m Model) statusOptions() []statusOption {
 	return options
 }
 
-func statusView(options []statusOption, selected int) string {
+func statusView(projectName string, options []statusOption, selected int) string {
 	labels := make([]string, 0, len(options))
 	for _, option := range options {
 		labels = append(labels, option.Label)
 	}
 	lines := modalOptionLines(labels, selected)
 	lines = append(lines, "", actionHint("enter", "select"))
-	return modalView("Status", lines, 42)
+	return modalView(modalTitleWithProject("Status", projectName), lines, 42)
 }
 
-func statusInputView(value string) string {
-	return inputModalView("Custom status", value, "empty clears status", 42)
+func statusInputView(projectName, value string) string {
+	return inputModalView(modalTitleWithProject("Custom status", projectName), value, "empty clears status", 42)
+}
+
+func modalTitleWithProject(title, projectName string) string {
+	if projectName == "" {
+		return title
+	}
+	return title + " · " + projectName
 }
 
 func inputModalView(title, value, placeholder string, width int) string {

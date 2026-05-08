@@ -768,7 +768,7 @@ func TestModalPickersUseCaretSelection(t *testing.T) {
 	}{
 		{name: "filter", view: filterView([]filterOption{{Label: "all"}, {Label: "dirty"}}, 1), want: "> dirty"},
 		{name: "sort", view: sortView([]sortOption{{Label: "activity"}, {Label: "name"}}, 1), want: "> name"},
-		{name: "status", view: statusView([]statusOption{{Label: "parked"}, {Label: "shipped"}}, 1), want: "> shipped"},
+		{name: "status", view: statusView("", []statusOption{{Label: "parked"}, {Label: "shipped"}}, 1), want: "> shipped"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -886,7 +886,7 @@ func TestModelNoteEditorSavesAndReloads(t *testing.T) {
 		t.Fatalf("noteInput = %q, want old", model.noteInput)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Name", "1/1", "app", "Note", "old▌", "enter", "save", "esc"} {
+	for _, want := range []string{"Name", "1/1", "app", "Note · app", "old▌", "enter", "save", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("note modal view missing %q:\n%s", want, view)
 		}
@@ -1022,7 +1022,7 @@ func TestModelStatusPickerSavesConfiguredStatus(t *testing.T) {
 		t.Fatalf("screen = %v, want status", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Name", "1/1", "app", "Status", "parked", "shipped", "enter select", "esc"} {
+	for _, want := range []string{"Name", "1/1", "app", "Status · app", "parked", "shipped", "enter select", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("status modal view missing %q:\n%s", want, view)
 		}
@@ -1063,6 +1063,9 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 		t.Fatalf("screen = %v, want status input", model.screen)
 	}
 	view := stripANSI(model.View())
+	if !strings.Contains(view, "Custom status · app") {
+		t.Fatalf("custom status modal missing project name:\n%s", view)
+	}
 	if !strings.Contains(view, "empty clears status▌") {
 		t.Fatalf("empty custom status modal missing cursor placeholder:\n%s", view)
 	}
@@ -1085,7 +1088,7 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 }
 
 func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
-	got := stripANSI(statusInputView(""))
+	got := stripANSI(statusInputView("", ""))
 
 	if !strings.Contains(got, "empty clears status▌") {
 		t.Fatalf("status input placeholder was truncated:\n%s", got)
@@ -1096,7 +1099,7 @@ func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
 }
 
 func TestModalInputCursorBlinks(t *testing.T) {
-	got := noteView("", "")
+	got := noteView("", "", "")
 
 	if !strings.Contains(got, "\x1b[5;38;5;252;48;5;236m▌\x1b[25;22;39;48;5;236m") {
 		t.Fatalf("modal cursor should use ANSI blink:\n%q", got)
@@ -1104,7 +1107,7 @@ func TestModalInputCursorBlinks(t *testing.T) {
 }
 
 func TestNoteInputWrapsInsteadOfTruncating(t *testing.T) {
-	got := stripANSI(noteView(strings.Repeat("f", 80), ""))
+	got := stripANSI(noteView("", strings.Repeat("f", 80), ""))
 
 	if strings.Contains(got, "...") {
 		t.Fatalf("note input should wrap instead of truncate:\n%s", got)
@@ -1118,7 +1121,7 @@ func TestNoteInputWrapsInsteadOfTruncating(t *testing.T) {
 }
 
 func TestNotePlaceholderWrapsInsteadOfTruncating(t *testing.T) {
-	got := stripANSI(noteView("", strings.Repeat("p", 80)))
+	got := stripANSI(noteView("", "", strings.Repeat("p", 80)))
 
 	if strings.Contains(got, "...") {
 		t.Fatalf("note placeholder should wrap instead of truncate:\n%s", got)
@@ -1132,7 +1135,7 @@ func TestNotePlaceholderWrapsInsteadOfTruncating(t *testing.T) {
 }
 
 func TestNotePlaceholderPreservesNewlinesAsModalRows(t *testing.T) {
-	got := stripANSI(noteView("", "first line\n- second line wraps here\n\nthird line"))
+	got := stripANSI(noteView("", "", "first line\n- second line wraps here\n\nthird line"))
 
 	for _, want := range []string{"first line", "- second line wraps here", "third line"} {
 		if !strings.Contains(got, want) {
@@ -1145,7 +1148,7 @@ func TestNotePlaceholderPreservesNewlinesAsModalRows(t *testing.T) {
 }
 
 func TestNotePlaceholderWrapsAtWordBoundaries(t *testing.T) {
-	got := stripANSI(noteView("", "refactor: create content-agnostic segmenter module replacing Bible-specific splitter"))
+	got := stripANSI(noteView("", "", "refactor: create content-agnostic segmenter module replacing Bible-specific splitter"))
 
 	if strings.Contains(got, "r\neplacing") {
 		t.Fatalf("note placeholder split word across lines:\n%s", got)
@@ -1156,7 +1159,7 @@ func TestNotePlaceholderWrapsAtWordBoundaries(t *testing.T) {
 }
 
 func TestStatusInputWrapsInsteadOfTruncating(t *testing.T) {
-	got := stripANSI(statusInputView(strings.Repeat("f", 60)))
+	got := stripANSI(statusInputView("", strings.Repeat("f", 60)))
 
 	if strings.Contains(got, "...") {
 		t.Fatalf("status input should wrap instead of truncate:\n%s", got)

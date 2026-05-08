@@ -796,11 +796,13 @@ func renderShell(m Model) string {
 				content = overlayModal(content, sortView(sortOptions(), m.sortSelected), m.contentWidth())
 			case screenNote:
 				project, _ := m.currentProject()
-				content = overlayModal(content, noteView(m.noteInput, project.Note.Display), m.contentWidth())
+				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display), m.contentWidth())
 			case screenStatus:
-				content = overlayModal(content, statusView(m.statusOptions(), m.statusSelected), m.contentWidth())
+				project, _ := m.currentProject()
+				content = overlayModal(content, statusView(project.Name, m.statusOptions(), m.statusSelected), m.contentWidth())
 			case screenStatusInput:
-				content = overlayModal(content, statusInputView(m.statusInput), m.contentWidth())
+				project, _ := m.currentProject()
+				content = overlayModal(content, statusInputView(project.Name, m.statusInput), m.contentWidth())
 			}
 			body += "\n\n" + content
 		}
