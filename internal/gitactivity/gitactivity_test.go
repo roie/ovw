@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -53,6 +54,22 @@ func TestDetectCommitBranchAndDirty(t *testing.T) {
 	}
 	if !info.Dirty {
 		t.Fatal("Dirty = false")
+	}
+}
+
+func TestDetectDetachedHeadBranch(t *testing.T) {
+	dir := gitRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, dir, "add", "file.txt")
+	git(t, dir, "commit", "-m", "initial commit")
+	hash := strings.TrimSpace(gitOutput(t, dir, "rev-parse", "HEAD"))
+	git(t, dir, "checkout", hash)
+
+	info := Detect(dir)
+	if info.Branch != "detached" {
+		t.Fatalf("Branch = %q, want detached", info.Branch)
 	}
 }
 
@@ -130,6 +147,16 @@ func git(t *testing.T, dir string, args ...string) {
 	if err != nil {
 		t.Fatalf("git %v failed: %v\n%s", args, err, string(out))
 	}
+}
+
+func gitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, string(out))
+	}
+	return string(out)
 }
 
 func gitGlobal(t *testing.T, args ...string) {

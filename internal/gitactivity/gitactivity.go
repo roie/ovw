@@ -32,6 +32,9 @@ func Detect(path string) Info {
 
 	if branch, err := run(path, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
 		info.Branch = strings.TrimSpace(branch)
+		if info.Branch == "HEAD" {
+			info.Branch = "detached"
+		}
 	}
 	if ts, err := run(path, "log", "-1", "--format=%ct"); err == nil {
 		trimmed := strings.TrimSpace(ts)
