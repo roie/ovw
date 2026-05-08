@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -20,6 +21,15 @@ func TestNewModelRendersLoadingState(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("View() missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestSetTerminalTitleWritesOSCSequence(t *testing.T) {
+	var out bytes.Buffer
+	setTerminalTitle(&out, "ovw")
+
+	if got, want := out.String(), "\033]0;ovw\007"; got != want {
+		t.Fatalf("setTerminalTitle() = %q, want %q", got, want)
 	}
 }
 

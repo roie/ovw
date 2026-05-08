@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -23,6 +24,8 @@ type projectAdder func(string) (app.AddProjectResult, error)
 type editorRunner func(string, string) error
 type terminalRunner func(string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
+
+var terminalTitleWriter io.Writer = os.Stdout
 
 type screenMode int
 
@@ -514,9 +517,17 @@ func Run() error {
 }
 
 func RunWithOptions(opts app.Options) error {
+	setTerminalTitle(terminalTitleWriter, "ovw")
 	program := tea.NewProgram(NewWithOptions(opts), tea.WithAltScreen())
 	_, err := program.Run()
 	return err
+}
+
+func setTerminalTitle(w io.Writer, title string) {
+	if w == nil || title == "" {
+		return
+	}
+	fmt.Fprintf(w, "\033]0;%s\007", title)
 }
 
 type overviewLoadedMsg struct {
