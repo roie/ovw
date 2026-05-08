@@ -111,7 +111,7 @@ func TestScanSupportsMaxDepth(t *testing.T) {
 
 func TestScanIgnoresMetadataOutsideRoots(t *testing.T) {
 	root := t.TempDir()
-	outside := filepath.Join(t.TempDir(), "manual")
+	outside := filepath.Join(t.TempDir(), "custom")
 	if err := os.MkdirAll(outside, 0o755); err != nil {
 		t.Fatal(err)
 	}

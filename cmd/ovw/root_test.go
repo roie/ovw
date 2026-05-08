@@ -115,7 +115,7 @@ func TestVersionOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute(-v) error = %v", err)
 	}
-	if out != "ovw 0.1.0\n" {
+	if out != "ovw 1.0.0\n" {
 		t.Fatalf("version output = %q", out)
 	}
 }
@@ -553,11 +553,11 @@ func TestCacheCommandIsRemoved(t *testing.T) {
 
 func TestAddHideUnhideRemoveCommands(t *testing.T) {
 	home := t.TempDir()
-	project := filepath.Join(t.TempDir(), "manual")
+	project := filepath.Join(t.TempDir(), "custom")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module custom"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
@@ -602,21 +602,21 @@ func TestAddHideUnhideRemoveCommands(t *testing.T) {
 func TestAddExpandsQuotedHomePathAndDisplaysShortPath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	project := filepath.Join(home, "dev", "manual")
+	project := filepath.Join(home, "dev", "custom")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	out := runCommand(t, []string{"add", "~/dev/manual"})
-	if !strings.Contains(out, "Added ~/dev/manual to ovw.") {
+	out := runCommand(t, []string{"add", "~/dev/custom"})
+	if !strings.Contains(out, "Added ~/dev/custom to ovw.") {
 		t.Fatalf("add output = %q", out)
 	}
 	cfg, err := config.Load(filepath.Join(home, ".config", "ovw", "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.Roots) != 1 || cfg.Roots[0] != "~/dev/manual" {
-		t.Fatalf("config roots = %#v, want ~/dev/manual", cfg.Roots)
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != "~/dev/custom" {
+		t.Fatalf("config roots = %#v, want ~/dev/custom", cfg.Roots)
 	}
 }
 
@@ -699,41 +699,41 @@ func TestScanCommandIsRemoved(t *testing.T) {
 
 func TestSetUnsetShowCommands(t *testing.T) {
 	home := t.TempDir()
-	project := filepath.Join(t.TempDir(), "manual")
+	project := filepath.Join(t.TempDir(), "custom")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module custom"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
 	runCommand(t, []string{"add", project})
 
-	out := runCommand(t, []string{"set", "manual", "--status", "active", "--note", "fix flow"})
-	for _, want := range []string{"Updated manual.", "Status  active", "Note    fix flow"} {
+	out := runCommand(t, []string{"set", "custom", "--status", "active", "--note", "fix flow"})
+	for _, want := range []string{"Updated custom.", "Status  active", "Note    fix flow"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("set output missing %q: %q", want, out)
 		}
 	}
-	show := runCommand(t, []string{"show", "manual"})
+	show := runCommand(t, []string{"show", "custom"})
 	if !bytes.Contains([]byte(show), []byte("Status    active")) || !bytes.Contains([]byte(show), []byte("Note      fix flow")) {
 		t.Fatalf("show output = %q", show)
 	}
 
-	out = runCommand(t, []string{"unset", "manual", "--note"})
-	if !strings.Contains(out, "Updated manual.") || !strings.Contains(out, "Note cleared.") {
+	out = runCommand(t, []string{"unset", "custom", "--note"})
+	if !strings.Contains(out, "Updated custom.") || !strings.Contains(out, "Note cleared.") {
 		t.Fatalf("unset note output = %q", out)
 	}
-	show = runCommand(t, []string{"show", "manual"})
+	show = runCommand(t, []string{"show", "custom"})
 	if bytes.Contains([]byte(show), []byte("fix flow")) {
 		t.Fatalf("note was not unset: %q", show)
 	}
 
-	out = runCommand(t, []string{"unset", "manual", "--status"})
-	if !strings.Contains(out, "Updated manual.") || !strings.Contains(out, "Status cleared.") {
+	out = runCommand(t, []string{"unset", "custom", "--status"})
+	if !strings.Contains(out, "Updated custom.") || !strings.Contains(out, "Status cleared.") {
 		t.Fatalf("unset status output = %q", out)
 	}
-	show = runCommand(t, []string{"show", "manual"})
+	show = runCommand(t, []string{"show", "custom"})
 	if bytes.Contains([]byte(show), []byte("active")) {
 		t.Fatalf("status was not unset: %q", show)
 	}
@@ -741,21 +741,21 @@ func TestSetUnsetShowCommands(t *testing.T) {
 
 func TestSetRequiresStatusOrNote(t *testing.T) {
 	home := t.TempDir()
-	project := filepath.Join(t.TempDir(), "manual")
+	project := filepath.Join(t.TempDir(), "custom")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module custom"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
 	runCommand(t, []string{"add", project})
 
-	_, err := executeCommand([]string{"set", "manual"})
+	_, err := executeCommand([]string{"set", "custom"})
 	if err == nil || !strings.Contains(err.Error(), "pass --status or --note") {
 		t.Fatalf("set without fields error = %v", err)
 	}
-	if out, _ := executeCommand([]string{"set", "manual"}); strings.Contains(out, "Usage:") {
+	if out, _ := executeCommand([]string{"set", "custom"}); strings.Contains(out, "Usage:") {
 		t.Fatalf("set without fields printed usage:\n%s", out)
 	}
 }
@@ -786,17 +786,17 @@ func TestInvalidSortShowsClearErrorWithoutUsage(t *testing.T) {
 
 func TestUnsetRequiresStatusOrNote(t *testing.T) {
 	home := t.TempDir()
-	project := filepath.Join(t.TempDir(), "manual")
+	project := filepath.Join(t.TempDir(), "custom")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module custom"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
 	runCommand(t, []string{"add", project})
 
-	_, err := executeCommand([]string{"unset", "manual"})
+	_, err := executeCommand([]string{"unset", "custom"})
 	if err == nil || !strings.Contains(err.Error(), "pass --status or --note") {
 		t.Fatalf("unset without fields error = %v", err)
 	}
@@ -804,21 +804,21 @@ func TestUnsetRequiresStatusOrNote(t *testing.T) {
 
 func TestSetAllowsFreeFormStatus(t *testing.T) {
 	home := t.TempDir()
-	project := filepath.Join(t.TempDir(), "manual")
+	project := filepath.Join(t.TempDir(), "custom")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module custom"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
 	runCommand(t, []string{"add", project})
 
-	out := runCommand(t, []string{"set", "manual", "--status", "needs review"})
+	out := runCommand(t, []string{"set", "custom", "--status", "needs review"})
 	if !strings.Contains(out, "Status  needs review") {
 		t.Fatalf("set output = %q", out)
 	}
-	show := runCommand(t, []string{"show", "manual"})
+	show := runCommand(t, []string{"show", "custom"})
 	if !strings.Contains(show, "Status    needs review") {
 		t.Fatalf("show output = %q", show)
 	}
@@ -905,7 +905,7 @@ func TestShowJSONOutputsSingleProject(t *testing.T) {
 			t.Fatalf("show json missing %q: %s", want, out)
 		}
 	}
-	for _, unwanted := range []string{"stack_display", "manual", "hidden", "last_commit_age"} {
+	for _, unwanted := range []string{"stack_display", "custom", "hidden", "last_commit_age"} {
 		if strings.Contains(out, unwanted) {
 			t.Fatalf("show json contains internal field %q: %s", unwanted, out)
 		}

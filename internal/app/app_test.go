@@ -357,7 +357,7 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 
 func TestAddProjectWritesConfigRoot(t *testing.T) {
 	home := t.TempDir()
-	project := filepath.Join(t.TempDir(), "manual")
+	project := filepath.Join(t.TempDir(), "custom")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +381,7 @@ func TestAddProjectWritesConfigRoot(t *testing.T) {
 
 func TestAddProjectReportsAlreadyTrackedRoot(t *testing.T) {
 	home := t.TempDir()
-	project := filepath.Join(t.TempDir(), "manual")
+	project := filepath.Join(t.TempDir(), "custom")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}

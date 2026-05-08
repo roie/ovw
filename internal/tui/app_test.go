@@ -523,10 +523,10 @@ func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
 
 func TestFooterShowsVersionWhenWide(t *testing.T) {
 	got := stripANSI(footerView(180))
-	if !strings.HasSuffix(got, "ovw 0.1.0") {
+	if !strings.HasSuffix(got, "ovw 1.0.0") {
 		t.Fatalf("footer should put version on the right:\n%s", got)
 	}
-	if strings.Contains(stripANSI(footerView(40)), "ovw 0.1.0") {
+	if strings.Contains(stripANSI(footerView(40)), "ovw 1.0.0") {
 		t.Fatalf("narrow footer should hide version:\n%s", stripANSI(footerView(40)))
 	}
 }
@@ -1629,12 +1629,12 @@ func TestModelAddProjectModalSavesPath(t *testing.T) {
 		loader: func(opts app.Options) (app.OverviewResult, error) {
 			return app.OverviewResult{
 				Config:   config.Default(),
-				Projects: []project.Project{{Name: "manual", Path: "/tmp/manual"}},
+				Projects: []project.Project{{Name: "custom", Path: "/tmp/custom"}},
 			}, nil
 		},
 		adder: func(path string) (app.AddProjectResult, error) {
 			addedPath = path
-			return app.AddProjectResult{Path: "/tmp/manual"}, nil
+			return app.AddProjectResult{Path: "/tmp/custom"}, nil
 		},
 		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
 	}
@@ -1649,7 +1649,7 @@ func TestModelAddProjectModalSavesPath(t *testing.T) {
 			t.Fatalf("add modal missing %q:\n%s", want, view)
 		}
 	}
-	for _, value := range []string{"/", "t", "m", "p", "/", "m", "a", "n", "u", "a", "l"} {
+	for _, value := range []string{"/", "t", "m", "p", "/", "c", "u", "s", "t", "o", "m"} {
 		model = updateKey(t, model, value)
 	}
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -1658,8 +1658,8 @@ func TestModelAddProjectModalSavesPath(t *testing.T) {
 		t.Fatal("expected add command")
 	}
 	model = updateMsg(t, model, cmd())
-	if addedPath != "/tmp/manual" {
-		t.Fatalf("addedPath = %q, want /tmp/manual", addedPath)
+	if addedPath != "/tmp/custom" {
+		t.Fatalf("addedPath = %q, want /tmp/custom", addedPath)
 	}
 	if model.screen != screenTable {
 		t.Fatalf("screen = %v, want table", model.screen)
@@ -1667,7 +1667,7 @@ func TestModelAddProjectModalSavesPath(t *testing.T) {
 	if model.message != "Project added" {
 		t.Fatalf("message = %q, want Project added", model.message)
 	}
-	if len(model.projects) != 1 || model.projects[0].Path != "/tmp/manual" {
+	if len(model.projects) != 1 || model.projects[0].Path != "/tmp/custom" {
 		t.Fatalf("projects = %#v", model.projects)
 	}
 }
