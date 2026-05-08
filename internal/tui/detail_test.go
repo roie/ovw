@@ -145,6 +145,38 @@ func TestDetailModalWrapsDescriptionAndNote(t *testing.T) {
 	}
 }
 
+func TestDetailModalScrollsLongContent(t *testing.T) {
+	project := detailTestProject("openclaw")
+	project.Scripts = []string{
+		"android:assemble", "android:test", "build", "build:docker",
+		"check", "check:docs", "dev", "docs:dev",
+		"lint", "lint:docs", "test", "test:all",
+		"test:docker:live-gateway", "test:docker:live-models",
+		"test:perf:hotspots", "test:startup:memory", "ui:build", "ui:dev",
+	}
+
+	got, maxOffset := detailModalViewWithScroll(project, true, 56, 12, 0)
+	view := stripANSI(got)
+	if maxOffset == 0 {
+		t.Fatalf("expected scrollable modal")
+	}
+	if !strings.Contains(view, "↓ pgup/pgdn detail") {
+		t.Fatalf("long modal missing scroll hint:\n%s", view)
+	}
+	if strings.Contains(view, "x hide") {
+		t.Fatalf("long modal should not show bottom action until scrolled:\n%s", view)
+	}
+
+	got, _ = detailModalViewWithScroll(project, true, 56, 12, maxOffset)
+	view = stripANSI(got)
+	if !strings.Contains(view, "x hide") {
+		t.Fatalf("scrolled modal should show bottom action:\n%s", view)
+	}
+	if !strings.Contains(view, "↑ pgup/pgdn detail") {
+		t.Fatalf("scrolled modal missing upward hint:\n%s", view)
+	}
+}
+
 func TestDetailSummaryShowsRecentCommits(t *testing.T) {
 	project := detailTestProject("eventca")
 	project.Activity.RecentCommits = []ovwformat.RecentCommit{

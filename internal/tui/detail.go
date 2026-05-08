@@ -27,6 +27,11 @@ func detailView(project project.Project, ok bool) string {
 }
 
 func detailModalView(project project.Project, ok bool, width int) string {
+	modal, _ := detailModalViewWithScroll(project, ok, width, 0, 0)
+	return modal
+}
+
+func detailModalViewWithScroll(project project.Project, ok bool, width int, height int, offset int) (string, int) {
 	if width <= 0 || width > 72 {
 		width = 72
 	}
@@ -37,7 +42,9 @@ func detailModalView(project project.Project, ok bool, width int) string {
 	if ok && project.Name != "" {
 		title = project.Name
 	}
-	return modalView(title, detailModalLinesWithWidth(project, ok, width-4), width)
+	lines := detailModalLinesWithWidth(project, ok, width-4)
+	lines, maxOffset := scrollDetailModalLines(lines, height, offset, width-4)
+	return modalView(title, lines, width), maxOffset
 }
 
 func detailModalLines(project project.Project, ok bool) []string {
@@ -132,6 +139,48 @@ func addSummaryNote(lines *[]string, note string, width int, source string) {
 
 func isFallbackNoteSource(source string) bool {
 	return source == "commit" || source == "description"
+}
+
+func scrollDetailModalLines(lines []string, height int, offset int, width int) ([]string, int) {
+	if height <= 0 || len(lines)+4 <= height {
+		return lines, 0
+	}
+	bodyHeight := height - 4
+	if bodyHeight < 1 {
+		bodyHeight = 1
+	}
+	visibleHeight := bodyHeight - 1
+	if visibleHeight < 1 {
+		visibleHeight = 1
+	}
+	maxOffset := len(lines) - visibleHeight
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	end := offset + visibleHeight
+	if end > len(lines) {
+		end = len(lines)
+	}
+	visible := append([]string{}, lines[offset:end]...)
+	visible = append(visible, modalDetailScrollHint(offset, maxOffset, width))
+	return visible, maxOffset
+}
+
+func modalDetailScrollHint(offset, maxOffset, width int) string {
+	marker := "↓"
+	switch {
+	case offset > 0 && offset < maxOffset:
+		marker = "↑↓"
+	case offset >= maxOffset:
+		marker = "↑"
+	}
+	return modalMuted(truncateText(marker+" pgup/pgdn detail", width))
 }
 
 func addRecentCommits(lines *[]string, commits []ovwformat.RecentCommit, width int) {

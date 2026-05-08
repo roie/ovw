@@ -827,6 +827,49 @@ func TestModelDoesNotScrollShortSidePaneDetails(t *testing.T) {
 	}
 }
 
+func TestModelScrollsLongDetailModal(t *testing.T) {
+	detailProject := project.Project{
+		Name:         "openclaw",
+		Path:         "/tmp/openclaw",
+		StackDisplay: "Node",
+		Managers:     []string{"pnpm"},
+		Scripts: []string{
+			"android:assemble", "android:test", "build", "build:docker",
+			"check", "check:docs", "dev", "docs:dev", "lint", "lint:docs",
+			"test", "test:all", "test:docker:live-gateway", "test:docker:live-models",
+			"test:perf:hotspots", "test:startup:memory", "ui:build", "ui:dev",
+		},
+		Activity: ovwformat.ActivityInfo{Display: "6h"},
+		Status:   ovwformat.StatusFromTags("active", []string{"active"}),
+	}
+	model := Model{
+		width:        140,
+		height:       12,
+		activeFilter: "all",
+		activeSort:   "activity",
+		screen:       screenDetail,
+		config:       config.Default(),
+		projects:     []project.Project{detailProject},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "↓ pgup/pgdn detail") {
+		t.Fatalf("long detail modal should show scroll hint:\n%s", view)
+	}
+	if strings.Contains(view, "x hide") {
+		t.Fatalf("long detail modal should start clipped:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEnd)
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "x hide") {
+		t.Fatalf("detail modal should jump to bottom:\n%s", view)
+	}
+	if !strings.Contains(view, "↑ pgup/pgdn detail") {
+		t.Fatalf("detail modal should show upward scroll hint:\n%s", view)
+	}
+}
+
 func TestModelStoresLoadError(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{}, errors.New("boom")

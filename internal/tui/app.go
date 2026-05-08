@@ -62,6 +62,7 @@ type Model struct {
 	selected        int
 	tableXOffset    int
 	detailYOffset   int
+	detailModalY    int
 	screen          screenMode
 	search          string
 	searchCursor    int
@@ -183,6 +184,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isEnterKey(msg.String()) && m.canOpenDetail() {
 			m.screen = screenDetail
+			m.detailModalY = 0
 			return m, nil
 		}
 		if m.screen == screenTable && m.showInlineDetail() && isDetailScrollKey(msg.String()) {
@@ -267,6 +269,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.clampDetailOffset()
+		m.clampDetailModalOffset()
 		return m, m.loadSelectedRecent()
 	case overviewLoadedMsg:
 		m.loading = false
@@ -373,8 +376,12 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch value := msg.String(); {
 	case isEscapeKey(value):
 		m.screen = screenTable
+		m.detailModalY = 0
+	case isDetailScrollKey(value):
+		m.scrollDetailModal(value)
 	case isVisibilityKey(value):
 		m.screen = screenTable
+		m.detailModalY = 0
 		m.loading = true
 		return m, m.toggleVisibility()
 	}
@@ -752,6 +759,45 @@ func (m *Model) clampDetailOffset() {
 	}
 }
 
+func (m *Model) scrollDetailModal(value string) {
+	_, maxOffset := m.currentScrollableDetailModal()
+	if maxOffset <= 0 {
+		m.detailModalY = 0
+		return
+	}
+	page := m.tableHeight() - 6
+	if page < 1 {
+		page = 1
+	}
+	switch value {
+	case "pgup":
+		m.detailModalY -= page
+	case "pgdown":
+		m.detailModalY += page
+	case "home":
+		m.detailModalY = 0
+	case "end":
+		m.detailModalY = maxOffset
+	}
+	if m.detailModalY < 0 {
+		m.detailModalY = 0
+	}
+	if m.detailModalY > maxOffset {
+		m.detailModalY = maxOffset
+	}
+}
+
+func (m *Model) clampDetailModalOffset() {
+	_, maxOffset := m.currentScrollableDetailModal()
+	if maxOffset <= 0 || m.detailModalY < 0 {
+		m.detailModalY = 0
+		return
+	}
+	if m.detailModalY > maxOffset {
+		m.detailModalY = maxOffset
+	}
+}
+
 func (m Model) currentScrollableDetail() (string, int) {
 	if !m.showInlineDetail() {
 		return "", 0
@@ -765,6 +811,17 @@ func (m Model) currentScrollableDetail() (string, int) {
 		detail.Activity.RecentCommits = commits
 	}
 	return scrollableDetailSummary(detail, detailWidth, m.tableHeight(), m.detailYOffset)
+}
+
+func (m Model) currentScrollableDetailModal() (string, int) {
+	if m.screen != screenDetail {
+		return "", 0
+	}
+	detail, ok := m.currentProject()
+	if !ok {
+		return "", 0
+	}
+	return detailModalViewWithScroll(detail, true, m.contentWidth(), m.tableHeight(), m.detailModalY)
 }
 
 func Run() error {
@@ -1107,7 +1164,12 @@ func renderShell(m Model) string {
 			switch m.screen {
 			case screenDetail:
 				project, ok := m.currentProject()
-				content = overlayModal(content, detailModalView(project, ok, m.contentWidth()), m.contentWidth())
+				modal, maxOffset := detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY)
+				if m.detailModalY > maxOffset {
+					m.detailModalY = maxOffset
+					modal, _ = detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY)
+				}
+				content = overlayModal(content, modal, m.contentWidth())
 			case screenAdd:
 				content = overlayModal(content, addProjectView(m.addInput, m.addCursor, m.addErr), m.contentWidth())
 			case screenHelp:
