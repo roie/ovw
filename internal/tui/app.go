@@ -1354,6 +1354,7 @@ func (m Model) tablePanel(visible []project.Project) string {
 				tableView(visible, m.selected, tableWidth, tableHeight, m.tableXOffset, m.config, m.activeSort, m.activeSortDir),
 				detailText,
 				gap,
+				tableHeight,
 			)
 		}
 	}
@@ -1408,13 +1409,16 @@ func splitPanelWidths(width, gap int) (int, int) {
 	return tableWidth, detailWidth
 }
 
-func joinColumns(left, right string, gap int) string {
+func joinColumns(left, right string, gap int, height ...int) string {
 	leftLines := strings.Split(left, "\n")
 	rightLines := strings.Split(right, "\n")
 	leftWidth := maxLineWidth(leftLines)
 	lineCount := len(leftLines)
 	if len(rightLines) > lineCount {
 		lineCount = len(rightLines)
+	}
+	if len(height) > 0 && height[0] > lineCount {
+		lineCount = height[0]
 	}
 	lines := make([]string, 0, lineCount)
 	spacer := strings.Repeat(" ", gap)

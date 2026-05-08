@@ -2414,6 +2414,20 @@ func TestSplitDividerAlignsOnSelectedRows(t *testing.T) {
 	}
 }
 
+func TestSplitDividerUsesFixedHeight(t *testing.T) {
+	got := joinColumns("Name\napp", "detail", 3, 5)
+	lines := strings.Split(stripANSI(got), "\n")
+
+	if len(lines) != 5 {
+		t.Fatalf("joinColumns rendered %d lines, want 5:\n%s", len(lines), got)
+	}
+	for index, line := range lines {
+		if !strings.Contains(line, "│") {
+			t.Fatalf("line %d missing divider:\n%s", index, got)
+		}
+	}
+}
+
 func TestOverlayModalPreservesBackgroundAroundModal(t *testing.T) {
 	base := strings.Join([]string{
 		"left row keeps visible right side",
