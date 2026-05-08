@@ -239,6 +239,25 @@ func TestDetailSummaryCompactsLongScripts(t *testing.T) {
 	}
 }
 
+func TestDetailSummaryKeepsMoreMarkerForLongScripts(t *testing.T) {
+	project := detailTestProject("openclaw")
+	project.Scripts = []string{
+		"android:assemble", "android:test", "build", "build:docker",
+		"check", "check:docs", "dev", "docs:dev", "lint", "lint:docs",
+		"test", "test:all", "test:docker:live-gateway", "test:docker:live-models",
+		"test:perf:hotspots", "test:startup:memory", "ui:build", "ui:dev",
+	}
+
+	got := stripANSI(detailSummaryView(project, 40))
+
+	if !strings.Contains(got, "+12 more") {
+		t.Fatalf("detail summary should preserve more marker at narrow widths:\n%s", got)
+	}
+	if strings.Contains(got, "+12...") {
+		t.Fatalf("detail summary should not truncate the more marker:\n%s", got)
+	}
+}
+
 func TestDetailSummaryShowsRecentCommits(t *testing.T) {
 	project := detailTestProject("eventca")
 	project.Activity.RecentCommits = []ovwformat.RecentCommit{

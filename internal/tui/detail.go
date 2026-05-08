@@ -121,7 +121,7 @@ func detailSummaryView(project project.Project, width int) string {
 			return
 		}
 		if label == "Scripts" {
-			value, _ = compactScripts(project.Scripts)
+			value, _ = compactScriptsForWidth(project.Scripts, contentWidth-detailLinePrefixWidth)
 		}
 		if label == "Note" {
 			addSummaryNote(&lines, value, width, project.Note.Source)
@@ -142,6 +142,7 @@ func detailSummaryView(project project.Project, width int) string {
 
 const maxFallbackSummaryNoteLines = 4
 const compactScriptsLimit = 6
+const detailLinePrefixWidth = 9
 
 var compactScriptPriority = []string{
 	"dev",
@@ -156,6 +157,10 @@ var compactScriptPriority = []string{
 }
 
 func compactScripts(scripts []string) (string, bool) {
+	return compactScriptsForWidth(scripts, 0)
+}
+
+func compactScriptsForWidth(scripts []string, width int) (string, bool) {
 	if len(scripts) <= compactScriptsLimit {
 		return strings.Join(scripts, ", "), false
 	}
@@ -185,7 +190,18 @@ func compactScripts(scripts []string) (string, bool) {
 			seen[script] = true
 		}
 	}
-	return fmt.Sprintf("%s +%d more", strings.Join(selected, ", "), len(scripts)-len(selected)), true
+	marker := fmt.Sprintf("+%d more", len(scripts)-len(selected))
+	if width <= 0 {
+		return strings.Join(selected, ", ") + " " + marker, true
+	}
+	for len(selected) > 0 {
+		value := strings.Join(selected, ", ") + " " + marker
+		if len([]rune(value)) <= width {
+			return value, true
+		}
+		selected = selected[:len(selected)-1]
+	}
+	return marker, true
 }
 
 func addSummaryNote(lines *[]string, note string, width int, source string) {
