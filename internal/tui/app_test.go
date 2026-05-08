@@ -870,6 +870,60 @@ func TestModelScrollsLongDetailModal(t *testing.T) {
 	}
 }
 
+func TestModelTogglesExpandedDetailModal(t *testing.T) {
+	detailProject := detailTestProject("openclaw")
+	detailProject.Scripts = []string{
+		"android:assemble", "android:test", "build", "build:docker",
+		"check", "check:docs", "dev", "docs:dev", "lint", "lint:docs",
+		"test", "test:all", "test:docker:live-gateway", "test:docker:live-models",
+		"test:perf:hotspots", "test:startup:memory", "ui:build", "ui:dev",
+	}
+	model := Model{
+		width:        140,
+		height:       24,
+		activeFilter: "all",
+		activeSort:   "activity",
+		screen:       screenDetail,
+		config:       config.Default(),
+		projects:     []project.Project{detailProject},
+		detailModalY: 3,
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "space expand") {
+		t.Fatalf("compact detail modal missing expand hint:\n%s", view)
+	}
+	if strings.Contains(view, "ui:dev") {
+		t.Fatalf("compact detail modal should hide later scripts:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeySpace)
+	if !model.detailsExpanded {
+		t.Fatal("detailsExpanded = false, want true")
+	}
+	if model.detailModalY != 0 {
+		t.Fatalf("detailModalY = %d, want 0", model.detailModalY)
+	}
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "ui:dev") {
+		t.Fatalf("expanded detail modal should show later scripts:\n%s", view)
+	}
+	model = updateSpecialKey(t, model, tea.KeyEnd)
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "space collapse") {
+		t.Fatalf("expanded detail modal missing collapse hint:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeySpace)
+	if model.detailsExpanded {
+		t.Fatal("detailsExpanded = true, want false")
+	}
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "space expand") || strings.Contains(view, "ui:dev") {
+		t.Fatalf("collapsed detail modal should compact again:\n%s", view)
+	}
+}
+
 func TestModelStoresLoadError(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{}, errors.New("boom")

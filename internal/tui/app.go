@@ -63,6 +63,7 @@ type Model struct {
 	tableXOffset    int
 	detailYOffset   int
 	detailModalY    int
+	detailsExpanded bool
 	screen          screenMode
 	search          string
 	searchCursor    int
@@ -185,6 +186,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isEnterKey(msg.String()) && m.canOpenDetail() {
 			m.screen = screenDetail
 			m.detailModalY = 0
+			m.detailsExpanded = false
 			return m, nil
 		}
 		if m.screen == screenTable && m.showInlineDetail() && isDetailScrollKey(msg.String()) {
@@ -377,11 +379,19 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value):
 		m.screen = screenTable
 		m.detailModalY = 0
+		m.detailsExpanded = false
+	case isExpandKey(value):
+		project, ok := m.currentProject()
+		if ok && detailModalHasCompactContent(project) {
+			m.detailsExpanded = !m.detailsExpanded
+			m.detailModalY = 0
+		}
 	case isDetailScrollKey(value):
 		m.scrollDetailModal(value)
 	case isVisibilityKey(value):
 		m.screen = screenTable
 		m.detailModalY = 0
+		m.detailsExpanded = false
 		m.loading = true
 		return m, m.toggleVisibility()
 	}
@@ -671,6 +681,10 @@ func isDetailScrollKey(value string) bool {
 	}
 }
 
+func isExpandKey(value string) bool {
+	return value == " " || value == "space"
+}
+
 func (m Model) View() string {
 	return renderShell(m)
 }
@@ -821,7 +835,7 @@ func (m Model) currentScrollableDetailModal() (string, int) {
 	if !ok {
 		return "", 0
 	}
-	return detailModalViewWithScroll(detail, true, m.contentWidth(), m.tableHeight(), m.detailModalY)
+	return detailModalViewWithScroll(detail, true, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded)
 }
 
 func Run() error {
@@ -1164,10 +1178,10 @@ func renderShell(m Model) string {
 			switch m.screen {
 			case screenDetail:
 				project, ok := m.currentProject()
-				modal, maxOffset := detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY)
+				modal, maxOffset := detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded)
 				if m.detailModalY > maxOffset {
 					m.detailModalY = maxOffset
-					modal, _ = detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY)
+					modal, _ = detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded)
 				}
 				content = overlayModal(content, modal, m.contentWidth())
 			case screenAdd:

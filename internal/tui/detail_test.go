@@ -155,7 +155,7 @@ func TestDetailModalScrollsLongContent(t *testing.T) {
 		"test:perf:hotspots", "test:startup:memory", "ui:build", "ui:dev",
 	}
 
-	got, maxOffset := detailModalViewWithScroll(project, true, 56, 12, 0)
+	got, maxOffset := detailModalViewWithScroll(project, true, 56, 12, 0, true)
 	view := stripANSI(got)
 	if maxOffset == 0 {
 		t.Fatalf("expected scrollable modal")
@@ -167,13 +167,75 @@ func TestDetailModalScrollsLongContent(t *testing.T) {
 		t.Fatalf("long modal should not show bottom action until scrolled:\n%s", view)
 	}
 
-	got, _ = detailModalViewWithScroll(project, true, 56, 12, maxOffset)
+	got, _ = detailModalViewWithScroll(project, true, 56, 12, maxOffset, true)
 	view = stripANSI(got)
 	if !strings.Contains(view, "x hide") {
 		t.Fatalf("scrolled modal should show bottom action:\n%s", view)
 	}
 	if !strings.Contains(view, "↑ pgup/pgdn detail") {
 		t.Fatalf("scrolled modal missing upward hint:\n%s", view)
+	}
+}
+
+func TestDetailModalCompactsLongScriptsByDefault(t *testing.T) {
+	project := detailTestProject("openclaw")
+	project.Scripts = []string{
+		"android:assemble", "android:test", "build", "build:docker",
+		"check", "check:docs", "dev", "docs:dev", "lint", "lint:docs",
+		"test", "test:all", "test:docker:live-gateway", "test:docker:live-models",
+		"test:perf:hotspots", "test:startup:memory", "ui:build", "ui:dev",
+	}
+
+	got := stripANSI(detailModalView(project, true, 72))
+
+	for _, want := range []string{"Scripts  dev, build, test, lint, check", "+12 more", "space expand"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("detail modal missing compact scripts text %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "ui:dev") {
+		t.Fatalf("detail modal should hide later scripts until expanded:\n%s", got)
+	}
+}
+
+func TestDetailModalExpandsLongScripts(t *testing.T) {
+	project := detailTestProject("openclaw")
+	project.Scripts = []string{
+		"android:assemble", "android:test", "build", "build:docker",
+		"check", "check:docs", "dev", "docs:dev", "lint", "lint:docs",
+		"test", "test:all", "test:docker:live-gateway", "test:docker:live-models",
+		"test:perf:hotspots", "test:startup:memory", "ui:build", "ui:dev",
+	}
+
+	got, _ := detailModalViewWithScroll(project, true, 72, 0, 0, true)
+	view := stripANSI(got)
+
+	for _, want := range []string{"ui:build", "ui:dev", "space collapse"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expanded detail modal missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "+12 more") {
+		t.Fatalf("expanded detail modal should not show compact marker:\n%s", view)
+	}
+}
+
+func TestDetailSummaryCompactsLongScripts(t *testing.T) {
+	project := detailTestProject("openclaw")
+	project.Scripts = []string{
+		"android:assemble", "android:test", "build", "build:docker",
+		"check", "check:docs", "dev", "docs:dev", "lint", "lint:docs",
+		"test", "test:all", "test:docker:live-gateway", "test:docker:live-models",
+		"test:perf:hotspots", "test:startup:memory", "ui:build", "ui:dev",
+	}
+
+	got := stripANSI(detailSummaryView(project, 72))
+
+	if !strings.Contains(got, "Scripts  dev, build, test, lint, check") || !strings.Contains(got, "+12 more") {
+		t.Fatalf("detail summary should compact long scripts:\n%s", got)
+	}
+	if strings.Contains(got, "ui:dev") {
+		t.Fatalf("detail summary should stay compact:\n%s", got)
 	}
 }
 

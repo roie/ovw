@@ -27,11 +27,11 @@ func detailView(project project.Project, ok bool) string {
 }
 
 func detailModalView(project project.Project, ok bool, width int) string {
-	modal, _ := detailModalViewWithScroll(project, ok, width, 0, 0)
+	modal, _ := detailModalViewWithScroll(project, ok, width, 0, 0, false)
 	return modal
 }
 
-func detailModalViewWithScroll(project project.Project, ok bool, width int, height int, offset int) (string, int) {
+func detailModalViewWithScroll(project project.Project, ok bool, width int, height int, offset int, expanded bool) (string, int) {
 	if width <= 0 || width > 72 {
 		width = 72
 	}
@@ -42,16 +42,16 @@ func detailModalViewWithScroll(project project.Project, ok bool, width int, heig
 	if ok && project.Name != "" {
 		title = project.Name
 	}
-	lines := detailModalLinesWithWidth(project, ok, width-4)
+	lines := detailModalLinesWithWidth(project, ok, width-4, expanded)
 	lines, maxOffset := scrollDetailModalLines(lines, height, offset, width-4)
 	return modalView(title, lines, width), maxOffset
 }
 
 func detailModalLines(project project.Project, ok bool) []string {
-	return detailModalLinesWithWidth(project, ok, 68)
+	return detailModalLinesWithWidth(project, ok, 68, false)
 }
 
-func detailModalLinesWithWidth(project project.Project, ok bool, width int) []string {
+func detailModalLinesWithWidth(project project.Project, ok bool, width int, expanded bool) []string {
 	if !ok {
 		return []string{modalMuted("No project selected")}
 	}
@@ -64,7 +64,11 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int) []st
 		lines = append(lines, textwrap.Lines(subtitle, width)...)
 		lines = append(lines, "")
 	}
+	hasCompactContent := detailModalHasCompactContent(project)
 	for _, field := range projectview.Fields(project, projectview.Options{Activity: projectview.DetailActivity}) {
+		if field.Label == "Scripts" && !expanded {
+			field.Value, _ = compactScripts(project.Scripts)
+		}
 		if field.Value == "" {
 			continue
 		}
@@ -77,8 +81,21 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int) []st
 			lines = append(lines, detailLine("", line))
 		}
 	}
-	lines = append(lines, "", actionHint("x", visibilityAction(project)))
+	actions := []string{actionHint("x", visibilityAction(project))}
+	if hasCompactContent {
+		if expanded {
+			actions = append(actions, actionHint("space", "collapse"))
+		} else {
+			actions = append(actions, actionHint("space", "expand"))
+		}
+	}
+	lines = append(lines, "", strings.Join(actions, " · "))
 	return lines
+}
+
+func detailModalHasCompactContent(project project.Project) bool {
+	_, compacted := compactScripts(project.Scripts)
+	return compacted
 }
 
 func visibilityAction(project project.Project) string {
@@ -103,6 +120,9 @@ func detailSummaryView(project project.Project, width int) string {
 		if value == "" {
 			return
 		}
+		if label == "Scripts" {
+			value, _ = compactScripts(project.Scripts)
+		}
 		if label == "Note" {
 			addSummaryNote(&lines, value, width, project.Note.Source)
 			return
@@ -121,6 +141,52 @@ func detailSummaryView(project project.Project, width int) string {
 }
 
 const maxFallbackSummaryNoteLines = 4
+const compactScriptsLimit = 6
+
+var compactScriptPriority = []string{
+	"dev",
+	"start",
+	"build",
+	"test",
+	"lint",
+	"check",
+	"typecheck",
+	"preview",
+	"serve",
+}
+
+func compactScripts(scripts []string) (string, bool) {
+	if len(scripts) <= compactScriptsLimit {
+		return strings.Join(scripts, ", "), false
+	}
+	selected := make([]string, 0, compactScriptsLimit)
+	seen := make(map[string]bool, compactScriptsLimit)
+	add := func(script string) {
+		if len(selected) >= compactScriptsLimit || seen[script] {
+			return
+		}
+		for _, candidate := range scripts {
+			if candidate == script {
+				selected = append(selected, script)
+				seen[script] = true
+				return
+			}
+		}
+	}
+	for _, script := range compactScriptPriority {
+		add(script)
+	}
+	for _, script := range scripts {
+		if len(selected) >= compactScriptsLimit {
+			break
+		}
+		if !seen[script] {
+			selected = append(selected, script)
+			seen[script] = true
+		}
+	}
+	return fmt.Sprintf("%s +%d more", strings.Join(selected, ", "), len(scripts)-len(selected)), true
+}
 
 func addSummaryNote(lines *[]string, note string, width int, source string) {
 	if note == "" {
