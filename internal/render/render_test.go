@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"ovw/internal/config"
 	"ovw/internal/format"
@@ -88,12 +91,36 @@ func TestTableWidthTruncatesNoteAndSeparator(t *testing.T) {
 		t.Fatalf("separator width = %d, want 72:\n%s", len(separator), out.String())
 	}
 	for _, line := range lines[2:] {
-		if len(line) > 72 {
-			t.Fatalf("line width = %d, want <= 72:\n%s", len(line), out.String())
+		if width := ansi.StringWidth(line); width > 72 {
+			t.Fatalf("line width = %d, want <= 72:\n%s", width, out.String())
 		}
 	}
 	if !strings.Contains(out.String(), "…") {
 		t.Fatalf("table did not truncate with ellipsis:\n%s", out.String())
+	}
+}
+
+func TestTableTruncatesUnicodeWithoutBreakingUTF8(t *testing.T) {
+	projects := []project.Project{{
+		Name:         "emoji",
+		Path:         "/tmp/emoji",
+		StackDisplay: "Go",
+		Activity:     format.ActivityInfo{Display: "1h"},
+		Note:         format.NoteInfo{Display: "fix: keep emoji 🙂 intact while truncating"},
+	}}
+	var out bytes.Buffer
+	if err := TableWithWidth(&out, projects, config.Default(), 100*time.Millisecond, 56); err != nil {
+		t.Fatalf("TableWithWidth() error = %v", err)
+	}
+	got := out.String()
+	if !utf8.ValidString(got) {
+		t.Fatalf("table output is not valid UTF-8:\n%q", got)
+	}
+	if strings.ContainsRune(got, utf8.RuneError) {
+		t.Fatalf("table output contains replacement rune after truncation:\n%s", got)
+	}
+	if !strings.Contains(got, "…") {
+		t.Fatalf("table did not truncate unicode note:\n%s", got)
 	}
 }
 

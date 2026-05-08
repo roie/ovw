@@ -399,6 +399,17 @@ func TestConfigPathCommand(t *testing.T) {
 	}
 }
 
+func TestConfigSubcommandsRejectExtraArgs(t *testing.T) {
+	for _, args := range [][]string{
+		{"config", "path", "extra"},
+		{"config", "edit", "extra"},
+	} {
+		if _, err := executeCommand(args); err == nil {
+			t.Fatalf("Execute(%v) error = nil, want extra arg error", args)
+		}
+	}
+}
+
 func TestCacheCommandIsRemoved(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

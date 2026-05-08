@@ -12,6 +12,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"ovw/internal/config"
 	"ovw/internal/project"
 	"ovw/internal/projectview"
@@ -172,15 +174,15 @@ func applyWidth(rows []tableRow, columns []string, width int) {
 func nonNoteWidth(rows []tableRow, columns []string, noteIndex int) int {
 	widths := map[int]int{}
 	for i, column := range columns {
-		widths[i] = len(projectview.ColumnLabel(column))
+		widths[i] = ansi.StringWidth(projectview.ColumnLabel(column))
 	}
 	for _, row := range rows {
 		for i, value := range row.values {
 			if i == noteIndex {
 				continue
 			}
-			if len(value) > widths[i] {
-				widths[i] = len(value)
+			if valueWidth := ansi.StringWidth(value); valueWidth > widths[i] {
+				widths[i] = valueWidth
 			}
 		}
 	}
@@ -196,19 +198,21 @@ func nonNoteWidth(rows []tableRow, columns []string, noteIndex int) int {
 }
 
 func truncate(value string, maxWidth int) string {
-	if len(value) <= maxWidth {
+	if ansi.StringWidth(value) <= maxWidth {
 		return value
 	}
-	if maxWidth <= len("…") {
+	ellipsis := "…"
+	ellipsisWidth := ansi.StringWidth(ellipsis)
+	if maxWidth <= ellipsisWidth {
 		return ""
 	}
-	return value[:maxWidth-len("…")] + "…"
+	return ansi.Cut(value, 0, maxWidth-ellipsisWidth) + ellipsis
 }
 
 func trimLineWidth(line string, width int) string {
 	hasNewline := strings.HasSuffix(line, "\n")
 	line = strings.TrimRight(line, "\n")
-	if len(line) > width {
+	if ansi.StringWidth(line) > width {
 		line = truncate(line, width)
 	}
 	if hasNewline {

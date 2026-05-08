@@ -182,6 +182,7 @@ func newConfigCommand() *cobra.Command {
 		Use:   "path",
 		Short: "Print config path",
 		Long:  "Print the path to config.toml.",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths, err := config.Paths()
 			if err != nil {
@@ -196,6 +197,7 @@ func newConfigCommand() *cobra.Command {
 		Use:   "edit",
 		Short: "Edit config",
 		Long:  "Open config.toml in your editor.",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths, err := config.Paths()
 			if err != nil {
