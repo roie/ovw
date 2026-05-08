@@ -20,9 +20,9 @@ func TestTableViewRendersProjectColumns(t *testing.T) {
 			Status:       ovwformat.StatusFromTags("", []string{"dirty", "stale"}),
 			Note:         ovwformat.NoteInfo{Display: "partial check-in"},
 		},
-	}, -1, 100, 0, 0, config.Default())
+	}, -1, 100, 0, 0, config.Default(), "activity", "desc")
 
-	for _, want := range []string{"Name", "Stack", "Activity", "Status", "Note", "eventca", "SvelteKit+CF", "40m", "dirty", "stale", "partial check-in"} {
+	for _, want := range []string{"Name", "Stack", "Activity ↓", "Status", "Note", "eventca", "SvelteKit+CF", "40m", "dirty", "stale", "partial check-in"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing %q:\n%s", want, got)
 		}
@@ -38,7 +38,7 @@ func TestTableViewUsesHorizontalViewport(t *testing.T) {
 			Status:       ovwformat.StatusFromTags("", []string{"dirty", "unpushed", "stale"}),
 			Note:         ovwformat.NoteInfo{Display: "this is a long note that should not overflow the table width"},
 		},
-	}, -1, 72, 0, 0, config.Default())
+	}, -1, 72, 0, 0, config.Default(), "activity", "desc")
 
 	for _, line := range strings.Split(got, "\n") {
 		if len([]rune(line)) > 72 {
@@ -59,7 +59,7 @@ func TestTableViewCollapsesMultilineNotes(t *testing.T) {
 			Status:       ovwformat.StatusFromTags("", []string{"dirty"}),
 			Note:         ovwformat.NoteInfo{Display: "fix: extract carousel\n- Add SJS script\n- Increase timeout"},
 		},
-	}, 0, 120, 8, 0, config.Default())
+	}, 0, 120, 8, 0, config.Default(), "activity", "desc")
 
 	lines := strings.Split(stripANSI(got), "\n")
 	if len(lines) != 3 {
@@ -79,7 +79,7 @@ func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 		projects = append(projects, project.Project{Name: fmt.Sprintf("project-%02d", i)})
 	}
 
-	got := tableView(projects, 15, 80, 8, 0, config.Default())
+	got := tableView(projects, 15, 80, 8, 0, config.Default(), "activity", "desc")
 
 	if !strings.Contains(got, "project-15") {
 		t.Fatalf("selected row is not visible:\n%s", got)
@@ -107,9 +107,9 @@ func TestTableViewFollowsConfiguredColumns(t *testing.T) {
 			Version:  "1.2.3",
 			Status:   ovwformat.StatusFromTags("", []string{"active"}),
 		},
-	}, -1, 100, 0, 0, cfg)
+	}, -1, 100, 0, 0, cfg, "name", "asc")
 
-	for _, want := range []string{"Name", "Path", "Manager", "Scripts", "Version", "Status", "eventca", "/tmp/eventca", "pnpm", "dev, build", "1.2.3", "active"} {
+	for _, want := range []string{"Name ↑", "Path", "Manager", "Scripts", "Version", "Status", "eventca", "/tmp/eventca", "pnpm", "dev, build", "1.2.3", "active"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing configured column value %q:\n%s", want, got)
 		}
@@ -134,8 +134,8 @@ func TestTableViewHorizontallyScrollsConfiguredColumns(t *testing.T) {
 		Note:     ovwformat.NoteInfo{Display: strings.Repeat("n", 80)},
 	}
 
-	left := tableView([]project.Project{item}, -1, 40, 0, 0, cfg)
-	right := tableView([]project.Project{item}, -1, 40, 0, 32, cfg)
+	left := tableView([]project.Project{item}, -1, 40, 0, 0, cfg, "activity", "desc")
+	right := tableView([]project.Project{item}, -1, 40, 0, 32, cfg, "activity", "desc")
 
 	if !strings.Contains(left, "eventca") {
 		t.Fatalf("left viewport should show early columns:\n%s", left)

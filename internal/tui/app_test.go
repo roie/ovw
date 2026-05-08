@@ -360,7 +360,7 @@ func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	for _, want := range []string{"ovw  1 project  filter: all  sort: activity", "1/1", "app", "Go", "12m", "dirty", "user note"} {
+	for _, want := range []string{"ovw  1 project", "filter: all", "1/1", "Activity ↓", "app", "Go", "12m", "dirty", "user note"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("background loading view missing %q:\n%s", want, view)
 		}
@@ -386,8 +386,16 @@ func TestModelHeaderShowsFilterAndSort(t *testing.T) {
 
 	view := stripANSI(model.View())
 	header := strings.Split(view, "\n")[0]
-	if !strings.Contains(header, "ovw  2 projects  filter: dirty  sort: name asc") {
-		t.Fatalf("header missing filter and sort:\n%s", view)
+	for _, want := range []string{"ovw  2 projects", "filter: dirty"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("header missing %q:\n%s", want, header)
+		}
+	}
+	if strings.Index(header, "filter: dirty") < strings.Index(header, "2 projects") {
+		t.Fatalf("header should keep filter on the right:\n%s", view)
+	}
+	if strings.Contains(header, "sort:") {
+		t.Fatalf("header should not repeat visible sort column:\n%s", header)
 	}
 	if !strings.HasSuffix(header, "1/2") {
 		t.Fatalf("header should put position on the right:\n%s", header)
@@ -407,11 +415,73 @@ func TestModelHeaderShowsAllFilter(t *testing.T) {
 	}
 
 	header := strings.Split(stripANSI(model.View()), "\n")[0]
-	if !strings.Contains(header, "ovw  1 project  filter: all  sort: activity desc") {
-		t.Fatalf("header missing all filter:\n%s", header)
+	for _, want := range []string{"ovw  1 project", "filter: all"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("header missing %q:\n%s", want, header)
+		}
 	}
 	if !strings.HasSuffix(header, "1/1") {
 		t.Fatalf("header should put position on the right:\n%s", header)
+	}
+	if strings.Contains(header, "sort:") {
+		t.Fatalf("header should not repeat visible sort column:\n%s", header)
+	}
+}
+
+func TestModelHeaderShowsSortWhenSortColumnIsHidden(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "status", "note"}
+	model := Model{
+		width:         80,
+		activeFilter:  "all",
+		activeSort:    "activity",
+		activeSortDir: "desc",
+		config:        cfg,
+		projects:      []project.Project{{Name: "app"}},
+	}
+
+	header := strings.Split(stripANSI(model.View()), "\n")[0]
+	if !strings.Contains(header, "sort: activity ↓") {
+		t.Fatalf("header should show hidden sort column:\n%s", header)
+	}
+}
+
+func TestModelHeaderShowsScanElapsedWhenWide(t *testing.T) {
+	model := Model{
+		width:         120,
+		activeFilter:  "all",
+		activeSort:    "activity",
+		activeSortDir: "desc",
+		scanElapsed:   200 * time.Millisecond,
+		projects:      []project.Project{{Name: "app"}},
+	}
+
+	header := strings.Split(stripANSI(model.View()), "\n")[0]
+	for _, want := range []string{"ovw  1 project", "scanned in 0.2s", "filter: all", "1/1"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("header missing %q:\n%s", want, header)
+		}
+	}
+}
+
+func TestModelHeaderDropsScanElapsedBeforeFilterSort(t *testing.T) {
+	model := Model{
+		width:         44,
+		activeFilter:  "all",
+		activeSort:    "activity",
+		activeSortDir: "desc",
+		scanElapsed:   200 * time.Millisecond,
+		projects:      []project.Project{{Name: "app"}},
+	}
+
+	header := strings.Split(stripANSI(model.View()), "\n")[0]
+	if strings.Contains(header, "scanned in") {
+		t.Fatalf("header should drop elapsed before filter/sort:\n%s", header)
+	}
+	for _, want := range []string{"ovw  1 project", "filter: all", "1/1"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("header missing %q:\n%s", want, header)
+		}
 	}
 }
 
@@ -420,16 +490,20 @@ func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 		activeFilter:  "all",
 		activeSort:    "activity",
 		activeSortDir: "desc",
+		scanElapsed:   200 * time.Millisecond,
 		searching:     true,
 		projects:      []project.Project{{Name: "app"}},
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "sort: activity desc  search: ▌") {
+	if !strings.Contains(view, "1 project  search: ▌") {
 		t.Fatalf("header should separate sort and search consistently:\n%s", view)
 	}
 	if strings.Contains(view, "search:  ▌") {
 		t.Fatalf("search label should not add extra spacing after colon:\n%s", view)
+	}
+	if strings.Contains(view, "scanned in") {
+		t.Fatalf("search should replace scan time:\n%s", view)
 	}
 }
 
@@ -1834,7 +1908,12 @@ func TestModelWideViewShowsInlineDetailPane(t *testing.T) {
 		t.Fatalf("wide table should keep note column:\n%s", view)
 	}
 	header := strings.Split(stripANSI(view), "\n")[0]
-	if !strings.Contains(header, "ovw  2 projects  filter: all") || !strings.HasSuffix(header, "2/2") {
+	for _, want := range []string{"ovw  2 projects", "filter: all", "2/2"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("wide header missing %q:\n%s", want, header)
+		}
+	}
+	if !strings.HasSuffix(header, "2/2") {
 		t.Fatalf("wide header should show selection position on the right:\n%s", view)
 	}
 	if !strings.Contains(view, " │ ") {

@@ -73,6 +73,18 @@ func sortHeader(by, dir string) string {
 	return by + " " + sortDir(dir)
 }
 
+func sortHeaderCompact(by, dir string) string {
+	if by == "" {
+		by = "activity"
+	}
+	switch sortDir(dir) {
+	case "asc":
+		return by + " ↑"
+	default:
+		return by + " ↓"
+	}
+}
+
 func (m *Model) toggleSortDir() {
 	if sortDir(m.activeSortDir) == "asc" {
 		m.activeSortDir = "desc"

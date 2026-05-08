@@ -84,6 +84,7 @@ type Model struct {
 	loadErr         error
 	config          config.Config
 	projects        []project.Project
+	scanElapsed     time.Duration
 	recentByPath    map[string][]ovwformat.RecentCommit
 }
 
@@ -258,6 +259,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = screenTable
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		if msg.message != "" {
@@ -290,6 +292,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = screenTable
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.message = "Project root saved"
@@ -299,6 +302,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.message = msg.message
@@ -316,6 +320,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		m.scanElapsed = msg.result.Elapsed
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.screen = screenTable
 		m.message = msg.message
@@ -1019,24 +1024,82 @@ func renderShell(m Model) string {
 }
 
 func headerView(m Model) string {
-	parts := []string{
-		formatProjectCount(len(m.projects)),
-		"filter: " + headerFilter(m.activeFilter),
-	}
-	if m.activeSort != "" {
-		parts = append(parts, "sort: "+sortHeader(m.activeSort, m.activeSortDir))
-	}
+	leftParts := []string{formatProjectCount(len(m.projects))}
 	if m.search != "" || m.searching {
-		parts = append(parts, "search: "+m.searchDisplay())
+		leftParts = append(leftParts, "search: "+m.searchDisplay())
+	} else if elapsed := formatScanElapsed(m.scanElapsed); elapsed != "" {
+		leftParts = append(leftParts, elapsed)
 	}
-	left := titleStyle.Render("ovw") + "  " + mutedStyle.Render(strings.Join(parts, "  "))
-	right := mutedStyle.Render(selectedPosition(m.selected, len(m.visibleProjects())))
+	rightParts := []string{"filter: " + headerFilter(m.activeFilter)}
+	if m.activeSort != "" && !tableColumnVisible(tableColumns(m.config), m.activeSort) {
+		rightParts = append(rightParts, "sort: "+sortHeaderCompact(m.activeSort, m.activeSortDir))
+	}
+	rightParts = append(rightParts, selectedPosition(m.selected, len(m.visibleProjects())))
+
+	fitHeaderParts(&leftParts, &rightParts, m.contentWidth())
+	left := titleStyle.Render("ovw") + "  " + mutedStyle.Render(strings.Join(leftParts, "  "))
+	right := mutedStyle.Render(strings.Join(rightParts, "  "))
 	width := m.contentWidth()
 	if width <= 0 || lipglossWidth(left)+lipglossWidth(right)+2 > width {
 		return left + "  " + right
 	}
 	gap := width - lipglossWidth(left) - lipglossWidth(right)
 	return left + strings.Repeat(" ", gap) + right
+}
+
+func tableColumnVisible(columns []string, column string) bool {
+	for _, candidate := range columns {
+		if candidate == column {
+			return true
+		}
+	}
+	return false
+}
+
+func fitHeaderParts(leftParts, rightParts *[]string, width int) {
+	if width <= 0 {
+		return
+	}
+	fits := func() bool {
+		left := titleStyle.Render("ovw") + "  " + mutedStyle.Render(strings.Join(*leftParts, "  "))
+		right := strings.Join(*rightParts, "  ")
+		return lipglossWidth(left)+lipglossWidth(right)+2 <= width
+	}
+	for _, step := range []func(){
+		func() {
+			*leftParts = removeFirstMatching(*leftParts, func(part string) bool { return strings.HasPrefix(part, "scanned in ") })
+		},
+		func() {
+			*rightParts = removeFirstMatching(*rightParts, func(part string) bool { return strings.HasPrefix(part, "sort: ") })
+		},
+		func() {
+			*rightParts = removeFirstMatching(*rightParts, func(part string) bool { return strings.HasPrefix(part, "filter: ") })
+		},
+		func() {
+			*leftParts = removeFirstMatching(*leftParts, func(part string) bool { return strings.HasPrefix(part, "search: ") })
+		},
+	} {
+		if fits() {
+			return
+		}
+		step()
+	}
+}
+
+func removeFirstMatching(parts []string, match func(string) bool) []string {
+	for index, part := range parts {
+		if match(part) {
+			return append(parts[:index], parts[index+1:]...)
+		}
+	}
+	return parts
+}
+
+func formatScanElapsed(elapsed time.Duration) string {
+	if elapsed <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("scanned in %.1fs", elapsed.Seconds())
 }
 
 func selectedPosition(selected, total int) string {
@@ -1073,13 +1136,13 @@ func (m Model) tablePanel(visible []project.Project) string {
 				detail.Activity.RecentCommits = commits
 			}
 			return joinColumns(
-				tableView(visible, m.selected, tableWidth, tableHeight, m.tableXOffset, m.config),
+				tableView(visible, m.selected, tableWidth, tableHeight, m.tableXOffset, m.config, m.activeSort, m.activeSortDir),
 				detailSummaryView(detail, detailWidth),
 				gap,
 			)
 		}
 	}
-	return tableView(visible, m.selected, contentWidth, tableHeight, m.tableXOffset, m.config)
+	return tableView(visible, m.selected, contentWidth, tableHeight, m.tableXOffset, m.config, m.activeSort, m.activeSortDir)
 }
 
 func (m Model) showInlineDetail() bool {

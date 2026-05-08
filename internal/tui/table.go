@@ -19,7 +19,7 @@ type tableRow struct {
 
 const maxTableNoteWidth = 48
 
-func tableView(projects []project.Project, selected, width, height, xOffset int, cfg config.Config) string {
+func tableView(projects []project.Project, selected, width, height, xOffset int, cfg config.Config, sortBy, sortDir string) string {
 	if len(projects) == 0 {
 		lines := []string{
 			mutedStyle.Render("No projects found"),
@@ -30,8 +30,8 @@ func tableView(projects []project.Project, selected, width, height, xOffset int,
 		return strings.Join(lines, "\n")
 	}
 	columns := tableColumns(cfg)
-	rows := tableRows(projects, columns)
-	header := tableHeader(columns, rows)
+	rows := tableRows(projects, columns, sortBy, sortDir)
+	header := tableHeader(columns, rows, sortBy, sortDir)
 	xOffset = clampTableXOffset(xOffset, width, tableLineWidth(header))
 	lines := []string{
 		tableViewportLine(tableLine(header), xOffset, width),
@@ -55,7 +55,7 @@ func tableColumns(cfg config.Config) []string {
 	return cfg.Columns
 }
 
-func tableRows(projects []project.Project, columns []string) []tableRow {
+func tableRows(projects []project.Project, columns []string, sortBy, sortDir string) []tableRow {
 	displayNames := projectview.DisambiguatedNames(projects)
 	rows := make([]tableRow, 0, len(projects))
 	for index, project := range projects {
@@ -67,26 +67,27 @@ func tableRows(projects []project.Project, columns []string) []tableRow {
 		}
 		rows = append(rows, tableRow{Cells: row})
 	}
-	fitTableRows(rows, columns)
+	fitTableRows(rows, columns, sortBy, sortDir)
 	return rows
 }
 
-func tableHeader(columns []string, rows []tableRow) tableRow {
+func tableHeader(columns []string, rows []tableRow, sortBy, sortDir string) tableRow {
 	cells := make([]tableCell, 0, len(columns))
 	for index, column := range columns {
-		width := len([]rune(projectview.ColumnLabel(column)))
+		label := tableColumnLabel(column, sortBy, sortDir)
+		width := len([]rune(label))
 		if len(rows) > 0 && index < len(rows[0].Cells) {
 			width = rows[0].Cells[index].Width
 		}
-		cells = append(cells, tableCell{Value: projectview.ColumnLabel(column), Width: width})
+		cells = append(cells, tableCell{Value: label, Width: width})
 	}
 	return tableRow{Cells: cells}
 }
 
-func fitTableRows(rows []tableRow, columns []string) {
+func fitTableRows(rows []tableRow, columns []string, sortBy, sortDir string) {
 	widths := make([]int, len(columns))
 	for index, column := range columns {
-		widths[index] = len([]rune(projectview.ColumnLabel(column)))
+		widths[index] = len([]rune(tableColumnLabel(column, sortBy, sortDir)))
 	}
 	for _, row := range rows {
 		for index, cell := range row.Cells {
@@ -104,6 +105,19 @@ func fitTableRows(rows []tableRow, columns []string) {
 		for cellIndex := range rows[rowIndex].Cells {
 			rows[rowIndex].Cells[cellIndex].Width = widths[cellIndex]
 		}
+	}
+}
+
+func tableColumnLabel(column, sortBy, dir string) string {
+	label := projectview.ColumnLabel(column)
+	if column != sortBy {
+		return label
+	}
+	switch sortDir(dir) {
+	case "asc":
+		return label + " ↑"
+	default:
+		return label + " ↓"
 	}
 }
 
