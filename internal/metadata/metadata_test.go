@@ -31,7 +31,6 @@ func TestWriteReadMetadata(t *testing.T) {
 	store.Projects[canonical] = Entry{
 		Status: "active",
 		Note:   "ship it",
-		Manual: true,
 		Hidden: true,
 	}
 
@@ -43,7 +42,7 @@ func TestWriteReadMetadata(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 	got := loaded.Projects[canonical]
-	if got.Status != "active" || got.Note != "ship it" || !got.Manual || !got.Hidden {
+	if got.Status != "active" || got.Note != "ship it" || !got.Hidden {
 		t.Fatalf("Entry = %#v", got)
 	}
 }
@@ -55,15 +54,12 @@ func TestSetUsesCanonicalPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := New()
-	canonical, entry, err := store.Set(filepath.Join(projectPath, "."), Entry{Manual: true})
+	canonical, _, err := store.Set(filepath.Join(projectPath, "."), Entry{Status: "active"})
 	if err != nil {
 		t.Fatalf("Set() error = %v", err)
 	}
 	if !filepath.IsAbs(canonical) {
 		t.Fatalf("canonical path is not absolute: %q", canonical)
-	}
-	if !entry.Manual {
-		t.Fatalf("entry = %#v", entry)
 	}
 	if _, ok := store.Projects[canonical]; !ok {
 		t.Fatalf("canonical key missing from %#v", store.Projects)

@@ -12,7 +12,6 @@ import (
 type Project struct {
 	Name   string
 	Path   string
-	Manual bool
 	Hidden bool
 	Status string
 	Note   string
@@ -61,11 +60,6 @@ func scan(cfg config.Config, meta metadata.Store, includeHidden bool) ([]Project
 		})
 		if walkErr != nil {
 			return nil, walkErr
-		}
-	}
-	for path, entry := range meta.Projects {
-		if entry.Manual {
-			addProject(seen, path, meta)
 		}
 	}
 	projects := make([]Project, 0, len(seen))
@@ -119,7 +113,6 @@ func addProject(seen map[string]Project, path string, meta metadata.Store) {
 	seen[canonical] = Project{
 		Name:   filepath.Base(canonical),
 		Path:   canonical,
-		Manual: entry.Manual,
 		Hidden: entry.Hidden,
 		Status: entry.Status,
 		Note:   entry.Note,

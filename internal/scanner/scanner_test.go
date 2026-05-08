@@ -109,27 +109,21 @@ func TestScanSupportsMaxDepth(t *testing.T) {
 	}
 }
 
-func TestScanIncludesManualOutsideRoots(t *testing.T) {
+func TestScanIgnoresMetadataOutsideRoots(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "manual")
 	if err := os.MkdirAll(outside, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	store := metadata.New()
-	canonical, _, err := store.Set(outside, metadata.Entry{Manual: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	store.Projects[outside] = metadata.Entry{Status: "active"}
 
 	projects, err := Scan(configForRoot(root), store)
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	if len(projects) != 1 {
+	if len(projects) != 0 {
 		t.Fatalf("projects = %#v", projects)
-	}
-	if projects[0].Path != canonical || !projects[0].Manual {
-		t.Fatalf("project = %#v", projects[0])
 	}
 }
 

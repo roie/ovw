@@ -16,7 +16,6 @@ type Project struct {
 	Activity     format.ActivityInfo `json:"activity"`
 	Status       format.StatusInfo   `json:"status"`
 	Note         format.NoteInfo     `json:"note"`
-	Manual       bool                `json:"manual"`
 	Hidden       bool                `json:"hidden"`
 	Description  string              `json:"-"`
 }

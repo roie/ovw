@@ -355,7 +355,7 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 	}
 }
 
-func TestAddProjectWritesManualMetadata(t *testing.T) {
+func TestAddProjectWritesConfigRoot(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "manual")
 	if err := os.MkdirAll(project, 0o755); err != nil {
@@ -370,19 +370,16 @@ func TestAddProjectWritesManualMetadata(t *testing.T) {
 	if result.AlreadyTracked {
 		t.Fatal("AlreadyTracked = true, want false")
 	}
-	if !result.Entry.Manual {
-		t.Fatalf("entry = %#v, want manual", result.Entry)
-	}
-	store, err := metadata.Load(filepath.Join(home, ".local", "share", "ovw", "projects.json"))
+	cfg, err := config.Load(filepath.Join(home, ".config", "ovw", "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !store.Projects[result.Path].Manual {
-		t.Fatalf("stored entry = %#v, want manual", store.Projects[result.Path])
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != project {
+		t.Fatalf("roots = %#v, want %q", cfg.Roots, project)
 	}
 }
 
-func TestAddProjectReportsAlreadyTrackedManualProject(t *testing.T) {
+func TestAddProjectReportsAlreadyTrackedRoot(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "manual")
 	if err := os.MkdirAll(project, 0o755); err != nil {

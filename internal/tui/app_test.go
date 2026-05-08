@@ -1555,7 +1555,7 @@ func TestModelAddProjectModalSavesPath(t *testing.T) {
 		loader: func(opts app.Options) (app.OverviewResult, error) {
 			return app.OverviewResult{
 				Config:   config.Default(),
-				Projects: []project.Project{{Name: "manual", Path: "/tmp/manual", Manual: true}},
+				Projects: []project.Project{{Name: "manual", Path: "/tmp/manual"}},
 			}, nil
 		},
 		adder: func(path string) (app.AddProjectResult, error) {

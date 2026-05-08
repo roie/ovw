@@ -65,7 +65,6 @@ type MetadataUpdateResult struct {
 
 type AddProjectResult struct {
 	Path           string
-	Entry          metadata.Entry
 	AlreadyTracked bool
 }
 
@@ -269,7 +268,6 @@ func ProjectFromPath(path string, cfg config.Config, store metadata.Store, now t
 	return Enrich(scanner.Project{
 		Name:   filepath.Base(path),
 		Path:   path,
-		Manual: entry.Manual,
 		Hidden: entry.Hidden,
 		Status: entry.Status,
 		Note:   entry.Note,
@@ -315,24 +313,39 @@ func AddProject(path string) (AddProjectResult, error) {
 	if err != nil {
 		return AddProjectResult{}, err
 	}
-	store, err := metadata.Load(paths.Metadata)
-	if err != nil {
+	cfg, err := config.Load(paths.Config)
+	if err != nil && !os.IsNotExist(err) {
 		return AddProjectResult{}, err
+	}
+	if os.IsNotExist(err) {
+		cfg = config.Default()
+		cfg.Roots = nil
 	}
 	canonical, err := metadata.CanonicalPath(projectPath)
 	if err != nil {
 		return AddProjectResult{}, err
 	}
-	entry := store.Projects[canonical]
-	if entry.Manual {
-		return AddProjectResult{Path: canonical, Entry: entry, AlreadyTracked: true}, nil
+	for _, root := range cfg.Roots {
+		expanded, err := config.ExpandPath(root)
+		if err != nil {
+			continue
+		}
+		existing, err := metadata.CanonicalPath(expanded)
+		if err != nil {
+			continue
+		}
+		if existing == canonical {
+			return AddProjectResult{Path: canonical, AlreadyTracked: true}, nil
+		}
 	}
-	entry.Manual = true
-	store.Projects[canonical] = entry
-	if err := metadata.Write(paths.Metadata, store); err != nil {
+	cfg.Roots = append(cfg.Roots, path)
+	if err := config.Validate(cfg); err != nil {
 		return AddProjectResult{}, err
 	}
-	return AddProjectResult{Path: canonical, Entry: entry}, nil
+	if err := config.WriteDefault(paths.Config, cfg.Roots); err != nil {
+		return AddProjectResult{}, err
+	}
+	return AddProjectResult{Path: canonical}, nil
 }
 
 type NotDirectoryError struct {
@@ -416,7 +429,6 @@ func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.P
 		Activity:     activity,
 		Status:       status,
 		Note:         note,
-		Manual:       scanned.Manual,
 		Hidden:       scanned.Hidden,
 		Description:  description,
 	}

@@ -557,16 +557,18 @@ func TestAddHideUnhideRemoveCommands(t *testing.T) {
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 
 	runCommand(t, []string{"add", project})
-	metaPath := filepath.Join(home, ".local", "share", "ovw", "projects.json")
-	data, err := os.ReadFile(metaPath)
+	cfg, err := config.Load(filepath.Join(home, ".config", "ovw", "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(data, []byte(`"manual": true`)) {
-		t.Fatalf("metadata after add = %s", string(data))
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != project {
+		t.Fatalf("roots after add = %#v", cfg.Roots)
 	}
 
 	out := runCommand(t, []string{"hide", project})
@@ -578,7 +580,8 @@ func TestAddHideUnhideRemoveCommands(t *testing.T) {
 	}
 
 	runCommand(t, []string{"unhide", project})
-	data, err = os.ReadFile(metaPath)
+	metaPath := filepath.Join(home, ".local", "share", "ovw", "projects.json")
+	data, err := os.ReadFile(metaPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -608,13 +611,12 @@ func TestAddExpandsQuotedHomePathAndDisplaysShortPath(t *testing.T) {
 	if !strings.Contains(out, "Added ~/dev/manual to ovw.") {
 		t.Fatalf("add output = %q", out)
 	}
-	metaPath := filepath.Join(home, ".local", "share", "ovw", "projects.json")
-	data, err := os.ReadFile(metaPath)
+	cfg, err := config.Load(filepath.Join(home, ".config", "ovw", "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(data, []byte(project)) {
-		t.Fatalf("metadata should store absolute path, got %s", data)
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != "~/dev/manual" {
+		t.Fatalf("config roots = %#v, want ~/dev/manual", cfg.Roots)
 	}
 }
 
@@ -701,6 +703,9 @@ func TestSetUnsetShowCommands(t *testing.T) {
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	runCommand(t, []string{"add", project})
 
@@ -738,6 +743,9 @@ func TestSetRequiresStatusOrNote(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "manual")
 	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
@@ -782,6 +790,9 @@ func TestUnsetRequiresStatusOrNote(t *testing.T) {
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	runCommand(t, []string{"add", project})
 
@@ -795,6 +806,9 @@ func TestSetAllowsFreeFormStatus(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "manual")
 	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module manual"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)

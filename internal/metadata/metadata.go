@@ -16,7 +16,6 @@ type Store struct {
 type Entry struct {
 	Status string `json:"status,omitempty"`
 	Note   string `json:"note,omitempty"`
-	Manual bool   `json:"manual,omitempty"`
 	Hidden bool   `json:"hidden,omitempty"`
 }
 
@@ -71,9 +70,6 @@ func (s *Store) Set(path string, entry Entry) (string, Entry, error) {
 	}
 	if entry.Note != "" {
 		current.Note = entry.Note
-	}
-	if entry.Manual {
-		current.Manual = true
 	}
 	if entry.Hidden {
 		current.Hidden = true

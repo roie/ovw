@@ -192,7 +192,6 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		Status:      format.StatusFromTags("active", []string{"dirty", "unpushed", "active"}),
 		Description: "Project description",
 		Note:        format.NoteInfo{Display: "note", Source: "user", Value: "note"},
-		Manual:      true,
 		Hidden:      true,
 	}}
 	var out bytes.Buffer
