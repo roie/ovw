@@ -24,6 +24,7 @@ var (
 	interactiveTerminal = streamsAreTerminal
 	runTUI              = tui.RunWithOptions
 	runFirstRunSetup    = tui.RunSetupWithOptions
+	runConfigSetup      = tui.RunSetupWithRoots
 )
 
 func NewRootCommand() *cobra.Command {
@@ -164,6 +165,7 @@ func configUsageTemplate() string {
 Commands:
   path      Print config path
   edit      Edit config
+  setup     Select project roots
 
 Use "{{.CommandPath}} <command> --help" for more information about a command.
 `
@@ -176,6 +178,12 @@ func configPathUsageTemplate() string {
 }
 
 func configEditUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}}
+`
+}
+
+func configSetupUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}}
 `
@@ -217,9 +225,86 @@ func newConfigCommand() *cobra.Command {
 		},
 	}
 	editCmd.SetUsageTemplate(configEditUsageTemplate())
+	setupCmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Select project roots",
+		Long:  "Run the project root setup picker again.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			opts := app.Options{
+				Cwd: cwd,
+				In:  cmd.InOrStdin(),
+				Out: cmd.OutOrStdout(),
+			}
+			paths, err := config.Paths()
+			if err != nil {
+				return err
+			}
+			cfg, err := config.Load(paths.Config)
+			if err != nil {
+				return err
+			}
+			candidates, err := config.RootCandidates(cwd)
+			if err != nil {
+				return err
+			}
+			candidates = mergeSetupCandidates(candidates, cfg.Roots)
+			if err := runConfigSetup(opts, candidates, cfg.Roots); err != nil {
+				if errors.Is(err, tui.ErrSetupCancelled) {
+					return nil
+				}
+				return err
+			}
+			return nil
+		},
+	}
+	setupCmd.SetUsageTemplate(configSetupUsageTemplate())
 	configCmd.AddCommand(pathCmd)
 	configCmd.AddCommand(editCmd)
+	configCmd.AddCommand(setupCmd)
 	return configCmd
+}
+
+func mergeSetupCandidates(candidates, roots []string) []string {
+	seen := make(map[string]bool, len(candidates)+len(roots))
+	merged := make([]string, 0, len(candidates)+len(roots))
+	for _, value := range append(append([]string{}, candidates...), roots...) {
+		if value == "" || seen[value] {
+			continue
+		}
+		if hasSetupAncestorCandidate(merged, value) {
+			continue
+		}
+		seen[value] = true
+		merged = append(merged, value)
+	}
+	return merged
+}
+
+func hasSetupAncestorCandidate(candidates []string, value string) bool {
+	for _, candidate := range candidates {
+		if setupCandidateContains(candidate, value) {
+			return true
+		}
+	}
+	return false
+}
+
+func setupCandidateContains(parent, child string) bool {
+	parent = normalizeSetupCandidate(parent)
+	child = normalizeSetupCandidate(child)
+	return child != parent && strings.HasPrefix(child, parent+"/")
+}
+
+func normalizeSetupCandidate(value string) string {
+	if expanded, err := config.ExpandPath(value); err == nil {
+		value = expanded
+	}
+	return strings.TrimRight(filepath.ToSlash(value), "/")
 }
 
 func newAddCommand() *cobra.Command {

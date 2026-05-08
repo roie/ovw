@@ -245,6 +245,7 @@ func TestConfigHelpIsFocused(t *testing.T) {
 				"ovw config <command>",
 				"path      Print config path",
 				"edit      Edit config",
+				"setup     Select project roots",
 			},
 		},
 		{
@@ -261,6 +262,14 @@ func TestConfigHelpIsFocused(t *testing.T) {
 			want: []string{
 				"Open config.toml in your editor.",
 				"ovw config edit",
+			},
+		},
+		{
+			name: "config setup",
+			args: []string{"config", "setup", "--help"},
+			want: []string{
+				"Run the project root setup picker again.",
+				"ovw config setup",
 			},
 		},
 	}
@@ -458,10 +467,71 @@ func TestConfigSubcommandsRejectExtraArgs(t *testing.T) {
 	for _, args := range [][]string{
 		{"config", "path", "extra"},
 		{"config", "edit", "extra"},
+		{"config", "setup", "extra"},
 	} {
 		if _, err := executeCommand(args); err == nil {
 			t.Fatalf("Execute(%v) error = nil, want extra arg error", args)
 		}
+	}
+}
+
+func TestConfigSetupRunsPickerWithCurrentRoots(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, "dev")
+	current := filepath.Join(home, "work")
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	if err := os.MkdirAll(current, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, current)
+	previousSetup := runConfigSetup
+	defer func() { runConfigSetup = previousSetup }()
+	var gotCandidates []string
+	var gotRoots []string
+	runConfigSetup = func(opts app.Options, candidates, roots []string) error {
+		gotCandidates = append([]string{}, candidates...)
+		gotRoots = append([]string{}, roots...)
+		return nil
+	}
+
+	if _, err := executeCommand([]string{"config", "setup"}); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(gotRoots) != 1 || gotRoots[0] != current {
+		t.Fatalf("roots = %#v, want %q", gotRoots, current)
+	}
+	if !containsString(gotCandidates, current) {
+		t.Fatalf("candidates = %#v, want current root", gotCandidates)
+	}
+}
+
+func TestConfigSetupDoesNotDuplicateNestedCurrentRoots(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, "dev")
+	current := filepath.Join(root, "extensions")
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	if err := os.MkdirAll(current, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, current)
+	previousSetup := runConfigSetup
+	defer func() { runConfigSetup = previousSetup }()
+	var gotCandidates []string
+	runConfigSetup = func(opts app.Options, candidates, roots []string) error {
+		gotCandidates = append([]string{}, candidates...)
+		return nil
+	}
+
+	if _, err := executeCommand([]string{"config", "setup"}); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if containsString(gotCandidates, current) {
+		t.Fatalf("nested current root should not be top-level candidate: %#v", gotCandidates)
+	}
+	if !containsString(gotCandidates, "~/dev") {
+		t.Fatalf("candidates = %#v, want ~/dev", gotCandidates)
 	}
 }
 
@@ -944,6 +1014,15 @@ func mustAppearInOrder(t *testing.T, text string, values []string) {
 		}
 		offset += index + len(value)
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func configForTest(t *testing.T, root string) string {

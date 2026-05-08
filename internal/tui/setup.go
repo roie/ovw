@@ -30,13 +30,18 @@ type setupModel struct {
 }
 
 func RunSetupWithOptions(opts app.Options, candidates []string) error {
+	return RunSetupWithRoots(opts, candidates, nil)
+}
+
+func RunSetupWithRoots(opts app.Options, candidates, roots []string) error {
 	model := setupModel{
 		options:  candidates,
-		checked:  checkedOnboardingOptions(candidates),
+		checked:  checkedSetupRoots(candidates, roots),
 		expanded: map[string]bool{},
 		children: map[string][]string{},
 		creator:  app.CreateConfigRoots,
 	}
+	model.revealCheckedRoots()
 	programOptions := []tea.ProgramOption{}
 	if opts.In != nil {
 		programOptions = append(programOptions, tea.WithInput(opts.In))
@@ -56,6 +61,17 @@ func RunSetupWithOptions(opts app.Options, candidates []string) error {
 		return ErrSetupCancelled
 	}
 	return result.err
+}
+
+func checkedSetupRoots(candidates, roots []string) map[string]bool {
+	if len(roots) == 0 {
+		return checkedOnboardingOptions(candidates)
+	}
+	checked := make(map[string]bool, len(roots))
+	for _, root := range roots {
+		checked[root] = true
+	}
+	return checked
 }
 
 func (m setupModel) Init() tea.Cmd {
@@ -247,16 +263,82 @@ func (m *setupModel) expandSetupPath(path string) {
 	if m.expanded == nil {
 		m.expanded = map[string]bool{}
 	}
-	if _, ok := m.children[path]; !ok {
-		children, _ := discoverSetupChildren(path)
-		if m.children == nil {
-			m.children = map[string][]string{}
-		}
-		m.children[path] = children
-	}
+	m.ensureSetupChildren(path)
 	if len(m.children[path]) > 0 {
 		m.expanded[path] = true
 	}
+}
+
+func mergeCheckedSetupChildren(root string, children []string, checked map[string]bool) []string {
+	seen := make(map[string]bool, len(children))
+	merged := make([]string, 0, len(children))
+	for _, child := range children {
+		seen[child] = true
+		merged = append(merged, child)
+	}
+	extra := make([]string, 0, len(checked))
+	for path, isChecked := range checked {
+		if !isChecked || !setupIsDirectChild(root, path) || seen[path] {
+			continue
+		}
+		extra = append(extra, path)
+	}
+	sort.Strings(extra)
+	return append(merged, extra...)
+}
+
+func (m *setupModel) revealCheckedRoots() {
+	roots := make([]string, 0, len(m.checked))
+	for root, checked := range m.checked {
+		if checked {
+			roots = append(roots, root)
+		}
+	}
+	sort.Strings(roots)
+	for _, root := range roots {
+		m.revealCheckedRoot(root)
+	}
+}
+
+func (m *setupModel) revealCheckedRoot(root string) {
+	for _, option := range m.options {
+		if !setupIsDescendant(option, root) {
+			continue
+		}
+		current := option
+		for current != "" && current != root {
+			children := m.ensureSetupChildren(current)
+			next := setupDirectChildOnPath(current, root, children)
+			if next == "" {
+				break
+			}
+			m.expanded[current] = true
+			current = next
+		}
+		return
+	}
+}
+
+func (m *setupModel) ensureSetupChildren(path string) []string {
+	if children, ok := m.children[path]; ok {
+		return children
+	}
+	children, _ := discoverSetupChildren(path)
+	children = mergeCheckedSetupChildren(path, children, m.checked)
+	if m.children == nil {
+		m.children = map[string][]string{}
+	}
+	m.children[path] = children
+	return children
+}
+
+func setupDirectChildOnPath(parent, target string, children []string) string {
+	for _, child := range children {
+		if normalizeSetupPath(child) == normalizeSetupPath(target) || setupIsDescendant(child, target) {
+			return child
+		}
+	}
+	return ""
 }
 
 func discoverSetupChildren(root string) ([]string, error) {
@@ -331,9 +413,24 @@ func setupRowLabel(path string, depth int) string {
 }
 
 func setupIsDescendant(parent, child string) bool {
-	parent = strings.TrimRight(filepath.ToSlash(parent), "/")
-	child = strings.TrimRight(filepath.ToSlash(child), "/")
+	parent = normalizeSetupPath(parent)
+	child = normalizeSetupPath(child)
 	return child != parent && strings.HasPrefix(child, parent+"/")
+}
+
+func setupIsDirectChild(parent, child string) bool {
+	if !setupIsDescendant(parent, child) {
+		return false
+	}
+	relative := strings.TrimPrefix(normalizeSetupPath(child), normalizeSetupPath(parent)+"/")
+	return !strings.Contains(relative, "/")
+}
+
+func normalizeSetupPath(value string) string {
+	if expanded, err := config.ExpandPath(value); err == nil {
+		value = expanded
+	}
+	return strings.TrimRight(filepath.ToSlash(value), "/")
 }
 
 func (m setupModel) createConfig(roots []string) tea.Cmd {

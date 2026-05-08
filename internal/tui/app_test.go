@@ -302,6 +302,46 @@ func TestSetupExpandsNestedFoldersLazily(t *testing.T) {
 	}
 }
 
+func TestSetupNestsCheckedRootsUnderAncestorCandidate(t *testing.T) {
+	model := setupModel{
+		options:  []string{"~/dev"},
+		checked:  map[string]bool{"~/dev/extensions": true},
+		expanded: map[string]bool{},
+		children: map[string][]string{},
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "~/dev/extensions") {
+		t.Fatalf("descendant root should not render as top-level row:\n%s", view)
+	}
+	if !strings.Contains(view, "[-] ~/dev") {
+		t.Fatalf("ancestor should show partial selection:\n%s", view)
+	}
+
+	model = updateSetupSpecialKey(t, model, tea.KeyRight)
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "[x] extensions") {
+		t.Fatalf("checked descendant should render as nested child:\n%s", view)
+	}
+}
+
+func TestSetupRevealsCheckedNestedRoots(t *testing.T) {
+	model := setupModel{
+		options:  []string{"~/dev"},
+		checked:  map[string]bool{"~/dev/web/eventca": true},
+		expanded: map[string]bool{},
+		children: map[string][]string{},
+	}
+	model.revealCheckedRoots()
+
+	view := stripANSI(model.View())
+	for _, want := range []string{"▾ [-] ~/dev", "▾ [-] web", "[x] eventca"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("revealed setup view missing %q:\n%s", want, view)
+		}
+	}
+}
+
 func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 	model := Model{
 		width:        120,
