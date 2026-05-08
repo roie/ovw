@@ -367,6 +367,77 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 	}
 }
 
+func TestUpdateProjectMetadataRefusesCorruptedMetadata(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	corrupt := []byte(`{"projects":`)
+	if err := os.MkdirAll(filepath.Dir(paths.Metadata), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.Metadata, corrupt, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	status := "parked"
+	_, err = UpdateProjectMetadata("app", MetadataUpdate{Status: &status})
+	if err == nil {
+		t.Fatal("UpdateProjectMetadata() error = nil")
+	}
+	data, readErr := os.ReadFile(paths.Metadata)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(data) != string(corrupt) {
+		t.Fatalf("corrupted metadata was overwritten: %s", data)
+	}
+}
+
+func TestSetProjectHiddenRefusesCorruptedMetadata(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	corrupt := []byte(`{"projects":`)
+	if err := os.MkdirAll(filepath.Dir(paths.Metadata), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.Metadata, corrupt, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = SetProjectHidden("app", true)
+	if err == nil {
+		t.Fatal("SetProjectHidden() error = nil")
+	}
+	data, readErr := os.ReadFile(paths.Metadata)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(data) != string(corrupt) {
+		t.Fatalf("corrupted metadata was overwritten: %s", data)
+	}
+}
+
 func TestAddProjectWritesConfigRoot(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "custom")
