@@ -1,6 +1,10 @@
 package tui
 
-import "ovw/internal/app"
+import (
+	"ovw/internal/app"
+	"ovw/internal/config"
+	"ovw/internal/filter"
+)
 
 type sortOption struct {
 	Label string
@@ -26,23 +30,74 @@ func (m Model) currentSortIndex() int {
 }
 
 func (m *Model) applySort(option sortOption) {
-	m.request.Sort = option.Value
+	m.request.Sort = filter.FormatSort(option.Value, m.activeSortDir)
 	m.activeSort = option.Value
+	m.activeSortDir = sortDir(m.activeSortDir)
 }
 
-func sortView(options []sortOption, selected int) string {
+func sortView(options []sortOption, selected int, dir string) string {
 	labels := make([]string, 0, len(options))
-	for _, option := range options {
-		labels = append(labels, option.Label)
+	dir = sortDir(dir)
+	for index, option := range options {
+		label := option.Label
+		if index == selected {
+			label += "   " + dir
+		}
+		labels = append(labels, label)
 	}
 	lines := modalOptionLines(labels, selected)
-	lines = append(lines, "", actionHint("enter", "apply"))
+	lines = append(lines, "", actionHint("enter", "apply")+" · "+actionHint("<->", "direction"))
 	return modalView("Sort", lines, 42)
 }
 
 func sortFromRequest(request app.Options) string {
-	if request.Sort != "" {
-		return request.Sort
+	spec, err := filter.ParseSort(request.Sort, defaultSortConfig())
+	if err != nil {
+		return "activity"
 	}
-	return "activity"
+	return spec.By
+}
+
+func sortDirFromRequest(request app.Options) string {
+	spec, err := filter.ParseSort(request.Sort, defaultSortConfig())
+	if err != nil {
+		return "desc"
+	}
+	return spec.Dir
+}
+
+func sortHeader(by, dir string) string {
+	if by == "" {
+		by = "activity"
+	}
+	return by + " " + sortDir(dir)
+}
+
+func (m *Model) toggleSortDir() {
+	if sortDir(m.activeSortDir) == "asc" {
+		m.activeSortDir = "desc"
+		return
+	}
+	m.activeSortDir = "asc"
+}
+
+func (m *Model) syncActiveSort() {
+	spec, err := filter.ParseSort(m.request.Sort, m.config)
+	if err != nil {
+		return
+	}
+	m.activeSort = spec.By
+	m.activeSortDir = spec.Dir
+}
+
+func sortDir(dir string) string {
+	if dir == "asc" {
+		return "asc"
+	}
+	return "desc"
+}
+
+func defaultSortConfig() config.Config {
+	cfg := config.Default()
+	return cfg
 }

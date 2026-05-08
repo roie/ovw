@@ -103,7 +103,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"--stale           show stale projects",
 		"--untagged        show projects without status",
 		"--hidden          show hidden projects",
-		"--sort string     sort by activity, name, or status",
+		"--sort string     sort by activity, name, or status; optional :asc or :desc",
 		"-h, --help        help for ovw",
 		"-v, --version     version for ovw",
 	})
@@ -640,6 +640,14 @@ func TestInvalidSortShowsClearErrorWithoutUsage(t *testing.T) {
 	}
 	if strings.Contains(out, "Usage:") {
 		t.Fatalf("invalid sort printed usage:\n%s", out)
+	}
+
+	out, err = executeCommand([]string{"--sort", "name:up"})
+	if err == nil || err.Error() != `invalid sort "name:up": expected direction asc or desc` {
+		t.Fatalf("invalid sort direction error = %v", err)
+	}
+	if strings.Contains(out, "Usage:") {
+		t.Fatalf("invalid sort direction printed usage:\n%s", out)
 	}
 }
 

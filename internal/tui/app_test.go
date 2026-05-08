@@ -133,8 +133,9 @@ func TestModelKeepsTableVisibleDuringBackgroundLoading(t *testing.T) {
 
 func TestModelHeaderShowsFilterAndSort(t *testing.T) {
 	model := Model{
-		activeFilter: "dirty",
-		activeSort:   "name",
+		activeFilter:  "dirty",
+		activeSort:    "name",
+		activeSortDir: "asc",
 		projects: []project.Project{
 			{Name: "app"},
 			{Name: "api"},
@@ -142,7 +143,7 @@ func TestModelHeaderShowsFilterAndSort(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "ovw  2 projects  1/2  filter: dirty  sort: name") {
+	if !strings.Contains(view, "ovw  2 projects  1/2  filter: dirty  sort: name asc") {
 		t.Fatalf("header missing filter and sort:\n%s", view)
 	}
 	if strings.Contains(view, "ovw -") {
@@ -152,27 +153,29 @@ func TestModelHeaderShowsFilterAndSort(t *testing.T) {
 
 func TestModelHeaderShowsAllFilter(t *testing.T) {
 	model := Model{
-		activeFilter: "all",
-		activeSort:   "activity",
-		projects:     []project.Project{{Name: "app"}},
+		activeFilter:  "all",
+		activeSort:    "activity",
+		activeSortDir: "desc",
+		projects:      []project.Project{{Name: "app"}},
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "ovw  1 project  1/1  filter: all  sort: activity") {
+	if !strings.Contains(view, "ovw  1 project  1/1  filter: all  sort: activity desc") {
 		t.Fatalf("header missing all filter:\n%s", view)
 	}
 }
 
 func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 	model := Model{
-		activeFilter: "all",
-		activeSort:   "activity",
-		searching:    true,
-		projects:     []project.Project{{Name: "app"}},
+		activeFilter:  "all",
+		activeSort:    "activity",
+		activeSortDir: "desc",
+		searching:     true,
+		projects:      []project.Project{{Name: "app"}},
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "sort: activity  search: ▌") {
+	if !strings.Contains(view, "sort: activity desc  search: ▌") {
 		t.Fatalf("header should separate sort and search consistently:\n%s", view)
 	}
 	if strings.Contains(view, "search:  ▌") {
@@ -767,7 +770,7 @@ func TestModalPickersUseCaretSelection(t *testing.T) {
 		want string
 	}{
 		{name: "filter", view: filterView([]filterOption{{Label: "all"}, {Label: "dirty"}}, 1), want: "> dirty"},
-		{name: "sort", view: sortView([]sortOption{{Label: "activity"}, {Label: "name"}}, 1), want: "> name"},
+		{name: "sort", view: sortView([]sortOption{{Label: "activity"}, {Label: "name"}}, 1, "desc"), want: "> name   desc"},
 		{name: "status", view: statusView("", []statusOption{{Label: "parked"}, {Label: "shipped"}}, 1), want: "> shipped"},
 	}
 	for _, tc := range cases {
@@ -801,8 +804,9 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 				Projects: []project.Project{{Name: "a"}, {Name: "b"}},
 			}, nil
 		},
-		activeSort: "activity",
-		projects:   []project.Project{{Name: "a"}, {Name: "b"}},
+		activeSort:    "activity",
+		activeSortDir: "desc",
+		projects:      []project.Project{{Name: "a"}, {Name: "b"}},
 	}
 
 	model = updateKey(t, model, "s")
@@ -812,23 +816,34 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 	if !strings.Contains(model.View(), "name") {
 		t.Fatalf("sort view missing name option:\n%s", model.View())
 	}
-	for _, want := range []string{"Name", "Sort", "activity", "esc"} {
-		if !strings.Contains(model.View(), want) {
-			t.Fatalf("sort modal view missing %q:\n%s", want, model.View())
+	view := stripANSI(model.View())
+	for _, want := range []string{"Name", "Sort", "> activity   desc", "name", "enter apply", "<-> direction", "esc"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("sort modal view missing %q:\n%s", want, view)
 		}
 	}
 	model = updateKey(t, model, "j")
+	if !strings.Contains(stripANSI(model.View()), "> name   desc") {
+		t.Fatalf("selected sort row should show direction:\n%s", stripANSI(model.View()))
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	if !strings.Contains(stripANSI(model.View()), "> name   asc") {
+		t.Fatalf("selected sort row should toggle direction:\n%s", stripANSI(model.View()))
+	}
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	if cmd == nil {
 		t.Fatal("expected sort apply to reload data")
 	}
 	model = updateMsg(t, model, cmd())
-	if captured.Sort != "name" {
-		t.Fatalf("captured sort = %q, want name", captured.Sort)
+	if captured.Sort != "name:asc" {
+		t.Fatalf("captured sort = %q, want name:asc", captured.Sort)
 	}
 	if model.activeSort != "name" {
 		t.Fatalf("activeSort = %q, want name", model.activeSort)
+	}
+	if model.activeSortDir != "asc" {
+		t.Fatalf("activeSortDir = %q, want asc", model.activeSortDir)
 	}
 	if model.loading {
 		t.Fatal("model is still loading")

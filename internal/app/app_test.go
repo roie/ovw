@@ -183,6 +183,32 @@ func TestLoadOverviewRejectsInvalidSort(t *testing.T) {
 	}
 }
 
+func TestLoadOverviewAcceptsInlineSortDirection(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "alpha"), `{}`)
+	writePackage(t, filepath.Join(root, "beta"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	cfg.SortDir = "asc"
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := LoadOverview(Options{Sort: "name:desc", Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if len(result.Projects) != 2 || result.Projects[0].Name != "beta" {
+		t.Fatalf("projects = %#v", result.Projects)
+	}
+}
+
 func TestResolveProjectFindsScannedProjectByName(t *testing.T) {
 	root := t.TempDir()
 	writePackage(t, filepath.Join(root, "app"), `{}`)

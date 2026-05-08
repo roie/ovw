@@ -62,6 +62,7 @@ type Model struct {
 	activeFilter   string
 	sortSelected   int
 	activeSort     string
+	activeSortDir  string
 	noteInput      string
 	addInput       string
 	addErr         string
@@ -84,18 +85,19 @@ func NewWithOptions(opts app.Options) Model {
 		opts.Out = io.Discard
 	}
 	return Model{
-		request:      opts,
-		loader:       app.LoadOverview,
-		updater:      app.UpdateProjectMetadata,
-		visible:      app.SetProjectHidden,
-		adder:        app.AddProject,
-		editor:       runEditor,
-		terminal:     runTerminal,
-		recent:       loadRecentCommits,
-		activeFilter: optionsFromRequest(opts),
-		activeSort:   sortFromRequest(opts),
-		loading:      true,
-		recentByPath: map[string][]ovwformat.RecentCommit{},
+		request:       opts,
+		loader:        app.LoadOverview,
+		updater:       app.UpdateProjectMetadata,
+		visible:       app.SetProjectHidden,
+		adder:         app.AddProject,
+		editor:        runEditor,
+		terminal:      runTerminal,
+		recent:        loadRecentCommits,
+		activeFilter:  optionsFromRequest(opts),
+		activeSort:    sortFromRequest(opts),
+		activeSortDir: sortDirFromRequest(opts),
+		loading:       true,
+		recentByPath:  map[string][]ovwformat.RecentCommit{},
 	}
 }
 
@@ -232,6 +234,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		if msg.message != "" {
 			m.message = msg.message
@@ -250,6 +253,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.config = msg.result.Config
 		m.projects = msg.result.Projects
+		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.message = msg.message
 		if msg.preservePath != "" {
@@ -384,6 +388,8 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.sortSelected > 0 {
 			m.sortSelected--
 		}
+	case isLeftKey(value), isRightKey(value):
+		m.toggleSortDir()
 	case isEnterKey(value):
 		m.applySort(options[m.sortSelected])
 		m.screen = screenTable
@@ -793,7 +799,7 @@ func renderShell(m Model) string {
 			case screenFilter:
 				content = overlayModal(content, filterView(m.filterOptions(), m.filterSelected), m.contentWidth())
 			case screenSort:
-				content = overlayModal(content, sortView(sortOptions(), m.sortSelected), m.contentWidth())
+				content = overlayModal(content, sortView(sortOptions(), m.sortSelected, m.activeSortDir), m.contentWidth())
 			case screenNote:
 				project, _ := m.currentProject()
 				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display), m.contentWidth())
@@ -818,7 +824,7 @@ func headerView(m Model) string {
 		"filter: " + headerFilter(m.activeFilter),
 	}
 	if m.activeSort != "" {
-		parts = append(parts, "sort: "+m.activeSort)
+		parts = append(parts, "sort: "+sortHeader(m.activeSort, m.activeSortDir))
 	}
 	if m.search != "" || m.searching {
 		parts = append(parts, "search: "+m.searchDisplay())

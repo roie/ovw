@@ -19,6 +19,11 @@ type Options struct {
 	Sort     string
 }
 
+type SortSpec struct {
+	By  string
+	Dir string
+}
+
 func Apply(projects []project.Project, opts Options, cfg config.Config, now time.Time) ([]project.Project, error) {
 	out := []project.Project{}
 	for _, p := range projects {
@@ -43,13 +48,14 @@ func Apply(projects []project.Project, opts Options, cfg config.Config, now time
 }
 
 func Sort(projects []project.Project, mode string, cfg config.Config) []project.Project {
-	if mode == "" {
-		mode = cfg.SortBy
+	spec, err := ParseSort(mode, cfg)
+	if err != nil {
+		spec = SortSpec{By: "activity", Dir: "desc"}
 	}
 	out := append([]project.Project(nil), projects...)
-	desc := strings.EqualFold(cfg.SortDir, "desc")
+	desc := spec.Dir == "desc"
 	sort.SliceStable(out, func(i, j int) bool {
-		switch mode {
+		switch spec.By {
 		case "name":
 			if desc {
 				return out[i].Name > out[j].Name
@@ -78,15 +84,71 @@ func Sort(projects []project.Project, mode string, cfg config.Config) []project.
 }
 
 func ValidateSort(mode string) error {
+	if _, _, err := parseSortValue(mode); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ValidateSortDir(dir string) error {
+	if dir == "" || dir == "asc" || dir == "desc" {
+		return nil
+	}
+	return fmt.Errorf("invalid sort_dir %q: expected asc or desc", dir)
+}
+
+func ParseSort(mode string, cfg config.Config) (SortSpec, error) {
+	by, dir, err := parseSortValue(mode)
+	if err != nil {
+		return SortSpec{}, err
+	}
+	if by == "" {
+		by = cfg.SortBy
+	}
+	if dir == "" {
+		dir = cfg.SortDir
+	}
+	if err := ValidateSort(by); err != nil {
+		return SortSpec{}, err
+	}
+	if err := ValidateSortDir(dir); err != nil {
+		return SortSpec{}, err
+	}
+	return SortSpec{By: by, Dir: dir}, nil
+}
+
+func FormatSort(by, dir string) string {
+	if dir == "" {
+		return by
+	}
+	return by + ":" + dir
+}
+
+func parseSortValue(mode string) (string, string, error) {
 	if mode == "" {
-		return nil
+		return "", "", nil
 	}
-	switch mode {
+	parts := strings.Split(mode, ":")
+	if len(parts) > 2 {
+		return "", "", fmt.Errorf("invalid sort %q: expected activity, name, or status", mode)
+	}
+	by := parts[0]
+	dir := ""
+	if len(parts) == 2 {
+		dir = parts[1]
+		if dir == "" {
+			return "", "", fmt.Errorf("invalid sort %q: expected direction asc or desc", mode)
+		}
+	}
+	switch by {
 	case "activity", "name", "status":
-		return nil
 	default:
-		return fmt.Errorf("invalid sort %q: expected activity, name, or status", mode)
+		return "", "", fmt.Errorf("invalid sort %q: expected activity, name, or status", mode)
 	}
+	if dir != "" && dir != "asc" && dir != "desc" {
+		return "", "", fmt.Errorf("invalid sort %q: expected direction asc or desc", mode)
+	}
+	return by, dir, nil
 }
 
 func isStale(p project.Project, staleDays int, now time.Time) bool {

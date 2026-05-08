@@ -85,6 +85,10 @@ func TestSortModes(t *testing.T) {
 	if got[0].Name != "beta" {
 		t.Fatalf("activity sort = %#v", got)
 	}
+	got = Sort(projects, "name:desc", config.Default())
+	if got[0].Name != "beta" {
+		t.Fatalf("name desc inline sort = %#v", got)
+	}
 }
 
 func TestSortDirectionAppliesToNameAndStatus(t *testing.T) {
@@ -110,9 +114,38 @@ func TestValidateSortRejectsUnknownValue(t *testing.T) {
 	if err == nil || err.Error() != `invalid sort "recent": expected activity, name, or status` {
 		t.Fatalf("ValidateSort() error = %v", err)
 	}
-	for _, value := range []string{"", "activity", "name", "status"} {
+	err = ValidateSort("name:up")
+	if err == nil || err.Error() != `invalid sort "name:up": expected direction asc or desc` {
+		t.Fatalf("ValidateSort() error = %v", err)
+	}
+	err = ValidateSort("name:")
+	if err == nil || err.Error() != `invalid sort "name:": expected direction asc or desc` {
+		t.Fatalf("ValidateSort() error = %v", err)
+	}
+	for _, value := range []string{"", "activity", "name", "status", "name:asc", "activity:desc"} {
 		if err := ValidateSort(value); err != nil {
 			t.Fatalf("ValidateSort(%q) error = %v", value, err)
 		}
+	}
+}
+
+func TestParseSortUsesConfigDirection(t *testing.T) {
+	cfg := config.Default()
+	cfg.SortBy = "name"
+	cfg.SortDir = "asc"
+
+	spec, err := ParseSort("", cfg)
+	if err != nil {
+		t.Fatalf("ParseSort() error = %v", err)
+	}
+	if spec.By != "name" || spec.Dir != "asc" {
+		t.Fatalf("ParseSort() = %#v", spec)
+	}
+	spec, err = ParseSort("status:desc", cfg)
+	if err != nil {
+		t.Fatalf("ParseSort() error = %v", err)
+	}
+	if spec.By != "status" || spec.Dir != "desc" {
+		t.Fatalf("ParseSort() = %#v", spec)
 	}
 }
