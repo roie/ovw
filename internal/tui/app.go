@@ -61,6 +61,7 @@ type Model struct {
 	height          int
 	selected        int
 	tableXOffset    int
+	detailYOffset   int
 	screen          screenMode
 	search          string
 	searchCursor    int
@@ -184,6 +185,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = screenDetail
 			return m, nil
 		}
+		if m.screen == screenTable && m.showInlineDetail() && isDetailScrollKey(msg.String()) {
+			m.scrollDetail(msg.String())
+			return m, nil
+		}
 		if m.searching && isTextInputKey(msg) {
 			return m.updateSearch(msg)
 		}
@@ -261,6 +266,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.clampDetailOffset()
 		return m, m.loadSelectedRecent()
 	case overviewLoadedMsg:
 		m.loading = false
@@ -278,6 +284,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectProjectPath(msg.preservePath)
 		} else if m.selected >= len(m.projects) {
 			m.selected = 0
+			m.detailYOffset = 0
 		}
 		return m, m.loadSelectedRecent()
 	case overviewLoadFailedMsg:
@@ -290,6 +297,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.onboardOptions = msg.candidates
 		m.onboardChecked = checkedOnboardingOptions(msg.candidates)
 		m.onboardSelected = 0
+		m.detailYOffset = 0
 		m.onboardInput = ""
 		m.onboardErr = ""
 	case onboardingFailedMsg:
@@ -305,6 +313,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.message = "Project root saved"
+		m.detailYOffset = 0
 		return m, m.loadSelectedRecent()
 	case metadataSavedMsg:
 		m.loading = false
@@ -412,6 +421,7 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.search, m.searchCursor = textInsert(m.search, m.searchCursor, string(msg.Runes))
 	}
 	m.clampSelection()
+	m.clampDetailOffset()
 	return m, m.loadSelectedRecent()
 }
 
@@ -645,6 +655,15 @@ func isTextInputKey(msg tea.KeyMsg) bool {
 	return value == "left" || value == "right" || isBackspaceKey(value) || isDeleteKey(value) || msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace
 }
 
+func isDetailScrollKey(value string) bool {
+	switch value {
+	case "pgup", "pgdown", "home", "end":
+		return true
+	default:
+		return false
+	}
+}
+
 func (m Model) View() string {
 	return renderShell(m)
 }
@@ -664,8 +683,10 @@ func (m *Model) moveSelection(delta int) {
 	visible := m.visibleProjects()
 	if len(visible) == 0 {
 		m.selected = 0
+		m.detailYOffset = 0
 		return
 	}
+	before := m.selected
 	m.selected += delta
 	if m.selected < 0 {
 		m.selected = 0
@@ -674,17 +695,76 @@ func (m *Model) moveSelection(delta int) {
 	if m.selected > last {
 		m.selected = last
 	}
+	if m.selected != before {
+		m.detailYOffset = 0
+	}
 }
 
 func (m *Model) clampSelection() {
 	visible := m.visibleProjects()
 	if len(visible) == 0 || m.selected < 0 {
 		m.selected = 0
+		m.detailYOffset = 0
 		return
 	}
 	if m.selected >= len(visible) {
 		m.selected = len(visible) - 1
+		m.detailYOffset = 0
 	}
+}
+
+func (m *Model) scrollDetail(value string) {
+	_, maxOffset := m.currentScrollableDetail()
+	if maxOffset <= 0 {
+		m.detailYOffset = 0
+		return
+	}
+	page := m.tableHeight() - 2
+	if page < 1 {
+		page = 1
+	}
+	switch value {
+	case "pgup":
+		m.detailYOffset -= page
+	case "pgdown":
+		m.detailYOffset += page
+	case "home":
+		m.detailYOffset = 0
+	case "end":
+		m.detailYOffset = maxOffset
+	}
+	if m.detailYOffset < 0 {
+		m.detailYOffset = 0
+	}
+	if m.detailYOffset > maxOffset {
+		m.detailYOffset = maxOffset
+	}
+}
+
+func (m *Model) clampDetailOffset() {
+	_, maxOffset := m.currentScrollableDetail()
+	if maxOffset <= 0 || m.detailYOffset < 0 {
+		m.detailYOffset = 0
+		return
+	}
+	if m.detailYOffset > maxOffset {
+		m.detailYOffset = maxOffset
+	}
+}
+
+func (m Model) currentScrollableDetail() (string, int) {
+	if !m.showInlineDetail() {
+		return "", 0
+	}
+	_, detailWidth := splitPanelWidths(m.contentWidth(), 3)
+	detail, ok := m.currentProject()
+	if !ok {
+		return "", 0
+	}
+	if commits, ok := m.recentByPath[detail.Path]; ok {
+		detail.Activity.RecentCommits = commits
+	}
+	return scrollableDetailSummary(detail, detailWidth, m.tableHeight(), m.detailYOffset)
 }
 
 func Run() error {
@@ -1167,9 +1247,14 @@ func (m Model) tablePanel(visible []project.Project) string {
 			if commits, ok := m.recentByPath[detail.Path]; ok {
 				detail.Activity.RecentCommits = commits
 			}
+			detailText, maxOffset := scrollableDetailSummary(detail, detailWidth, tableHeight, m.detailYOffset)
+			if m.detailYOffset > maxOffset {
+				m.detailYOffset = maxOffset
+				detailText, _ = scrollableDetailSummary(detail, detailWidth, tableHeight, m.detailYOffset)
+			}
 			return joinColumns(
 				tableView(visible, m.selected, tableWidth, tableHeight, m.tableXOffset, m.config, m.activeSort, m.activeSortDir),
-				detailSummaryView(detail, detailWidth),
+				detailText,
 				gap,
 			)
 		}
@@ -1249,6 +1334,45 @@ func joinColumns(left, right string, gap int) string {
 	return strings.Join(lines, "\n")
 }
 
+func scrollableDetailSummary(detail project.Project, width int, height int, offset int) (string, int) {
+	lines := strings.Split(detailSummaryView(detail, width), "\n")
+	if height <= 0 || len(lines) <= height {
+		return strings.Join(lines, "\n"), 0
+	}
+	visibleHeight := height - 1
+	if visibleHeight < 1 {
+		visibleHeight = 1
+	}
+	maxOffset := len(lines) - visibleHeight
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	end := offset + visibleHeight
+	if end > len(lines) {
+		end = len(lines)
+	}
+	visible := append([]string{}, lines[offset:end]...)
+	visible = append(visible, detailScrollHint(offset, maxOffset, width))
+	return strings.Join(visible, "\n"), maxOffset
+}
+
+func detailScrollHint(offset, maxOffset, width int) string {
+	marker := "↓"
+	switch {
+	case offset > 0 && offset < maxOffset:
+		marker = "↑↓"
+	case offset >= maxOffset:
+		marker = "↑"
+	}
+	return mutedStyle.Render(truncateText(marker+" pgup/pgdn detail", width))
+}
+
 func maxLineWidth(lines []string) int {
 	width := 0
 	for _, line := range lines {
@@ -1295,6 +1419,7 @@ func (m *Model) selectProjectPath(path string) {
 	for index, project := range visible {
 		if project.Path == path {
 			m.selected = index
+			m.detailYOffset = 0
 			return
 		}
 	}

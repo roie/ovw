@@ -739,6 +739,94 @@ func TestModelDoesNotLoadRecentCommitsForNarrowLayout(t *testing.T) {
 	}
 }
 
+func TestModelScrollsLongSidePaneDetails(t *testing.T) {
+	model := Model{
+		width:        140,
+		height:       12,
+		activeFilter: "all",
+		activeSort:   "activity",
+		screen:       screenTable,
+		config:       config.Default(),
+		projects: []project.Project{
+			{
+				Name:         "app",
+				Path:         "/tmp/app",
+				StackDisplay: "Go",
+				Activity:     ovwformat.ActivityInfo{Display: "12m"},
+				Status:       ovwformat.StatusFromTags("active", []string{"active"}),
+				Note: ovwformat.NoteInfo{
+					Display: strings.Join([]string{
+						"line one",
+						"line two",
+						"line three",
+						"line four",
+						"line five",
+						"line six",
+						"line seven",
+						"line eight",
+						"line nine",
+						"line ten",
+					}, "\n"),
+					Source: "user",
+					Value:  "user note",
+				},
+			},
+		},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "↓ pgup/pgdn detail") {
+		t.Fatalf("long sidepane should show scroll hint:\n%s", view)
+	}
+	if strings.Contains(view, "line ten") {
+		t.Fatalf("long sidepane should start clipped:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyPgDown)
+	view = stripANSI(model.View())
+	if model.detailYOffset == 0 || !strings.Contains(view, "line four") {
+		t.Fatalf("sidepane should scroll down:\n%s", view)
+	}
+	if !strings.Contains(view, "↑ pgup/pgdn detail") && !strings.Contains(view, "↑↓ pgup/pgdn detail") {
+		t.Fatalf("scrolled sidepane should show upward scroll hint:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEnd)
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "line ten") {
+		t.Fatalf("sidepane should jump to end:\n%s", view)
+	}
+}
+
+func TestModelDoesNotScrollShortSidePaneDetails(t *testing.T) {
+	model := Model{
+		width:        140,
+		height:       18,
+		activeFilter: "all",
+		activeSort:   "activity",
+		screen:       screenTable,
+		config:       config.Default(),
+		projects: []project.Project{
+			{
+				Name:         "app",
+				Path:         "/tmp/app",
+				StackDisplay: "Go",
+				Activity:     ovwformat.ActivityInfo{Display: "12m"},
+				Note:         ovwformat.NoteInfo{Display: "short note", Source: "user", Value: "short note"},
+			},
+		},
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "pgup/pgdn detail") {
+		t.Fatalf("short sidepane should not show scroll hint:\n%s", view)
+	}
+	model = updateSpecialKey(t, model, tea.KeyPgDown)
+	if model.detailYOffset != 0 {
+		t.Fatalf("detailYOffset = %d, want 0", model.detailYOffset)
+	}
+}
+
 func TestModelStoresLoadError(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{}, errors.New("boom")
