@@ -236,11 +236,11 @@ func modalSurface(value string) string {
 }
 
 func modalTitle(value string) string {
-	return modalANSI("1;38;5;86", value)
+	return modalANSI("1;38;5;"+accentColor, value)
 }
 
 func modalMuted(value string) string {
-	return modalANSI("38;5;244", value)
+	return modalANSI("38;5;"+mutedColor, value)
 }
 
 func modalHintKey(value string) string {
@@ -248,7 +248,7 @@ func modalHintKey(value string) string {
 }
 
 func modalAccent(value string) string {
-	return modalANSI("38;5;86", value)
+	return modalANSI("38;5;"+accentColor, value)
 }
 
 func modalCursor() string {

@@ -804,13 +804,13 @@ func TestModalPickersUseCaretSelection(t *testing.T) {
 			if !strings.Contains(got, tc.want) {
 				t.Fatalf("picker missing caret selection %q:\n%s", tc.want, got)
 			}
-			if strings.Contains(got, "\x1b[48;5;57m") {
+			if strings.Contains(got, "\x1b[48;5;"+selectionBackgroundColor+"m") {
 				t.Fatalf("picker should not use selected background:\n%q", tc.view)
 			}
-			if !strings.Contains(tc.view, "\x1b[38;5;86;48;5;236m> "+strings.TrimPrefix(tc.want, "> ")) {
+			if !strings.Contains(tc.view, "\x1b[38;5;"+accentColor+";48;5;"+modalSurfaceColor+"m> "+strings.TrimPrefix(tc.want, "> ")) {
 				t.Fatalf("picker selected text should be accented:\n%q", tc.view)
 			}
-			if !strings.Contains(tc.view, "\x1b[38;5;244;48;5;236m") {
+			if !strings.Contains(tc.view, "\x1b[38;5;"+mutedColor+";48;5;"+modalSurfaceColor+"m") {
 				t.Fatalf("picker unselected text should be muted:\n%q", tc.view)
 			}
 		})
@@ -1637,7 +1637,7 @@ func TestSplitDividerAlignsOnSelectedRows(t *testing.T) {
 	got := joinColumns(
 		strings.Join([]string{
 			"Name",
-			"\x1b[38;5;229;48;5;57mselected row\x1b[0m",
+			selectedStyle.Render("selected row"),
 			"next row",
 		}, "\n"),
 		strings.Join([]string{
