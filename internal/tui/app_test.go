@@ -170,6 +170,20 @@ func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 	}
 }
 
+func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
+	got := stripANSI(footerView())
+	for _, want := range []string{"↑↓ move", "/ search", "f filter", "s sort", "enter details", "n note", "m status", "r reload", "o open", "t terminal", "esc back", "? help", "q quit"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("footer missing %q:\n%s", want, got)
+		}
+	}
+	for _, notWant := range []string{"a add"} {
+		if strings.Contains(got, notWant) {
+			t.Fatalf("footer should not include secondary action %q:\n%s", notWant, got)
+		}
+	}
+}
+
 func TestModelActionsDoNotSetTransientProgressMessages(t *testing.T) {
 	model := Model{
 		config: config.Default(),
