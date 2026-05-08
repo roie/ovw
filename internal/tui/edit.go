@@ -49,6 +49,23 @@ func (m Model) statusOptions() []statusOption {
 	return options
 }
 
+func (m Model) currentStatusIndex(value string) int {
+	options := m.statusOptions()
+	customIndex := 0
+	for index, option := range options {
+		if option.Kind == statusOptionCustom {
+			customIndex = index
+		}
+		if value != "" && option.Value == value {
+			return index
+		}
+	}
+	if value == "" {
+		return 0
+	}
+	return customIndex
+}
+
 func statusView(projectName string, options []statusOption, selected int) string {
 	labels := make([]string, 0, len(options))
 	for _, option := range options {

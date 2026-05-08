@@ -209,8 +209,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if isStatusKey(msg.String()) && m.canOpenDetail() {
+			project, _ := m.currentProject()
 			m.screen = screenStatus
-			m.statusSelected = 0
+			m.statusSelected = m.currentStatusIndex(project.Status.Value)
 			return m, nil
 		}
 		if isReloadKey(msg.String()) {

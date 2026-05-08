@@ -1107,6 +1107,48 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 	}
 }
 
+func TestModelStatusPickerSelectsCurrentStatus(t *testing.T) {
+	cfg := config.Default()
+	cfg.Statuses = []string{"active", "parked", "shipped"}
+	model := Model{
+		config: cfg,
+		projects: []project.Project{
+			{Name: "configured", Path: "/tmp/configured", Status: ovwformat.StatusFromTags("parked", []string{"parked"})},
+			{Name: "custom", Path: "/tmp/custom", Status: ovwformat.StatusFromTags("blocked", []string{"blocked"})},
+			{Name: "clear", Path: "/tmp/clear"},
+		},
+	}
+
+	model.selected = 0
+	model = updateKey(t, model, "m")
+	if model.statusSelected != 1 {
+		t.Fatalf("configured statusSelected = %d, want 1", model.statusSelected)
+	}
+	if !strings.Contains(stripANSI(model.View()), "> parked") {
+		t.Fatalf("configured status row not selected:\n%s", stripANSI(model.View()))
+	}
+
+	model.screen = screenTable
+	model.selected = 1
+	model = updateKey(t, model, "m")
+	if model.statusSelected != len(cfg.Statuses) {
+		t.Fatalf("custom statusSelected = %d, want custom index", model.statusSelected)
+	}
+	if !strings.Contains(stripANSI(model.View()), "> custom") {
+		t.Fatalf("custom row not selected:\n%s", stripANSI(model.View()))
+	}
+
+	model.screen = screenTable
+	model.selected = 2
+	model = updateKey(t, model, "m")
+	if model.statusSelected != 0 {
+		t.Fatalf("empty statusSelected = %d, want 0", model.statusSelected)
+	}
+	if !strings.Contains(stripANSI(model.View()), "> active") {
+		t.Fatalf("first configured status row not selected:\n%s", stripANSI(model.View()))
+	}
+}
+
 func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
 	got := stripANSI(statusInputView("", ""))
 
