@@ -437,8 +437,9 @@ func (m Model) updateStatusPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		option := options[m.statusSelected]
 		switch option.Kind {
 		case statusOptionCustom:
+			project, _ := m.currentProject()
 			m.screen = screenStatusInput
-			m.statusInput = ""
+			m.statusInput = project.Status.Value
 		case statusOptionClear:
 			m.screen = screenTable
 			m.loading = true

@@ -1107,6 +1107,30 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 	}
 }
 
+func TestModelStatusPickerPrefillsCurrentCustomStatus(t *testing.T) {
+	cfg := config.Default()
+	model := Model{
+		config: cfg,
+		projects: []project.Project{
+			{Name: "app", Path: "/tmp/app", Status: ovwformat.StatusFromTags("needs review", []string{"needs review"})},
+		},
+		screen:         screenStatus,
+		statusSelected: len(cfg.Statuses),
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenStatusInput {
+		t.Fatalf("screen = %v, want status input", model.screen)
+	}
+	if model.statusInput != "needs review" {
+		t.Fatalf("statusInput = %q, want needs review", model.statusInput)
+	}
+	if !strings.Contains(stripANSI(model.View()), "needs review▌") {
+		t.Fatalf("custom status input should show existing value:\n%s", stripANSI(model.View()))
+	}
+}
+
 func TestModelStatusPickerSelectsCurrentStatus(t *testing.T) {
 	cfg := config.Default()
 	cfg.Statuses = []string{"active", "parked", "shipped"}
