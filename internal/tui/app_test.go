@@ -51,7 +51,7 @@ func TestModelUsesFullTerminalFrame(t *testing.T) {
 		},
 	}
 
-	view := stripANSI(model.View())
+	view := model.View()
 	if strings.HasPrefix(view, " ") || strings.HasPrefix(view, "\n") {
 		t.Fatalf("View() should start at terminal origin:\n%q", view[:min(len(view), 20)])
 	}
@@ -692,12 +692,17 @@ func TestModelSearchBlurAllowsActions(t *testing.T) {
 
 func TestModelSearchNoMatchesState(t *testing.T) {
 	model := Model{
+		width:    100,
+		height:   24,
 		projects: []project.Project{{Name: "api"}},
 		search:   "zzz",
 	}
 
-	if !strings.Contains(model.View(), "No projects match search") {
-		t.Fatalf("View() missing no matches state:\n%s", model.View())
+	view := stripANSI(model.View())
+	for _, want := range []string{"No projects match search", "esc", "clear search"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("View() missing %q:\n%s", want, view)
+		}
 	}
 }
 
@@ -1473,9 +1478,12 @@ func TestModelHelpOpensAndCloses(t *testing.T) {
 }
 
 func TestModelNoProjectsState(t *testing.T) {
-	model := Model{}
-	if !strings.Contains(model.View(), "No projects found") {
-		t.Fatalf("View() missing no projects state:\n%s", model.View())
+	model := Model{width: 100, height: 24}
+	view := stripANSI(model.View())
+	for _, want := range []string{"No projects found", "a", "add project", "r", "reload"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("View() missing %q:\n%s", want, view)
+		}
 	}
 }
 

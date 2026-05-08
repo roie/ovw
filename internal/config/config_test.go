@@ -88,6 +88,59 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsInvalidConfigValues(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(Config) Config
+		want string
+	}{
+		{
+			name: "empty roots",
+			edit: func(cfg Config) Config {
+				cfg.Roots = nil
+				return cfg
+			},
+			want: "invalid roots: expected at least one root",
+		},
+		{
+			name: "unknown column",
+			edit: func(cfg Config) Config {
+				cfg.Columns = []string{"name", "url"}
+				return cfg
+			},
+			want: `invalid column "url": expected name, path, stack, manager, version, activity, status, or note`,
+		},
+		{
+			name: "unknown sort",
+			edit: func(cfg Config) Config {
+				cfg.SortBy = "recent"
+				return cfg
+			},
+			want: `invalid sort_by "recent": expected activity, name, or status`,
+		},
+		{
+			name: "unknown sort dir",
+			edit: func(cfg Config) Config {
+				cfg.SortDir = "down"
+				return cfg
+			},
+			want: `invalid sort_dir "down": expected asc or desc`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := Write(path, tc.edit(Default())); err != nil {
+				t.Fatalf("Write() error = %v", err)
+			}
+			_, err := Load(path)
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("Load() error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()

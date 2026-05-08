@@ -121,7 +121,57 @@ func Load(path string) (Config, error) {
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
+	if err := Validate(cfg); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+func Validate(cfg Config) error {
+	if len(cfg.Roots) == 0 {
+		return errors.New("invalid roots: expected at least one root")
+	}
+	for _, root := range cfg.Roots {
+		if strings.TrimSpace(root) == "" {
+			return errors.New("invalid roots: root paths cannot be empty")
+		}
+	}
+	if cfg.MaxDepth < 0 {
+		return fmt.Errorf("invalid max_depth %d: expected 0 or greater", cfg.MaxDepth)
+	}
+	if cfg.StaleDays <= 0 {
+		return fmt.Errorf("invalid stale_days %d: expected 1 or greater", cfg.StaleDays)
+	}
+	for _, column := range cfg.Columns {
+		if !validColumn(column) {
+			return fmt.Errorf("invalid column %q: expected name, path, stack, manager, version, activity, status, or note", column)
+		}
+	}
+	if !validSortBy(cfg.SortBy) {
+		return fmt.Errorf("invalid sort_by %q: expected activity, name, or status", cfg.SortBy)
+	}
+	if cfg.SortDir != "asc" && cfg.SortDir != "desc" {
+		return fmt.Errorf("invalid sort_dir %q: expected asc or desc", cfg.SortDir)
+	}
+	return nil
+}
+
+func validColumn(column string) bool {
+	switch column {
+	case "name", "path", "stack", "manager", "version", "activity", "status", "note":
+		return true
+	default:
+		return false
+	}
+}
+
+func validSortBy(sortBy string) bool {
+	switch sortBy {
+	case "activity", "name", "status":
+		return true
+	default:
+		return false
+	}
 }
 
 func Write(path string, cfg Config) error {
@@ -187,6 +237,9 @@ func Ensure(path, cwd string, in io.Reader, out io.Writer) (Config, bool, error)
 	}
 	cfg.Roots = []string{root}
 	if err := WriteDefault(path, cfg.Roots); err != nil {
+		return Config{}, false, err
+	}
+	if err := Validate(cfg); err != nil {
 		return Config{}, false, err
 	}
 	return cfg, true, nil

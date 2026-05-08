@@ -21,7 +21,13 @@ const maxTableNoteWidth = 48
 
 func tableView(projects []project.Project, selected, width, height, xOffset int, cfg config.Config) string {
 	if len(projects) == 0 {
-		return mutedStyle.Render("No projects found")
+		lines := []string{
+			mutedStyle.Render("No projects found"),
+			"",
+			keyActionLine("a", "add project", 8),
+			keyActionLine("r", "reload", 8),
+		}
+		return strings.Join(lines, "\n")
 	}
 	columns := tableColumns(cfg)
 	rows := tableRows(projects, columns)

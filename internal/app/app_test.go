@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -206,6 +207,35 @@ func TestLoadOverviewAcceptsInlineSortDirection(t *testing.T) {
 	}
 	if len(result.Projects) != 2 || result.Projects[0].Name != "beta" {
 		t.Fatalf("projects = %#v", result.Projects)
+	}
+}
+
+func TestLoadOverviewHandlesLargeProjectSet(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	for i := range 120 {
+		writePackage(t, filepath.Join(root, fmt.Sprintf("project-%03d", i)), `{}`)
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := LoadOverview(Options{Sort: "name:asc", Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if len(result.Projects) != 120 {
+		t.Fatalf("projects = %d, want 120", len(result.Projects))
+	}
+	if result.Projects[0].Name != "project-000" || result.Projects[119].Name != "project-119" {
+		t.Fatalf("projects not sorted by name: first=%q last=%q", result.Projects[0].Name, result.Projects[119].Name)
 	}
 }
 

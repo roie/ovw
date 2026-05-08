@@ -786,6 +786,7 @@ func renderShell(m Model) string {
 		}
 		if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
+			body += "\n" + keyActionLine("esc", "clear search", 8)
 		} else {
 			content := m.tablePanel(visible)
 			switch m.screen {
