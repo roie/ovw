@@ -218,14 +218,15 @@ func (m setupModel) visibleSetupRows() []setupRow {
 func (m setupModel) visibleSetupRowsFor(path, parent string, depth int) []setupRow {
 	children, known := m.children[path]
 	expanded := m.expanded[path] && len(children) > 0
+	checked := m.checked[path] || m.hasCheckedSetupAncestor(path)
 	rows := []setupRow{
 		{
 			Path:       path,
 			Label:      setupRowLabel(path, depth),
 			Parent:     parent,
 			Depth:      depth,
-			Checked:    m.checked[path],
-			Partial:    !m.checked[path] && m.hasCheckedSetupDescendant(path),
+			Checked:    checked,
+			Partial:    !checked && m.hasCheckedSetupDescendant(path),
 			Expandable: !known || len(children) > 0,
 			Expanded:   expanded,
 		},
@@ -258,6 +259,15 @@ func (m setupModel) knownSetupRowsFor(path, parent string, depth int) []setupRow
 func (m setupModel) hasCheckedSetupDescendant(root string) bool {
 	for path, checked := range m.checked {
 		if checked && setupIsDescendant(root, path) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m setupModel) hasCheckedSetupAncestor(path string) bool {
+	for checkedPath, checked := range m.checked {
+		if checked && setupIsDescendant(checkedPath, path) {
 			return true
 		}
 	}
@@ -368,6 +378,12 @@ func discoverSetupChildren(root string) ([]string, error) {
 func (m *setupModel) toggleSetupRow(row setupRow) {
 	if m.checked == nil {
 		m.checked = checkedOnboardingOptions(m.options)
+	}
+	if !m.checked[row.Path] && m.hasCheckedSetupAncestor(row.Path) {
+		m.checked[row.Path] = true
+		m.uncheckSetupAncestors(row.Path)
+		m.uncheckSetupDescendants(row.Path)
+		return
 	}
 	next := !m.checked[row.Path]
 	m.checked[row.Path] = next

@@ -286,6 +286,9 @@ func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
 	if !strings.Contains(view, "▾") || !strings.Contains(view, "web") || !strings.Contains(view, "extensions") {
 		t.Fatalf("expanded setup view missing child folders:\n%s", view)
 	}
+	if !strings.Contains(view, "[x] web") || !strings.Contains(view, "[x] extensions") {
+		t.Fatalf("children should show included when parent is checked:\n%s", view)
+	}
 	model = updateSetupSpecialKey(t, model, tea.KeyDown)
 	model = updateSetupKey(t, model, " ")
 	if model.checked["~/dev"] {
