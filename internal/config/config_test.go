@@ -134,10 +134,26 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				t.Fatalf("Write() error = %v", err)
 			}
 			_, err := Load(path)
-			if err == nil || err.Error() != tc.want {
-				t.Fatalf("Load() error = %v, want %q", err, tc.want)
+			want := "invalid config " + path + ": " + tc.want
+			if err == nil || err.Error() != want {
+				t.Fatalf("Load() error = %v, want %q", err, want)
 			}
 		})
+	}
+}
+
+func TestLoadIncludesPathForMalformedConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("roots = ["), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("Load() error = nil")
+	}
+	if !strings.Contains(err.Error(), "invalid config "+path+":") {
+		t.Fatalf("Load() error should include config path: %v", err)
 	}
 }
 

@@ -119,10 +119,10 @@ func Load(path string) (Config, error) {
 	}
 	cfg := Default()
 	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("invalid config %s: %w", path, err)
 	}
 	if err := Validate(cfg); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("invalid config %s: %w", path, err)
 	}
 	return cfg, nil
 }
