@@ -218,7 +218,7 @@ func (m setupModel) visibleSetupRows() []setupRow {
 func (m setupModel) visibleSetupRowsFor(path, parent string, depth int) []setupRow {
 	children, known := m.children[path]
 	expanded := m.expanded[path] && len(children) > 0
-	checked := m.checked[path] || m.hasCheckedSetupAncestor(path)
+	checked := m.isSetupPathChecked(path)
 	rows := []setupRow{
 		{
 			Path:       path,
@@ -272,6 +272,23 @@ func (m setupModel) hasCheckedSetupAncestor(path string) bool {
 		}
 	}
 	return false
+}
+
+func (m setupModel) isSetupPathChecked(path string) bool {
+	return m.checked[path] || m.hasCheckedSetupAncestor(path) || m.hasAllCheckedSetupChildren(path)
+}
+
+func (m setupModel) hasAllCheckedSetupChildren(path string) bool {
+	children, known := m.children[path]
+	if !known || len(children) == 0 {
+		return false
+	}
+	for _, child := range children {
+		if !m.isSetupPathChecked(child) {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *setupModel) expandSetupPath(path string) {
@@ -381,6 +398,10 @@ func (m *setupModel) toggleSetupRow(row setupRow) {
 	}
 	if !m.checked[row.Path] && m.hasCheckedSetupAncestor(row.Path) {
 		m.excludeSetupPathFromCheckedAncestor(row.Path)
+		m.uncheckSetupDescendants(row.Path)
+		return
+	}
+	if !m.checked[row.Path] && m.hasAllCheckedSetupChildren(row.Path) {
 		m.uncheckSetupDescendants(row.Path)
 		return
 	}

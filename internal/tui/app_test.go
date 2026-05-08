@@ -445,6 +445,44 @@ func TestSetupNestsCheckedRootsUnderAncestorCandidate(t *testing.T) {
 	}
 }
 
+func TestSetupShowsParentCheckedWhenEveryChildIsChecked(t *testing.T) {
+	model := setupModel{
+		options: []string{"~/dev"},
+		checked: map[string]bool{
+			"~/dev/extensions":     true,
+			"~/dev/fork":           true,
+			"~/dev/ovw-screenshot": true,
+			"~/dev/playground":     true,
+			"~/dev/web":            true,
+		},
+		expanded: map[string]bool{"~/dev": true},
+		children: map[string][]string{
+			"~/dev": {
+				"~/dev/extensions",
+				"~/dev/fork",
+				"~/dev/ovw-screenshot",
+				"~/dev/playground",
+				"~/dev/web",
+			},
+		},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "▾ [x] ~/dev") {
+		t.Fatalf("parent should render checked when every child is checked:\n%s", view)
+	}
+	if strings.Contains(view, "[-] ~/dev") {
+		t.Fatalf("parent should not render partial when every child is checked:\n%s", view)
+	}
+
+	model = updateSetupKey(t, model, " ")
+	for path, checked := range model.checked {
+		if checked {
+			t.Fatalf("checking all children then toggling parent should clear descendants, but %s is still checked: %#v", path, model.checked)
+		}
+	}
+}
+
 func TestSetupRevealsCheckedNestedRoots(t *testing.T) {
 	model := setupModel{
 		options:  []string{"~/dev"},
