@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
 )
@@ -19,7 +20,7 @@ func TestTableViewRendersProjectColumns(t *testing.T) {
 			Status:       ovwformat.StatusFromTags("", []string{"dirty", "stale"}),
 			Note:         ovwformat.NoteInfo{Display: "partial check-in"},
 		},
-	}, -1, 100, 0)
+	}, -1, 100, 0, config.Default())
 
 	for _, want := range []string{"Name", "Stack", "Activity", "Status", "Note", "eventca", "SvelteKit+CF", "40m", "dirty", "stale", "partial check-in"} {
 		if !strings.Contains(got, want) {
@@ -37,7 +38,7 @@ func TestTableViewTruncatesToWidth(t *testing.T) {
 			Status:       ovwformat.StatusFromTags("", []string{"dirty", "unpushed", "stale"}),
 			Note:         ovwformat.NoteInfo{Display: "this is a long note that should not overflow the table width"},
 		},
-	}, -1, 72, 0)
+	}, -1, 72, 0, config.Default())
 
 	for _, line := range strings.Split(got, "\n") {
 		if len([]rune(line)) > 72 {
@@ -58,7 +59,7 @@ func TestTableViewCollapsesMultilineNotes(t *testing.T) {
 			Status:       ovwformat.StatusFromTags("", []string{"dirty"}),
 			Note:         ovwformat.NoteInfo{Display: "fix: extract carousel\n- Add SJS script\n- Increase timeout"},
 		},
-	}, 0, 120, 8)
+	}, 0, 120, 8, config.Default())
 
 	lines := strings.Split(stripANSI(got), "\n")
 	if len(lines) != 3 {
@@ -78,7 +79,7 @@ func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 		projects = append(projects, project.Project{Name: fmt.Sprintf("project-%02d", i)})
 	}
 
-	got := tableView(projects, 15, 80, 8)
+	got := tableView(projects, 15, 80, 8, config.Default())
 
 	if !strings.Contains(got, "project-15") {
 		t.Fatalf("selected row is not visible:\n%s", got)
@@ -91,6 +92,31 @@ func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 	}
 	if !strings.Contains(got, "Note") {
 		t.Fatalf("table should keep note header plain:\n%s", got)
+	}
+}
+
+func TestTableViewFollowsConfiguredColumns(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "path", "manager", "version", "status"}
+	got := tableView([]project.Project{
+		{
+			Name:     "eventca",
+			Path:     "/tmp/eventca",
+			Managers: []string{"pnpm"},
+			Version:  "1.2.3",
+			Status:   ovwformat.StatusFromTags("", []string{"active"}),
+		},
+	}, -1, 100, 0, cfg)
+
+	for _, want := range []string{"Name", "Path", "Manager", "Version", "Status", "eventca", "/tmp/eventca", "pnpm", "1.2.3", "active"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("table missing configured column value %q:\n%s", want, got)
+		}
+	}
+	for _, notWant := range []string{"Stack", "Activity", "Note"} {
+		if strings.Contains(got, notWant) {
+			t.Fatalf("table should not include unconfigured column %q:\n%s", notWant, got)
+		}
 	}
 }
 

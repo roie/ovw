@@ -831,13 +831,13 @@ func (m Model) tablePanel(visible []project.Project) string {
 				detail.Activity.RecentCommits = commits
 			}
 			return joinColumns(
-				tableView(visible, m.selected, tableWidth, tableHeight),
+				tableView(visible, m.selected, tableWidth, tableHeight, m.config),
 				detailSummaryView(detail, detailWidth),
 				gap,
 			)
 		}
 	}
-	return tableView(visible, m.selected, contentWidth, tableHeight)
+	return tableView(visible, m.selected, contentWidth, tableHeight, m.config)
 }
 
 func (m Model) showInlineDetail() bool {

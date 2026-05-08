@@ -7,15 +7,14 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"ovw/internal/config"
-	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
+	"ovw/internal/projectview"
 )
 
 const fallbackTableWidth = 120
@@ -35,7 +34,7 @@ func TableWithWidth(w io.Writer, projects []project.Project, cfg config.Config, 
 	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	headers := make([]string, 0, len(cfg.Columns))
 	for _, column := range cfg.Columns {
-		headers = append(headers, headerLabel(column))
+		headers = append(headers, projectview.ColumnLabel(column))
 	}
 	fmt.Fprintln(tw, strings.Join(headers, "\t"))
 	for _, row := range rows {
@@ -64,13 +63,6 @@ func TableWithWidth(w io.Writer, projects []project.Project, cfg config.Config, 
 		}
 	}
 	return nil
-}
-
-func headerLabel(column string) string {
-	if column == "" {
-		return ""
-	}
-	return strings.ToUpper(column[:1]) + column[1:]
 }
 
 func JSON(w io.Writer, projects []project.Project) error {
@@ -143,35 +135,16 @@ func newJSONProject(project project.Project) jsonProject {
 }
 
 func tableRows(projects []project.Project, cfg config.Config) []tableRow {
-	displayNames := disambiguatedNames(projects)
+	displayNames := projectview.DisambiguatedNames(projects)
 	rows := make([]tableRow, 0, len(projects))
-	for _, project := range projects {
+	for index, project := range projects {
 		values := make([]string, 0, len(cfg.Columns))
 		for _, column := range cfg.Columns {
-			values = append(values, value(project, column, displayNames[project.Path]))
+			values = append(values, projectview.ColumnValue(project, column, displayNames[projectview.ProjectKey(project, index)]))
 		}
 		rows = append(rows, tableRow{values: values})
 	}
 	return rows
-}
-
-func value(p project.Project, column, displayName string) string {
-	switch column {
-	case "name":
-		return displayName
-	case "stack":
-		return p.StackDisplay
-	case "manager":
-		return strings.Join(p.Managers, ", ")
-	case "activity":
-		return p.Activity.Display
-	case "status":
-		return p.Status.Display
-	case "note":
-		return ovwformat.SingleLine(p.Note.Display)
-	default:
-		return ""
-	}
 }
 
 func applyWidth(rows []tableRow, columns []string, width int) {
@@ -199,7 +172,7 @@ func applyWidth(rows []tableRow, columns []string, width int) {
 func nonNoteWidth(rows []tableRow, columns []string, noteIndex int) int {
 	widths := map[int]int{}
 	for i, column := range columns {
-		widths[i] = len(headerLabel(column))
+		widths[i] = len(projectview.ColumnLabel(column))
 	}
 	for _, row := range rows {
 		for i, value := range row.values {
@@ -259,25 +232,4 @@ func terminalWidth() int {
 		}
 	}
 	return fallbackTableWidth
-}
-
-func disambiguatedNames(projects []project.Project) map[string]string {
-	counts := map[string]int{}
-	for _, project := range projects {
-		counts[project.Name]++
-	}
-	names := map[string]string{}
-	for _, project := range projects {
-		if counts[project.Name] < 2 {
-			names[project.Path] = project.Name
-			continue
-		}
-		parent := filepath.Base(filepath.Dir(project.Path))
-		if parent == "." || parent == string(filepath.Separator) || parent == "" {
-			names[project.Path] = project.Name
-			continue
-		}
-		names[project.Path] = filepath.ToSlash(filepath.Join(parent, project.Name))
-	}
-	return names
 }
