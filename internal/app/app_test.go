@@ -162,6 +162,27 @@ func TestLoadOverviewReturnsFilteredProjects(t *testing.T) {
 	}
 }
 
+func TestLoadOverviewRejectsInvalidSort(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = LoadOverview(Options{Sort: "recent", Cwd: root, In: strings.NewReader("\n")})
+	if err == nil || err.Error() != `invalid sort "recent": expected activity, name, or status` {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+}
+
 func TestResolveProjectFindsScannedProjectByName(t *testing.T) {
 	root := t.TempDir()
 	writePackage(t, filepath.Join(root, "app"), `{}`)

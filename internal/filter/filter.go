@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -74,6 +75,18 @@ func Sort(projects []project.Project, mode string, cfg config.Config) []project.
 		}
 	})
 	return out
+}
+
+func ValidateSort(mode string) error {
+	if mode == "" {
+		return nil
+	}
+	switch mode {
+	case "activity", "name", "status":
+		return nil
+	default:
+		return fmt.Errorf("invalid sort %q: expected activity, name, or status", mode)
+	}
 }
 
 func isStale(p project.Project, staleDays int, now time.Time) bool {

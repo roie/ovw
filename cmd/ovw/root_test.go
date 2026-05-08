@@ -627,6 +627,22 @@ func TestSetRequiresStatusOrNote(t *testing.T) {
 	}
 }
 
+func TestInvalidSortShowsClearErrorWithoutUsage(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	configForTest(t, root)
+
+	out, err := executeCommand([]string{"--sort", "recent"})
+	if err == nil || err.Error() != `invalid sort "recent": expected activity, name, or status` {
+		t.Fatalf("invalid sort error = %v", err)
+	}
+	if strings.Contains(out, "Usage:") {
+		t.Fatalf("invalid sort printed usage:\n%s", out)
+	}
+}
+
 func TestUnsetRequiresStatusOrNote(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "manual")

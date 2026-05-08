@@ -104,3 +104,15 @@ func TestSortDirectionAppliesToNameAndStatus(t *testing.T) {
 		t.Fatalf("status desc sort = %#v", got)
 	}
 }
+
+func TestValidateSortRejectsUnknownValue(t *testing.T) {
+	err := ValidateSort("recent")
+	if err == nil || err.Error() != `invalid sort "recent": expected activity, name, or status` {
+		t.Fatalf("ValidateSort() error = %v", err)
+	}
+	for _, value := range []string{"", "activity", "name", "status"} {
+		if err := ValidateSort(value); err != nil {
+			t.Fatalf("ValidateSort(%q) error = %v", value, err)
+		}
+	}
+}

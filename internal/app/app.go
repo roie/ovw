@@ -82,9 +82,17 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	if opts.Out == nil {
 		opts.Out = io.Discard
 	}
+	if err := filter.ValidateSort(opts.Sort); err != nil {
+		return OverviewResult{}, err
+	}
 	paths, cfg, err := EnsureConfig(opts)
 	if err != nil {
 		return OverviewResult{}, err
+	}
+	if opts.Sort == "" {
+		if err := filter.ValidateSort(cfg.SortBy); err != nil {
+			return OverviewResult{}, err
+		}
 	}
 	meta, err := metadata.Load(paths.Metadata)
 	if err != nil {
