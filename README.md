@@ -6,14 +6,7 @@ A terminal overview for your local projects.
 active it is, and where you may want to jump back in. Your folders and Git
 history stay the source of truth.
 
-```txt
-ovw                                                                                           10/22
-
-name            stack       activity   status          note
-ovw             Go          now        dirty           A terminal overview for your local projects.
-vibe-oke        SvelteKit   40m        dirty           work on queue flow
-parallel-booth  Astro       2d         active          polish capture layout
-```
+![ovw screenshot](assets/ovw-screenshot.png)
 
 `ovw` helps answer:
 
