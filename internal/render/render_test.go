@@ -54,7 +54,7 @@ func TestTableDisambiguatesDuplicateNames(t *testing.T) {
 		{
 			Name:         "vibe-oke",
 			Path:         "/home/roie/dev/playground/vibe-oke",
-			StackDisplay: "Hono+Bun",
+			StackDisplay: "Hono",
 			Activity:     format.ActivityInfo{Display: "2d"},
 		},
 	}
@@ -74,7 +74,7 @@ func TestTableWidthTruncatesNoteAndSeparator(t *testing.T) {
 	projects := []project.Project{{
 		Name:         "imagio",
 		Path:         "/tmp/imagio",
-		StackDisplay: "WXT+Bun",
+		StackDisplay: "WXT",
 		Activity:     format.ActivityInfo{Display: "2w !"},
 		Note:         format.NoteInfo{Display: "release/refactor · refactor: split repo into workspaces and packages"},
 	}}
