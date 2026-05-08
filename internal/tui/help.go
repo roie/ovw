@@ -6,6 +6,7 @@ func helpView() string {
 		action string
 	}{
 		{key: "up/down or j/k", action: "move"},
+		{key: "left/right or h/l", action: "scroll columns"},
 		{key: "/", action: "search"},
 		{key: "a", action: "add"},
 		{key: "f", action: "filter"},

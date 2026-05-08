@@ -11,26 +11,29 @@ import (
 type tableCell struct {
 	Value string
 	Width int
-	Flex  bool
 }
 
 type tableRow struct {
 	Cells []tableCell
 }
 
-func tableView(projects []project.Project, selected, width, height int, cfg config.Config) string {
+const maxTableNoteWidth = 48
+
+func tableView(projects []project.Project, selected, width, height, xOffset int, cfg config.Config) string {
 	if len(projects) == 0 {
 		return mutedStyle.Render("No projects found")
 	}
 	columns := tableColumns(cfg)
-	rows := tableRows(projects, columns, width)
+	rows := tableRows(projects, columns)
+	header := tableHeader(columns, rows)
+	xOffset = clampTableXOffset(xOffset, width, tableLineWidth(header))
 	lines := []string{
-		tableLine(tableHeader(columns, rows)),
-		strings.Repeat("-", tableLineWidth(tableHeader(columns, rows))),
+		tableViewportLine(tableLine(header), xOffset, width),
+		tableViewportLine(strings.Repeat("-", tableLineWidth(header)), xOffset, width),
 	}
 	start, end := visibleRange(len(projects), selected, tableBodyHeight(height))
 	for index := start; index < end; index++ {
-		line := tableLine(rows[index])
+		line := tableViewportLine(tableLine(rows[index]), xOffset, width)
 		if index == selected {
 			line = selectedStyle.Render(line)
 		}
@@ -46,7 +49,7 @@ func tableColumns(cfg config.Config) []string {
 	return cfg.Columns
 }
 
-func tableRows(projects []project.Project, columns []string, width int) []tableRow {
+func tableRows(projects []project.Project, columns []string) []tableRow {
 	displayNames := projectview.DisambiguatedNames(projects)
 	rows := make([]tableRow, 0, len(projects))
 	for index, project := range projects {
@@ -54,12 +57,11 @@ func tableRows(projects []project.Project, columns []string, width int) []tableR
 		for _, column := range columns {
 			row = append(row, tableCell{
 				Value: projectview.ColumnValue(project, column, displayNames[projectview.ProjectKey(project, index)]),
-				Flex:  tableColumnIsFlex(column),
 			})
 		}
 		rows = append(rows, tableRow{Cells: row})
 	}
-	fitTableRows(rows, columns, width)
+	fitTableRows(rows, columns)
 	return rows
 }
 
@@ -75,21 +77,10 @@ func tableHeader(columns []string, rows []tableRow) tableRow {
 	return tableRow{Cells: cells}
 }
 
-func tableColumnIsFlex(column string) bool {
-	return column == "note" || column == "path"
-}
-
-func fitTableRows(rows []tableRow, columns []string, width int) {
-	if width <= 0 {
-		width = 100
-	}
+func fitTableRows(rows []tableRow, columns []string) {
 	widths := make([]int, len(columns))
-	flexIndexes := []int{}
 	for index, column := range columns {
 		widths[index] = len([]rune(projectview.ColumnLabel(column)))
-		if tableColumnIsFlex(column) {
-			flexIndexes = append(flexIndexes, index)
-		}
 	}
 	for _, row := range rows {
 		for index, cell := range row.Cells {
@@ -98,71 +89,14 @@ func fitTableRows(rows []tableRow, columns []string, width int) {
 			}
 		}
 	}
-	total := tableLineWidthFromWidths(widths)
-	if total > width {
-		indexes := flexIndexes
-		if len(indexes) == 0 {
-			indexes = longestColumnIndexes(widths)
+	for index, column := range columns {
+		if column == "note" && widths[index] > maxTableNoteWidth {
+			widths[index] = maxTableNoteWidth
 		}
-		shrinkColumns(widths, indexes, total-width)
-		total = tableLineWidthFromWidths(widths)
-		if total > width {
-			shrinkColumns(widths, longestColumnIndexes(widths), total-width)
-		}
-	}
-	total = tableLineWidthFromWidths(widths)
-	if total < width && len(widths) > 0 {
-		widths[len(widths)-1] += width - total
 	}
 	for rowIndex := range rows {
 		for cellIndex := range rows[rowIndex].Cells {
 			rows[rowIndex].Cells[cellIndex].Width = widths[cellIndex]
-		}
-	}
-}
-
-func longestColumnIndexes(widths []int) []int {
-	indexes := make([]int, len(widths))
-	used := make([]bool, len(widths))
-	for rank := range widths {
-		best := -1
-		for index, width := range widths {
-			if used[index] {
-				continue
-			}
-			if best < 0 || width > widths[best] {
-				best = index
-			}
-		}
-		if best < 0 {
-			return indexes[:rank]
-		}
-		used[best] = true
-		indexes[rank] = best
-	}
-	return indexes
-}
-
-func shrinkColumns(widths []int, indexes []int, overflow int) {
-	for overflow > 0 {
-		shrank := false
-		for _, index := range indexes {
-			if overflow <= 0 {
-				return
-			}
-			minWidth := 8
-			if len(widths) > 5 {
-				minWidth = 6
-			}
-			if widths[index] <= minWidth {
-				continue
-			}
-			widths[index]--
-			overflow--
-			shrank = true
-		}
-		if !shrank {
-			return
 		}
 	}
 }
@@ -200,6 +134,36 @@ func tablePadRight(value string, width int) string {
 		return value
 	}
 	return value + strings.Repeat(" ", padding)
+}
+
+func tableViewportLine(value string, offset, width int) string {
+	if width <= 0 {
+		return value
+	}
+	runes := []rune(value)
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > len(runes) {
+		offset = len(runes)
+	}
+	end := offset + width
+	if end > len(runes) {
+		end = len(runes)
+	}
+	out := string(runes[offset:end])
+	return tablePadRight(out, width)
+}
+
+func clampTableXOffset(offset, viewportWidth, contentWidth int) int {
+	if offset < 0 || viewportWidth <= 0 || contentWidth <= viewportWidth {
+		return 0
+	}
+	maxOffset := contentWidth - viewportWidth
+	if offset > maxOffset {
+		return maxOffset
+	}
+	return offset
 }
 
 func visibleRange(total, selected, rows int) (int, int) {

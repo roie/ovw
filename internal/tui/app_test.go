@@ -172,7 +172,7 @@ func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 
 func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
 	got := stripANSI(footerView())
-	for _, want := range []string{"↑↓ move", "/ search", "f filter", "s sort", "enter details", "n note", "m status", "r reload", "o open", "t terminal", "esc back", "? help", "q quit"} {
+	for _, want := range []string{"↑↓ move", "←→ scroll", "/ search", "f filter", "s sort", "enter details", "n note", "m status", "r reload", "o open", "t terminal", "esc back", "? help", "q quit"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("footer missing %q:\n%s", want, got)
 		}
@@ -181,6 +181,30 @@ func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
 		if strings.Contains(got, notWant) {
 			t.Fatalf("footer should not include secondary action %q:\n%s", notWant, got)
 		}
+	}
+}
+
+func TestModelHorizontalScrollKeysMoveTableViewport(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if model.tableXOffset != 8 {
+		t.Fatalf("tableXOffset = %d, want 8", model.tableXOffset)
+	}
+	model = updateKey(t, model, "l")
+	if model.tableXOffset != 16 {
+		t.Fatalf("tableXOffset = %d, want 16", model.tableXOffset)
+	}
+	model = updateKey(t, model, "h")
+	if model.tableXOffset != 8 {
+		t.Fatalf("tableXOffset = %d, want 8", model.tableXOffset)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	if model.tableXOffset != 0 {
+		t.Fatalf("tableXOffset = %d, want 0", model.tableXOffset)
 	}
 }
 

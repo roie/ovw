@@ -51,6 +51,7 @@ type Model struct {
 	width          int
 	height         int
 	selected       int
+	tableXOffset   int
 	screen         screenMode
 	search         string
 	searching      bool
@@ -186,6 +187,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isTerminalKey(msg.String()) && m.canOpenDetail() {
 			return m, m.openSelectedTerminal()
+		}
+		if isRightKey(msg.String()) {
+			m.tableXOffset += 8
+			return m, nil
+		}
+		if isLeftKey(msg.String()) {
+			m.tableXOffset -= 8
+			if m.tableXOffset < 0 {
+				m.tableXOffset = 0
+			}
+			return m, nil
 		}
 		if isHelpKey(msg.String()) {
 			m.screen = screenHelp
@@ -831,13 +843,13 @@ func (m Model) tablePanel(visible []project.Project) string {
 				detail.Activity.RecentCommits = commits
 			}
 			return joinColumns(
-				tableView(visible, m.selected, tableWidth, tableHeight, m.config),
+				tableView(visible, m.selected, tableWidth, tableHeight, m.tableXOffset, m.config),
 				detailSummaryView(detail, detailWidth),
 				gap,
 			)
 		}
 	}
-	return tableView(visible, m.selected, contentWidth, tableHeight, m.config)
+	return tableView(visible, m.selected, contentWidth, tableHeight, m.tableXOffset, m.config)
 }
 
 func (m Model) showInlineDetail() bool {

@@ -42,6 +42,14 @@ func isDownKey(value string) bool {
 	return value == "down" || value == "j"
 }
 
+func isLeftKey(value string) bool {
+	return value == "left" || value == "h"
+}
+
+func isRightKey(value string) bool {
+	return value == "right" || value == "l"
+}
+
 func isEnterKey(value string) bool {
 	return value == "enter"
 }
@@ -100,5 +108,5 @@ func isBackspaceKey(value string) bool {
 
 func footerView() string {
 	keys := defaultKeyMap()
-	return mutedStyle.Render("↑↓ move · / search · f filter · s sort · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
+	return mutedStyle.Render("↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc)
 }
