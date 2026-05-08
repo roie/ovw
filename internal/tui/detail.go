@@ -255,14 +255,7 @@ func scrollDetailModalLines(lines []string, height int, offset int, width int) (
 }
 
 func modalDetailScrollHint(offset, maxOffset, width int) string {
-	marker := "↓"
-	switch {
-	case offset > 0 && offset < maxOffset:
-		marker = "↑↓"
-	case offset >= maxOffset:
-		marker = "↑"
-	}
-	return modalMuted(truncateText(marker+" pgup/pgdn detail", width))
+	return scrollHint(offset, maxOffset, width, modalHintKey, modalMuted)
 }
 
 func addRecentCommits(lines *[]string, commits []ovwformat.RecentCommit, width int) {

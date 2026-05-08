@@ -816,7 +816,7 @@ func TestModelScrollsLongSidePaneDetails(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "↓ pgup/pgdn detail") {
+	if !strings.Contains(view, "↓ pgup/pgdn") {
 		t.Fatalf("long sidepane should show scroll hint:\n%s", view)
 	}
 	if strings.Contains(view, "line ten") {
@@ -828,7 +828,7 @@ func TestModelScrollsLongSidePaneDetails(t *testing.T) {
 	if model.detailYOffset == 0 || !strings.Contains(view, "line four") {
 		t.Fatalf("sidepane should scroll down:\n%s", view)
 	}
-	if !strings.Contains(view, "↑ pgup/pgdn detail") && !strings.Contains(view, "↑↓ pgup/pgdn detail") {
+	if !strings.Contains(view, "↑ pgup/pgdn") && !strings.Contains(view, "↑↓ pgup/pgdn") {
 		t.Fatalf("scrolled sidepane should show upward scroll hint:\n%s", view)
 	}
 
@@ -836,6 +836,17 @@ func TestModelScrollsLongSidePaneDetails(t *testing.T) {
 	view = stripANSI(model.View())
 	if !strings.Contains(view, "line ten") {
 		t.Fatalf("sidepane should jump to end:\n%s", view)
+	}
+}
+
+func TestDetailScrollHintUsesKeyMarkerStyle(t *testing.T) {
+	got := detailScrollHint(0, 3, 20)
+
+	if !strings.Contains(got, "\x1b[38;5;252m↓") {
+		t.Fatalf("scroll hint marker should use key style:\n%q", got)
+	}
+	if strings.Contains(stripANSI(got), "detail") {
+		t.Fatalf("scroll hint should not include redundant detail label:\n%q", got)
 	}
 }
 
@@ -859,7 +870,7 @@ func TestModelDoesNotScrollShortSidePaneDetails(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if strings.Contains(view, "pgup/pgdn detail") {
+	if strings.Contains(view, "pgup/pgdn") {
 		t.Fatalf("short sidepane should not show scroll hint:\n%s", view)
 	}
 	model = updateSpecialKey(t, model, tea.KeyPgDown)
@@ -894,7 +905,7 @@ func TestModelScrollsLongDetailModal(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "↓ pgup/pgdn detail") {
+	if !strings.Contains(view, "↓ pgup/pgdn") {
 		t.Fatalf("long detail modal should show scroll hint:\n%s", view)
 	}
 	if strings.Contains(view, "x hide") {
@@ -906,7 +917,7 @@ func TestModelScrollsLongDetailModal(t *testing.T) {
 	if !strings.Contains(view, "x hide") {
 		t.Fatalf("detail modal should jump to bottom:\n%s", view)
 	}
-	if !strings.Contains(view, "↑ pgup/pgdn detail") {
+	if !strings.Contains(view, "↑ pgup/pgdn") {
 		t.Fatalf("detail modal should show upward scroll hint:\n%s", view)
 	}
 }

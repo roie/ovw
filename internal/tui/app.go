@@ -1465,6 +1465,18 @@ func scrollableDetailSummary(detail project.Project, width int, height int, offs
 }
 
 func detailScrollHint(offset, maxOffset, width int) string {
+	return scrollHint(offset, maxOffset, width, func(value string) string {
+		return inlineHintKey(value)
+	}, func(value string) string {
+		return mutedStyle.Render(value)
+	})
+}
+
+func inlineHintKey(value string) string {
+	return "\x1b[38;5;252m" + value + ansiReset
+}
+
+func scrollHint(offset, maxOffset, width int, markerStyle func(string) string, textStyle func(string) string) string {
 	marker := "↓"
 	switch {
 	case offset > 0 && offset < maxOffset:
@@ -1472,7 +1484,15 @@ func detailScrollHint(offset, maxOffset, width int) string {
 	case offset >= maxOffset:
 		marker = "↑"
 	}
-	return mutedStyle.Render(truncateText(marker+" pgup/pgdn detail", width))
+	text := " pgup/pgdn"
+	if width > 0 {
+		markerWidth := lipgloss.Width(marker)
+		if width <= markerWidth {
+			return markerStyle(truncateText(marker, width))
+		}
+		text = truncateText(text, width-markerWidth)
+	}
+	return markerStyle(marker) + textStyle(text)
 }
 
 func maxLineWidth(lines []string) int {

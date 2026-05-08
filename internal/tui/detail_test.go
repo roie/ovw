@@ -160,7 +160,7 @@ func TestDetailModalScrollsLongContent(t *testing.T) {
 	if maxOffset == 0 {
 		t.Fatalf("expected scrollable modal")
 	}
-	if !strings.Contains(view, "↓ pgup/pgdn detail") {
+	if !strings.Contains(view, "↓ pgup/pgdn") {
 		t.Fatalf("long modal missing scroll hint:\n%s", view)
 	}
 	if strings.Contains(view, "x hide") {
@@ -172,8 +172,19 @@ func TestDetailModalScrollsLongContent(t *testing.T) {
 	if !strings.Contains(view, "x hide") {
 		t.Fatalf("scrolled modal should show bottom action:\n%s", view)
 	}
-	if !strings.Contains(view, "↑ pgup/pgdn detail") {
+	if !strings.Contains(view, "↑ pgup/pgdn") {
 		t.Fatalf("scrolled modal missing upward hint:\n%s", view)
+	}
+}
+
+func TestModalDetailScrollHintUsesKeyMarkerStyle(t *testing.T) {
+	got := modalDetailScrollHint(0, 3, 20)
+
+	if !strings.Contains(got, "\x1b[38;5;252;48;5;"+modalSurfaceColor+"m↓") {
+		t.Fatalf("modal scroll hint marker should use key style:\n%q", got)
+	}
+	if strings.Contains(stripANSI(got), "detail") {
+		t.Fatalf("modal scroll hint should not include redundant detail label:\n%q", got)
 	}
 }
 
