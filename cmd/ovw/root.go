@@ -233,8 +233,9 @@ func newSetCommand() *cobra.Command {
 	var status string
 	var note string
 	cmd := &cobra.Command{
-		Use:   "set <name>",
+		Use:   "set <project>",
 		Short: "Set project status or note",
+		Long:  "Set a short status or note for one project.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if status == "" && note == "" {
@@ -263,6 +264,7 @@ func newSetCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&status, "status", "", "set status")
 	cmd.Flags().StringVar(&note, "note", "", "set note")
+	cmd.SetUsageTemplate(setUsageTemplate())
 	return cmd
 }
 
@@ -270,8 +272,9 @@ func newUnsetCommand() *cobra.Command {
 	var clearStatus bool
 	var clearNote bool
 	cmd := &cobra.Command{
-		Use:   "unset <name>",
+		Use:   "unset <project>",
 		Short: "Clear project status or note",
+		Long:  "Clear a project status or note.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !clearStatus && !clearNote {
@@ -302,7 +305,43 @@ func newUnsetCommand() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&clearStatus, "status", false, "clear status")
 	cmd.Flags().BoolVar(&clearNote, "note", false, "clear note")
+	cmd.SetUsageTemplate(unsetUsageTemplate())
 	return cmd
+}
+
+func setUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}} <project> --status <status>
+  {{.CommandPath}} <project> --note <note>
+  {{.CommandPath}} <project> --status <status> --note <note>
+
+Examples:
+  {{.CommandPath}} myproject --status blocked
+  {{.CommandPath}} myproject --note "currently working on it"
+  {{.CommandPath}} myproject --status shipped --note "released v1"
+
+Flags:
+  --status string   set status
+  --note string     set note
+  -h, --help        help for set
+`
+}
+
+func unsetUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}} <project> --status
+  {{.CommandPath}} <project> --note
+  {{.CommandPath}} <project> --status --note
+
+Examples:
+  {{.CommandPath}} myproject --status
+  {{.CommandPath}} myproject --note
+
+Flags:
+  --status   clear status
+  --note     clear note
+  -h, --help  help for unset
+`
 }
 
 func newShowCommand() *cobra.Command {

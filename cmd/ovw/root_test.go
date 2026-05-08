@@ -119,6 +119,52 @@ func TestVersionOutput(t *testing.T) {
 	}
 }
 
+func TestSetHelpShowsStatusAndNoteUsage(t *testing.T) {
+	out, err := executeCommand([]string{"set", "--help"})
+	if err != nil {
+		t.Fatalf("Execute(set --help) error = %v", err)
+	}
+	for _, want := range []string{
+		"Set a short status or note for one project.",
+		"ovw set <project> --status <status>",
+		"ovw set <project> --note <note>",
+		"ovw set myproject --status blocked",
+		"ovw set myproject --note \"currently working on it\"",
+		"--status string   set status",
+		"--note string     set note",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("set help missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "--json") || strings.Contains(out, "Commands:") {
+		t.Fatalf("set help should not show root help:\n%s", out)
+	}
+}
+
+func TestUnsetHelpShowsStatusAndNoteUsage(t *testing.T) {
+	out, err := executeCommand([]string{"unset", "--help"})
+	if err != nil {
+		t.Fatalf("Execute(unset --help) error = %v", err)
+	}
+	for _, want := range []string{
+		"Clear a project status or note.",
+		"ovw unset <project> --status",
+		"ovw unset <project> --note",
+		"ovw unset myproject --status",
+		"ovw unset myproject --note",
+		"--status   clear status",
+		"--note     clear note",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("unset help missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "--json") || strings.Contains(out, "Commands:") {
+		t.Fatalf("unset help should not show root help:\n%s", out)
+	}
+}
+
 func TestRuntimeErrorsDoNotPrintUsage(t *testing.T) {
 	out, err := executeCommand([]string{"missing-project"})
 	if err == nil {
