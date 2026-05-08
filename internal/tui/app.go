@@ -166,7 +166,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenAdd {
 			return m.updateAdd(msg)
 		}
-		if isEscapeKey(msg.String()) && m.screen == screenHelp {
+		if (isEscapeKey(msg.String()) || isEnterKey(msg.String())) && m.screen == screenHelp {
 			m.screen = screenTable
 			return m, nil
 		}
@@ -376,7 +376,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch value := msg.String(); {
-	case isEscapeKey(value):
+	case isEscapeKey(value), isEnterKey(value):
 		m.screen = screenTable
 		m.detailModalY = 0
 		m.detailsExpanded = false

@@ -1063,7 +1063,7 @@ func TestModelDetailVisibilityKeyHidesProject(t *testing.T) {
 	}
 }
 
-func TestModelDetailEnterDoesNotToggleVisibility(t *testing.T) {
+func TestModelDetailEnterClosesWithoutTogglingVisibility(t *testing.T) {
 	called := false
 	model := Model{
 		visible: func(path string, hidden bool) (app.MetadataUpdateResult, error) {
@@ -1082,8 +1082,8 @@ func TestModelDetailEnterDoesNotToggleVisibility(t *testing.T) {
 	if called {
 		t.Fatal("enter should not toggle visibility")
 	}
-	if model.screen != screenDetail {
-		t.Fatalf("screen = %v, want detail", model.screen)
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
 	}
 }
 
@@ -2262,6 +2262,12 @@ func TestModelHelpOpensAndCloses(t *testing.T) {
 	model = updateSpecialKey(t, model, tea.KeyEsc)
 	if model.screen != screenTable {
 		t.Fatalf("screen = %v, want table", model.screen)
+	}
+
+	model = updateKey(t, model, "?")
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table after enter", model.screen)
 	}
 }
 
