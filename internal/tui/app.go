@@ -1206,9 +1206,31 @@ func renderShell(m Model) string {
 		}
 	}
 	if m.screen != screenOnboarding && m.screen != screenOnboardingInput {
-		body += "\n\n" + footerView(m.contentWidth())
+		body = pinFooter(body, footerView(m.contentWidth()), m.height)
 	}
 	return body
+}
+
+func pinFooter(body, footer string, height int) string {
+	if footer == "" {
+		return body
+	}
+	if height <= 0 {
+		return body + "\n\n" + footer
+	}
+	bodyLines := strings.Split(body, "\n")
+	footerLines := strings.Split(footer, "\n")
+	bodyLimit := height - len(footerLines)
+	if bodyLimit <= 0 {
+		return strings.Join(footerLines[len(footerLines)-height:], "\n")
+	}
+	if len(bodyLines) > bodyLimit {
+		bodyLines = bodyLines[:bodyLimit]
+	}
+	for len(bodyLines) < bodyLimit {
+		bodyLines = append(bodyLines, "")
+	}
+	return strings.Join(append(bodyLines, footerLines...), "\n")
 }
 
 func headerView(m Model) string {

@@ -66,6 +66,47 @@ func TestModelUsesFullTerminalFrame(t *testing.T) {
 	}
 }
 
+func TestModelPinsFooterToBottom(t *testing.T) {
+	model := Model{
+		width:  100,
+		height: 12,
+		projects: []project.Project{
+			{Name: "app", StackDisplay: "Go"},
+		},
+	}
+
+	lines := strings.Split(stripANSI(model.View()), "\n")
+	if len(lines) != model.height {
+		t.Fatalf("View() rendered %d lines, want %d:\n%s", len(lines), model.height, strings.Join(lines, "\n"))
+	}
+	if !strings.Contains(lines[len(lines)-1], "q quit") {
+		t.Fatalf("footer should stay on last row:\n%s", strings.Join(lines, "\n"))
+	}
+	if !strings.Contains(lines[0], "ovw") {
+		t.Fatalf("header should stay on first row:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+func TestModelClipsContentBeforeFooter(t *testing.T) {
+	model := Model{
+		width:  100,
+		height: 5,
+		projects: []project.Project{
+			{Name: "app", StackDisplay: "Go"},
+			{Name: "api", StackDisplay: "Go"},
+			{Name: "web", StackDisplay: "Node"},
+		},
+	}
+
+	lines := strings.Split(stripANSI(model.View()), "\n")
+	if len(lines) != model.height {
+		t.Fatalf("View() rendered %d lines, want %d:\n%s", len(lines), model.height, strings.Join(lines, "\n"))
+	}
+	if !strings.Contains(lines[len(lines)-1], "q quit") {
+		t.Fatalf("footer should remain visible when content is clipped:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
 func TestModelLoadsOverviewData(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{
