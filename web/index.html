@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="ovw is a terminal overview for your local projects."
+    >
+    <link rel="canonical" href="https://roie.github.io/ovw/">
+    <meta name="theme-color" content="#181818">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="ovw">
+    <meta property="og:title" content="ovw - A terminal overview for your local projects.">
+    <meta property="og:description" content="Scan local project folders and see stack, manager, scripts, versions, Git activity, notes, and status in one terminal view.">
+    <meta property="og:url" content="https://roie.github.io/ovw/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ovw - A terminal overview for your local projects.">
+    <meta name="twitter:description" content="Scan local project folders and see stack, manager, scripts, versions, Git activity, notes, and status in one terminal view.">
+    <title>ovw - A terminal overview for your local projects.</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="styles.css">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "ovw",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Linux, Windows",
+        "description": "A terminal overview for your local projects.",
+        "url": "https://roie.github.io/ovw/",
+        "codeRepository": "https://github.com/roie/ovw",
+        "license": "https://github.com/roie/ovw/blob/main/LICENSE",
+        "softwareVersion": "1.0.1",
+        "author": {
+          "@type": "Person",
+          "name": "roie",
+          "url": "https://github.com/roie"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-lockup">
+        <a class="brand" href="#" aria-label="ovw home">ovw</a>
+        <span class="version">1.0.1</span>
+      </div>
+      <nav class="top-nav" aria-label="Primary navigation">
+        <a href="#install">Install</a>
+        <a href="#features">Features</a>
+        <a href="https://github.com/roie/ovw" target="_blank" rel="noreferrer">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title">A terminal overview for your local projects.</h1>
+          <p class="lead">
+            Scan the folders you choose and see stack, manager, scripts,
+            versions, Git activity, recent commits, notes, and status without
+            opening every repo.
+          </p>
+
+          <div class="install-panel" id="install" aria-labelledby="install-title">
+            <div class="install-header">
+              <div>
+                <h2 id="install-title">Install ovw</h2>
+                <p id="install-detected">Recommended for your system</p>
+              </div>
+              <button class="copy-button" type="button" data-copy>copy</button>
+            </div>
+
+            <div class="install-tabs" role="tablist" aria-label="Install methods">
+              <button class="install-tab" type="button" data-install-tab="homebrew">Homebrew</button>
+              <button class="install-tab" type="button" data-install-tab="curl">curl</button>
+              <button class="install-tab" type="button" data-install-tab="powershell">PowerShell</button>
+              <button class="install-tab" type="button" data-install-tab="manual">Manual</button>
+            </div>
+
+            <pre class="command-box" aria-live="polite"><code data-command></code></pre>
+          </div>
+        </div>
+
+        <div class="demo-panel" aria-label="ovw terminal interface preview">
+          <div class="demo-tabs" aria-hidden="true">
+            <span class="is-active">Projects</span>
+            <span>Details</span>
+            <span>Git</span>
+            <span>Notes</span>
+          </div>
+          <div class="demo-title">
+            <h2>10 local projects</h2>
+            <p>scanned in 0.3s</p>
+          </div>
+          <div class="demo-table">
+            <div class="demo-head">
+              <span>Name</span>
+              <span>Stack</span>
+              <span>Activity ↓</span>
+              <span>Status</span>
+            </div>
+            <div class="demo-row">
+              <span>ytm-mini</span>
+              <span>WXT+SvelteKit+CF</span>
+              <span>37m</span>
+              <span>dirty</span>
+            </div>
+            <div class="demo-row">
+              <span>vibe-oke</span>
+              <span>Three.js</span>
+              <span>1h</span>
+              <span>active</span>
+            </div>
+            <div class="demo-row is-selected">
+              <span>ovw</span>
+              <span>Go</span>
+              <span>1h</span>
+              <span>active</span>
+            </div>
+            <div class="demo-row">
+              <span>parallel-booth</span>
+              <span>Node</span>
+              <span>2h</span>
+              <span>active</span>
+            </div>
+            <div class="demo-row">
+              <span>imagio</span>
+              <span>React</span>
+              <span>4h</span>
+              <span>active</span>
+            </div>
+          </div>
+          <div class="demo-detail">
+            <div><span>Path</span><strong>~/dev/ovw</strong></div>
+            <div><span>Manager</span><strong>go modules</strong></div>
+            <div><span>Recent</span><strong>fix: check setup parents</strong></div>
+          </div>
+          <a class="demo-link" href="https://github.com/roie/ovw" target="_blank" rel="noreferrer">View on GitHub →</a>
+        </div>
+      </section>
+
+      <section class="answer-strip" aria-label="Questions ovw helps answer">
+        <p>What projects do I have?</p>
+        <p>What are they built with?</p>
+        <p>What changed recently?</p>
+        <p>What needs attention?</p>
+      </section>
+
+      <section class="section" id="features" aria-labelledby="features-title">
+        <div class="section-heading">
+          <h2 id="features-title">The details you check before jumping back in.</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <h3>Stack</h3>
+            <p>Recognizes project technology from files already on your machine.</p>
+          </article>
+          <article>
+            <h3>Manager</h3>
+            <p>Shows package managers like pnpm, npm, bun, cargo, or go modules.</p>
+          </article>
+          <article>
+            <h3>Scripts</h3>
+            <p>Surfaces available scripts without opening manifests.</p>
+          </article>
+          <article>
+            <h3>Version</h3>
+            <p>Reads project versions from common manifests.</p>
+          </article>
+          <article>
+            <h3>Git Activity</h3>
+            <p>Sorts by recent work and shows branch and commit context.</p>
+          </article>
+          <article>
+            <h3>Notes And Status</h3>
+            <p>Add lightweight metadata without changing project files.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="source-section" aria-labelledby="source-title">
+        <div>
+          <h2 id="source-title">Your files and Git history stay in charge.</h2>
+        </div>
+        <p>
+          ovw runs on your machine and uses your project files and Git history
+          as the source of truth. Notes, status, and hidden projects stay in
+          your local ovw config.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span class="built-by">// built by <a href="https://github.com/roie" target="_blank" rel="noreferrer">roie</a></span>
+      <div>
+        <a href="https://github.com/roie/ovw" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://github.com/roie/ovw/releases" target="_blank" rel="noreferrer">Releases</a>
+        <a href="https://github.com/roie/ovw/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT</a>
+      </div>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
