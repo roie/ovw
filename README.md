@@ -121,7 +121,7 @@ columns = ["name", "stack", "activity", "status", "note"]
 Available columns:
 
 ```toml
-columns = ["name", "path", "stack", "manager", "scripts", "version", "activity", "status", "note"]
+columns = ["name", "path", "stack", "manager", "scripts", "version", "ports", "activity", "status", "note"]
 ```
 
 `ovw` stores user metadata only: hidden projects, status, and notes. Detected

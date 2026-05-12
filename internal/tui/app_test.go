@@ -1548,7 +1548,7 @@ func TestModelColumnPickerTogglesAndSavesColumns(t *testing.T) {
 	}
 	model = updateMsg(t, model, cmd())
 
-	want := []string{"name", "stack", "activity", "ports", "status", "note", "path"}
+	want := []string{"name", "stack", "activity", "status", "note", "path"}
 	if !reflect.DeepEqual(saved.Columns, want) {
 		t.Fatalf("saved columns = %#v, want %#v", saved.Columns, want)
 	}

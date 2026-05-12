@@ -68,7 +68,7 @@ func Default() Config {
 		NoteShowBranch:          true,
 		DefaultBranches:         []string{"main", "master", "trunk"},
 		Statuses:                []string{"active", "parked", "shipped", "idea"},
-		Columns:                 []string{"name", "stack", "activity", "ports", "status", "note"},
+		Columns:                 []string{"name", "stack", "activity", "status", "note"},
 		SortBy:                  "activity",
 		SortDir:                 "desc",
 		Stack: StackConfig{
@@ -443,7 +443,7 @@ statuses = ["active", "parked", "shipped", "idea"]
 
 # Columns to show and their order.
 # Options: name, path, stack, manager, scripts, version, ports, activity, status, note
-columns = ["name", "stack", "activity", "ports", "status", "note"]
+columns = ["name", "stack", "activity", "status", "note"]
 
 # Default sort column. Options: activity, name, status
 sort_by = "activity"
