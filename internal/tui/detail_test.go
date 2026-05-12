@@ -49,6 +49,19 @@ func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 	}
 }
 
+func TestDetailSummaryMarksPinnedTitle(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.Pinned = true
+
+	got := stripANSI(detailSummaryView(project, 60))
+	if !strings.Contains(got, "* eventca") {
+		t.Fatalf("detail summary missing pinned title:\n%s", got)
+	}
+	if strings.Contains(got, "Pinned") {
+		t.Fatalf("detail summary should not show pinned as a field:\n%s", got)
+	}
+}
+
 func TestDetailModalShowsUnhideActionForHiddenProject(t *testing.T) {
 	project := detailTestProject("eventca")
 	project.Hidden = true
@@ -62,6 +75,27 @@ func TestDetailModalShowsUnhideActionForHiddenProject(t *testing.T) {
 	}
 	if !strings.Contains(got, "x unhide") {
 		t.Fatalf("detail modal missing unhide action:\n%s", got)
+	}
+}
+
+func TestDetailModalShowsPinAction(t *testing.T) {
+	project := detailTestProject("eventca")
+
+	got := stripANSI(detailModalView(project, true, 60))
+	if !strings.Contains(got, "p pin") {
+		t.Fatalf("detail modal missing pin action:\n%s", got)
+	}
+
+	project.Pinned = true
+	got = stripANSI(detailModalView(project, true, 60))
+	if !strings.Contains(got, "* eventca") {
+		t.Fatalf("detail modal missing pinned title:\n%s", got)
+	}
+	if !strings.Contains(got, "p unpin") {
+		t.Fatalf("detail modal missing unpin action:\n%s", got)
+	}
+	if strings.Contains(got, "Pinned") {
+		t.Fatalf("detail modal should not show pinned as a field:\n%s", got)
 	}
 }
 

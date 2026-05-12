@@ -57,8 +57,8 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"add       Add a project path",
 		"hide      Hide a project from ovw",
 		"unhide    Show a hidden project again",
-		"set       Set project status or note",
-		"unset     Clear project status or note",
+		"set       Set project metadata",
+		"unset     Clear project metadata",
 		"config    Manage ovw config",
 		"--json            output JSON for overview or project",
 		"-o, --open        open project in editor",
@@ -94,8 +94,8 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"add       Add a project path",
 		"hide      Hide a project from ovw",
 		"unhide    Show a hidden project again",
-		"set       Set project status or note",
-		"unset     Clear project status or note",
+		"set       Set project metadata",
+		"unset     Clear project metadata",
 		"config    Manage ovw config",
 	})
 	mustAppearInOrder(t, got, []string{
@@ -130,13 +130,16 @@ func TestSetHelpShowsStatusAndNoteUsage(t *testing.T) {
 		t.Fatalf("Execute(set --help) error = %v", err)
 	}
 	for _, want := range []string{
-		"Set a short status or note for one project.",
+		"Set project metadata: status, note, or pin.",
 		"ovw set <project> --status <status>",
 		"ovw set <project> --note <note>",
+		"ovw set <project> --pin",
 		"ovw set myproject --status blocked",
 		"ovw set myproject --note \"currently working on it\"",
+		"ovw set myproject --pin",
 		"--status string   set status",
 		"--note string     set note",
+		"--pin             pin project",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("set help missing %q:\n%s", want, out)
@@ -153,13 +156,16 @@ func TestUnsetHelpShowsStatusAndNoteUsage(t *testing.T) {
 		t.Fatalf("Execute(unset --help) error = %v", err)
 	}
 	for _, want := range []string{
-		"Clear a project status or note.",
+		"Clear project metadata: status, note, or pin.",
 		"ovw unset <project> --status",
 		"ovw unset <project> --note",
+		"ovw unset <project> --pin",
 		"ovw unset myproject --status",
 		"ovw unset myproject --note",
+		"ovw unset myproject --pin",
 		"--status   clear status",
 		"--note     clear note",
+		"--pin      unpin project",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("unset help missing %q:\n%s", want, out)
@@ -741,6 +747,27 @@ func TestSetUnsetShowCommands(t *testing.T) {
 	if bytes.Contains([]byte(show), []byte("active")) {
 		t.Fatalf("status was not unset: %q", show)
 	}
+
+	out = runCommand(t, []string{"set", "custom", "--pin"})
+	if !strings.Contains(out, "Updated custom.") || !strings.Contains(out, "Pinned  yes") {
+		t.Fatalf("set pin output = %q", out)
+	}
+	show = runCommand(t, []string{"show", "custom"})
+	if !strings.HasPrefix(show, "custom\n") {
+		t.Fatalf("show output should use literal project title = %q", show)
+	}
+	if bytes.Contains([]byte(show), []byte("Pinned")) {
+		t.Fatalf("show output should not render pinned as a field = %q", show)
+	}
+
+	out = runCommand(t, []string{"unset", "custom", "--pin"})
+	if !strings.Contains(out, "Updated custom.") || !strings.Contains(out, "Pin cleared.") {
+		t.Fatalf("unset pin output = %q", out)
+	}
+	show = runCommand(t, []string{"show", "custom"})
+	if bytes.Contains([]byte(show), []byte("Pinned")) {
+		t.Fatalf("pin was not unset: %q", show)
+	}
 }
 
 func TestSetRequiresStatusOrNote(t *testing.T) {
@@ -756,7 +783,7 @@ func TestSetRequiresStatusOrNote(t *testing.T) {
 	runCommand(t, []string{"add", project})
 
 	_, err := executeCommand([]string{"set", "custom"})
-	if err == nil || !strings.Contains(err.Error(), "pass --status or --note") {
+	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, or --pin") {
 		t.Fatalf("set without fields error = %v", err)
 	}
 	if out, _ := executeCommand([]string{"set", "custom"}); strings.Contains(out, "Usage:") {
@@ -811,7 +838,7 @@ func TestUnsetRequiresStatusOrNote(t *testing.T) {
 	runCommand(t, []string{"add", project})
 
 	_, err := executeCommand([]string{"unset", "custom"})
-	if err == nil || !strings.Contains(err.Error(), "pass --status or --note") {
+	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, or --pin") {
 		t.Fatalf("unset without fields error = %v", err)
 	}
 }

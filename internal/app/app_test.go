@@ -375,11 +375,12 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 
 	status := "parked"
 	note := "user note"
-	result, err := UpdateProjectMetadata("app", MetadataUpdate{Status: &status, Note: &note})
+	pinned := true
+	result, err := UpdateProjectMetadata("app", MetadataUpdate{Status: &status, Note: &note, Pinned: &pinned})
 	if err != nil {
 		t.Fatalf("UpdateProjectMetadata() error = %v", err)
 	}
-	if result.Entry.Status != status || result.Entry.Note != note {
+	if result.Entry.Status != status || result.Entry.Note != note || !result.Entry.Pinned {
 		t.Fatalf("entry = %#v", result.Entry)
 	}
 	store, err := metadata.Load(paths.Metadata)
@@ -387,7 +388,7 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := store.Projects[result.Path]
-	if got.Status != status || got.Note != note {
+	if got.Status != status || got.Note != note || !got.Pinned {
 		t.Fatalf("stored entry = %#v", got)
 	}
 	data, err := os.ReadFile(paths.Metadata)

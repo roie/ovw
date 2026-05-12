@@ -73,6 +73,9 @@ func Sort(projects []project.Project, mode string, cfg config.Config) []project.
 	out := append([]project.Project(nil), projects...)
 	desc := spec.Dir == "desc"
 	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Pinned != out[j].Pinned {
+			return out[i].Pinned
+		}
 		switch spec.By {
 		case "name":
 			if desc {

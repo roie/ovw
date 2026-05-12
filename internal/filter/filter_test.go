@@ -120,6 +120,24 @@ func TestSortModes(t *testing.T) {
 	}
 }
 
+func TestSortKeepsPinnedProjectsFirst(t *testing.T) {
+	now := time.Date(2026, 5, 6, 0, 0, 0, 0, time.Local)
+	projects := []project.Project{
+		{Name: "alpha", Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -1), HasCommits: true}},
+		{Name: "zulu", Pinned: true, Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -10), HasCommits: true}},
+		{Name: "beta", Pinned: true, Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -3), HasCommits: true}},
+	}
+
+	got := Sort(projects, "name:asc", config.Default())
+	if got[0].Name != "beta" || got[1].Name != "zulu" || got[2].Name != "alpha" {
+		t.Fatalf("name sort with pinned projects = %#v", got)
+	}
+	got = Sort(projects, "activity:desc", config.Default())
+	if got[0].Name != "beta" || got[1].Name != "zulu" || got[2].Name != "alpha" {
+		t.Fatalf("activity sort with pinned projects = %#v", got)
+	}
+}
+
 func TestSortDirectionAppliesToNameAndStatus(t *testing.T) {
 	cfg := config.Default()
 	cfg.SortDir = "desc"

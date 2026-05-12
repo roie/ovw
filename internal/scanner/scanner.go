@@ -13,6 +13,7 @@ type Project struct {
 	Name   string
 	Path   string
 	Hidden bool
+	Pinned bool
 	Status string
 	Note   string
 }
@@ -114,6 +115,7 @@ func addProject(seen map[string]Project, path string, meta metadata.Store) {
 		Name:   filepath.Base(canonical),
 		Path:   canonical,
 		Hidden: entry.Hidden,
+		Pinned: entry.Pinned,
 		Status: entry.Status,
 		Note:   entry.Note,
 	}

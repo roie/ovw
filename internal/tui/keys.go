@@ -92,6 +92,10 @@ func isStatusKey(value string) bool {
 	return value == "m"
 }
 
+func isPinKey(value string) bool {
+	return value == "p"
+}
+
 func isReloadKey(value string) bool {
 	return value == "r"
 }
@@ -122,8 +126,8 @@ func isDeleteKey(value string) bool {
 
 func footerView(width int) string {
 	keys := defaultKeyMap()
-	left := "↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
-	withColumns := "↑↓ move · ←→ scroll · / search · f filter · s sort · c columns · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
+	left := "↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · p pin · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
+	withColumns := "↑↓ move · ←→ scroll · / search · f filter · s sort · c columns · enter details · n note · m status · p pin · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
 	right := "ovw " + buildinfo.Version
 	if width <= 0 {
 		return mutedStyle.Render(left)

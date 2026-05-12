@@ -19,6 +19,7 @@ type Project struct {
 	Status       format.StatusInfo   `json:"status"`
 	Note         format.NoteInfo     `json:"note"`
 	Hidden       bool                `json:"hidden"`
+	Pinned       bool                `json:"pinned"`
 	Description  string              `json:"-"`
 }
 

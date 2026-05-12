@@ -52,6 +52,14 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 	}
 }
 
+func TestColumnValueMarksPinnedProjectName(t *testing.T) {
+	proj := project.Project{Pinned: true}
+
+	if got := ColumnValue(proj, "name", "app"); got != "* app" {
+		t.Fatalf("ColumnValue(name) = %q, want * app", got)
+	}
+}
+
 func TestColumnValueShowsPorts(t *testing.T) {
 	proj := project.Project{Ports: []int{3000, 8787}}
 

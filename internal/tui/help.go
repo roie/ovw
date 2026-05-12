@@ -15,6 +15,7 @@ func helpView() string {
 		{key: "enter", action: "details"},
 		{key: "n", action: "note"},
 		{key: "m", action: "status"},
+		{key: "p", action: "pin"},
 		{key: "r", action: "reload"},
 		{key: "o", action: "open"},
 		{key: "t", action: "terminal"},

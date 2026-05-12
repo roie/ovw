@@ -32,6 +32,7 @@ func TestWriteReadMetadata(t *testing.T) {
 		Status: "active",
 		Note:   "ship it",
 		Hidden: true,
+		Pinned: true,
 	}
 
 	if err := Write(path, store); err != nil {
@@ -42,7 +43,7 @@ func TestWriteReadMetadata(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 	got := loaded.Projects[canonical]
-	if got.Status != "active" || got.Note != "ship it" || !got.Hidden {
+	if got.Status != "active" || got.Note != "ship it" || !got.Hidden || !got.Pinned {
 		t.Fatalf("Entry = %#v", got)
 	}
 }
@@ -68,13 +69,13 @@ func TestSetUsesCanonicalPath(t *testing.T) {
 
 func TestOmitEmptyFields(t *testing.T) {
 	data, err := json.Marshal(Store{Projects: map[string]Entry{
-		"/tmp/app": {Hidden: true},
+		"/tmp/app": {Pinned: true},
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := string(data)
-	if got != `{"projects":{"/tmp/app":{"hidden":true}}}` {
+	if got != `{"projects":{"/tmp/app":{"pinned":true}}}` {
 		t.Fatalf("json = %s", got)
 	}
 }

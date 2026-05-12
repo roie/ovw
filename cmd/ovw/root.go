@@ -124,8 +124,8 @@ Commands:
   add       Add a project path
   hide      Hide a project from ovw
   unhide    Show a hidden project again
-  set       Set project status or note
-  unset     Clear project status or note
+  set       Set project metadata
+  unset     Clear project metadata
   config    Manage ovw config
 
 Flags:
@@ -395,14 +395,15 @@ func displayPath(path string) string {
 func newSetCommand() *cobra.Command {
 	var status string
 	var note string
+	var pin bool
 	cmd := &cobra.Command{
 		Use:   "set <project>",
-		Short: "Set project status or note",
-		Long:  "Set a short status or note for one project.",
+		Short: "Set project metadata",
+		Long:  "Set project metadata: status, note, or pin.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if status == "" && note == "" {
-				return fmt.Errorf("nothing to set; pass --status or --note")
+			if status == "" && note == "" && !pin {
+				return fmt.Errorf("nothing to set; pass --status, --note, or --pin")
 			}
 			update := app.MetadataUpdate{}
 			if status != "" {
@@ -410,6 +411,10 @@ func newSetCommand() *cobra.Command {
 			}
 			if note != "" {
 				update.Note = &note
+			}
+			if pin {
+				pinned := true
+				update.Pinned = &pinned
 			}
 			result, err := app.UpdateProjectMetadata(args[0], update)
 			if err != nil {
@@ -422,11 +427,15 @@ func newSetCommand() *cobra.Command {
 			if note != "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "Note    %s\n", note)
 			}
+			if pin {
+				fmt.Fprintln(cmd.OutOrStdout(), "Pinned  yes")
+			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&status, "status", "", "set status")
 	cmd.Flags().StringVar(&note, "note", "", "set note")
+	cmd.Flags().BoolVar(&pin, "pin", false, "pin project")
 	cmd.SetUsageTemplate(setUsageTemplate())
 	return cmd
 }
@@ -434,14 +443,15 @@ func newSetCommand() *cobra.Command {
 func newUnsetCommand() *cobra.Command {
 	var clearStatus bool
 	var clearNote bool
+	var clearPin bool
 	cmd := &cobra.Command{
 		Use:   "unset <project>",
-		Short: "Clear project status or note",
-		Long:  "Clear a project status or note.",
+		Short: "Clear project metadata",
+		Long:  "Clear project metadata: status, note, or pin.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !clearStatus && !clearNote {
-				return fmt.Errorf("nothing to unset; pass --status or --note")
+			if !clearStatus && !clearNote && !clearPin {
+				return fmt.Errorf("nothing to unset; pass --status, --note, or --pin")
 			}
 			update := app.MetadataUpdate{}
 			if clearStatus {
@@ -451,6 +461,10 @@ func newUnsetCommand() *cobra.Command {
 			if clearNote {
 				empty := ""
 				update.Note = &empty
+			}
+			if clearPin {
+				pinned := false
+				update.Pinned = &pinned
 			}
 			result, err := app.UpdateProjectMetadata(args[0], update)
 			if err != nil {
@@ -463,11 +477,15 @@ func newUnsetCommand() *cobra.Command {
 			if clearNote {
 				fmt.Fprintln(cmd.OutOrStdout(), "Note cleared.")
 			}
+			if clearPin {
+				fmt.Fprintln(cmd.OutOrStdout(), "Pin cleared.")
+			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&clearStatus, "status", false, "clear status")
 	cmd.Flags().BoolVar(&clearNote, "note", false, "clear note")
+	cmd.Flags().BoolVar(&clearPin, "pin", false, "unpin project")
 	cmd.SetUsageTemplate(unsetUsageTemplate())
 	return cmd
 }
@@ -476,16 +494,19 @@ func setUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}} <project> --status <status>
   {{.CommandPath}} <project> --note <note>
+  {{.CommandPath}} <project> --pin
   {{.CommandPath}} <project> --status <status> --note <note>
 
 Examples:
   {{.CommandPath}} myproject --status blocked
   {{.CommandPath}} myproject --note "currently working on it"
+  {{.CommandPath}} myproject --pin
   {{.CommandPath}} myproject --status shipped --note "released v1"
 
 Flags:
   --status string   set status
   --note string     set note
+  --pin             pin project
   -h, --help        help for set
 `
 }
@@ -494,15 +515,18 @@ func unsetUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}} <project> --status
   {{.CommandPath}} <project> --note
+  {{.CommandPath}} <project> --pin
   {{.CommandPath}} <project> --status --note
 
 Examples:
   {{.CommandPath}} myproject --status
   {{.CommandPath}} myproject --note
+  {{.CommandPath}} myproject --pin
 
 Flags:
   --status   clear status
   --note     clear note
+  --pin      unpin project
   -h, --help  help for unset
 `
 }

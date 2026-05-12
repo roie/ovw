@@ -19,6 +19,13 @@ type Options struct {
 	Activity func(project.Project) string
 }
 
+func Title(project project.Project, name string) string {
+	if project.Pinned {
+		return "* " + name
+	}
+	return name
+}
+
 func Fields(project project.Project, opts Options) []Field {
 	path := project.Path
 	if opts.Path != nil {
@@ -31,10 +38,12 @@ func Fields(project project.Project, opts Options) []Field {
 
 	fields := []Field{
 		{Label: "Path", Value: path},
-		{Label: "Stack", Value: stackDisplay(project.Stack)},
-		{Label: "Manager", Value: managerDisplay(project.Managers)},
-		{Label: "Scripts", Value: scriptsDisplay(project.Scripts)},
 	}
+	fields = append(fields,
+		Field{Label: "Stack", Value: stackDisplay(project.Stack)},
+		Field{Label: "Manager", Value: managerDisplay(project.Managers)},
+		Field{Label: "Scripts", Value: scriptsDisplay(project.Scripts)},
+	)
 	add := func(label, value string) {
 		if value != "" {
 			fields = append(fields, Field{Label: label, Value: value})

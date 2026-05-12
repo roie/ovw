@@ -63,6 +63,7 @@ type State struct {
 type MetadataUpdate struct {
 	Status *string
 	Note   *string
+	Pinned *bool
 }
 
 type MetadataUpdateResult struct {
@@ -291,6 +292,7 @@ func ProjectFromPath(path string, cfg config.Config, store metadata.Store, now t
 		Name:   filepath.Base(path),
 		Path:   path,
 		Hidden: entry.Hidden,
+		Pinned: entry.Pinned,
 		Status: entry.Status,
 		Note:   entry.Note,
 	}, cfg, now)
@@ -328,6 +330,9 @@ func UpdateProjectMetadata(target string, update MetadataUpdate) (MetadataUpdate
 	}
 	if update.Note != nil {
 		entry.Note = *update.Note
+	}
+	if update.Pinned != nil {
+		entry.Pinned = *update.Pinned
 	}
 	state.Store.Projects[path] = entry
 	if err := metadata.Write(state.Paths.Metadata, state.Store); err != nil {
@@ -471,6 +476,7 @@ func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.P
 		Status:       status,
 		Note:         note,
 		Hidden:       scanned.Hidden,
+		Pinned:       scanned.Pinned,
 		Description:  description,
 	}
 }

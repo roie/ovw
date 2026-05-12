@@ -16,7 +16,7 @@ func detailView(project project.Project, ok bool) string {
 	if !ok {
 		return mutedStyle.Render("No project selected")
 	}
-	lines := []string{titleStyle.Render(project.Name)}
+	lines := []string{titleStyle.Render(projectTitle(project))}
 	if subtitle := projectview.Subtitle(project); subtitle != "" {
 		lines = append(lines, subtitle, "")
 	}
@@ -40,7 +40,7 @@ func detailModalViewWithScroll(project project.Project, ok bool, width int, heig
 	}
 	title := "Details"
 	if ok && project.Name != "" {
-		title = project.Name
+		title = projectTitle(project)
 	}
 	lines := detailModalLinesWithWidth(project, ok, width-4, expanded)
 	lines, maxOffset := scrollDetailModalLines(lines, height, offset, width-4)
@@ -81,7 +81,7 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int, expa
 			lines = append(lines, detailLine("", line))
 		}
 	}
-	actions := []string{actionHint("x", visibilityAction(project))}
+	actions := []string{actionHint("x", visibilityAction(project)), actionHint("p", pinAction(project))}
 	if hasCompactContent {
 		if expanded {
 			actions = append(actions, actionHint("space", "collapse"))
@@ -105,12 +105,23 @@ func visibilityAction(project project.Project) string {
 	return "hide"
 }
 
+func pinAction(project project.Project) string {
+	if project.Pinned {
+		return "unpin"
+	}
+	return "pin"
+}
+
+func projectTitle(project project.Project) string {
+	return projectview.Title(project, project.Name)
+}
+
 func detailSummaryView(project project.Project, width int) string {
 	contentWidth := width - 2
 	if contentWidth < 1 {
 		contentWidth = width
 	}
-	lines := []string{titleStyle.Render(truncateText(project.Name, width))}
+	lines := []string{titleStyle.Render(truncateText(projectTitle(project), width))}
 	if subtitle := projectview.Subtitle(project); subtitle != "" {
 		lines = append(lines, textwrap.Lines(subtitle, contentWidth)...)
 	}

@@ -17,6 +17,7 @@ type Entry struct {
 	Status string `json:"status,omitempty"`
 	Note   string `json:"note,omitempty"`
 	Hidden bool   `json:"hidden,omitempty"`
+	Pinned bool   `json:"pinned,omitempty"`
 }
 
 func New() Store {
@@ -73,6 +74,9 @@ func (s *Store) Set(path string, entry Entry) (string, Entry, error) {
 	}
 	if entry.Hidden {
 		current.Hidden = true
+	}
+	if entry.Pinned {
+		current.Pinned = true
 	}
 	s.Projects[canonical] = current
 	return canonical, current, nil

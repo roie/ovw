@@ -16,7 +16,7 @@ func ColumnLabel(column string) string {
 func ColumnValue(project project.Project, column, displayName string) string {
 	switch column {
 	case "name":
-		return displayName
+		return Title(project, displayName)
 	case "path":
 		return project.Path
 	case "stack":

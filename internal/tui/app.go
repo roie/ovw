@@ -271,6 +271,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusSelected = m.currentStatusIndex(project.Status.Value)
 			return m, nil
 		}
+		if isPinKey(msg.String()) && m.canOpenDetail() {
+			m.loading = true
+			return m, m.togglePin()
+		}
 		if isReloadKey(msg.String()) {
 			path := m.selectedProjectPath()
 			m.screen = screenTable
@@ -423,6 +427,12 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.detailsExpanded = false
 		m.loading = true
 		return m, m.toggleVisibility()
+	case isPinKey(value):
+		m.screen = screenTable
+		m.detailModalY = 0
+		m.detailsExpanded = false
+		m.loading = true
+		return m, m.togglePin()
 	}
 	return m, nil
 }
@@ -1080,6 +1090,28 @@ func (m Model) saveStatus(status, message string) tea.Cmd {
 		result, err := m.loader(m.request)
 		if err != nil {
 			return overviewLoadFailedMsg{err: err}
+		}
+		return metadataSavedMsg{message: message, result: result, preservePath: project.Path}
+	}
+}
+
+func (m Model) togglePin() tea.Cmd {
+	project, ok := m.currentProject()
+	pinned := !project.Pinned
+	return func() tea.Msg {
+		if !ok {
+			return metadataFailedMsg{err: errNoProjectSelected{}}
+		}
+		if _, err := m.updater(project.Path, app.MetadataUpdate{Pinned: &pinned}); err != nil {
+			return metadataFailedMsg{err: err}
+		}
+		result, err := m.loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		message := "Project pinned"
+		if !pinned {
+			message = "Project unpinned"
 		}
 		return metadataSavedMsg{message: message, result: result, preservePath: project.Path}
 	}

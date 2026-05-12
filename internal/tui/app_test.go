@@ -2181,6 +2181,74 @@ func TestModelStatusPickerClearSavesEmptyStatus(t *testing.T) {
 	}
 }
 
+func TestModelPinKeyTogglesSelectedProject(t *testing.T) {
+	var savedPinned *bool
+	cfg := config.Default()
+	model := Model{
+		config: cfg,
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config:   cfg,
+				Projects: []project.Project{{Name: "app", Path: "/tmp/app", Pinned: true}},
+			}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			savedPinned = update.Pinned
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected pin command")
+	}
+	model = updateMsg(t, model, cmd())
+	if savedPinned == nil || !*savedPinned {
+		t.Fatalf("savedPinned = %v, want true pointer", savedPinned)
+	}
+	if model.message != "Project pinned" {
+		t.Fatalf("message = %q, want Project pinned", model.message)
+	}
+	if len(model.projects) != 1 || !model.projects[0].Pinned {
+		t.Fatalf("projects = %#v", model.projects)
+	}
+}
+
+func TestModelDetailPinKeyTogglesSelectedProject(t *testing.T) {
+	var savedPinned *bool
+	cfg := config.Default()
+	model := Model{
+		config: cfg,
+		screen: screenDetail,
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config:   cfg,
+				Projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+			}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			savedPinned = update.Pinned
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app", Pinned: true}},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected detail pin command")
+	}
+	model = updateMsg(t, model, cmd())
+	if savedPinned == nil || *savedPinned {
+		t.Fatalf("savedPinned = %v, want false pointer", savedPinned)
+	}
+	if model.message != "Project unpinned" {
+		t.Fatalf("message = %q, want Project unpinned", model.message)
+	}
+}
+
 func TestModelAddProjectModalSavesPath(t *testing.T) {
 	var addedPath string
 	model := Model{
