@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"ovw/internal/columns"
+
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -143,8 +145,8 @@ func Validate(cfg Config) error {
 		return fmt.Errorf("invalid stale_days %d: expected 1 or greater", cfg.StaleDays)
 	}
 	for _, column := range cfg.Columns {
-		if !validColumn(column) {
-			return fmt.Errorf("invalid column %q: expected name, path, stack, manager, scripts, version, activity, status, or note", column)
+		if !columns.Valid(column) {
+			return fmt.Errorf("invalid column %q: expected %s", column, columns.OptionsString())
 		}
 	}
 	if !validSortBy(cfg.SortBy) {
@@ -154,15 +156,6 @@ func Validate(cfg Config) error {
 		return fmt.Errorf("invalid sort_dir %q: expected asc or desc", cfg.SortDir)
 	}
 	return nil
-}
-
-func validColumn(column string) bool {
-	switch column {
-	case "name", "path", "stack", "manager", "scripts", "version", "activity", "status", "note":
-		return true
-	default:
-		return false
-	}
 }
 
 func validSortBy(sortBy string) bool {

@@ -3,15 +3,13 @@ package projectview
 import (
 	"strings"
 
+	"ovw/internal/columns"
 	"ovw/internal/format"
 	"ovw/internal/project"
 )
 
 func ColumnLabel(column string) string {
-	if column == "" {
-		return ""
-	}
-	return strings.ToUpper(column[:1]) + column[1:]
+	return columns.Label(column)
 }
 
 func ColumnValue(project project.Project, column, displayName string) string {

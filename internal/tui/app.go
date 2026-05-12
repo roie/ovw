@@ -26,6 +26,7 @@ type projectAdder func(string) (app.AddProjectResult, error)
 type editorRunner func(string, string) error
 type terminalRunner func(string, string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
+type configWriter func(string, config.Config) error
 
 var terminalTitleWriter io.Writer = os.Stdout
 
@@ -43,19 +44,21 @@ const (
 	screenHelp
 	screenOnboarding
 	screenOnboardingInput
+	screenColumns
 )
 
 type Model struct {
-	request  app.Options
-	loader   overviewLoader
-	setup    configSetupLoader
-	roots    configRootsCreator
-	updater  metadataUpdater
-	visible  visibilityUpdater
-	adder    projectAdder
-	editor   editorRunner
-	terminal terminalRunner
-	recent   recentLoader
+	request      app.Options
+	loader       overviewLoader
+	setup        configSetupLoader
+	roots        configRootsCreator
+	updater      metadataUpdater
+	visible      visibilityUpdater
+	adder        projectAdder
+	editor       editorRunner
+	terminal     terminalRunner
+	recent       recentLoader
+	configWriter configWriter
 
 	width           int
 	height          int
@@ -87,10 +90,15 @@ type Model struct {
 	onboardInput    string
 	onboardCursor   int
 	onboardErr      string
+	columnSelected  int
+	columnOrder     []string
+	columnChecked   map[string]bool
+	columnErr       string
 	message         string
 	loading         bool
 	loadErr         error
 	config          config.Config
+	configPaths     config.FilePaths
 	projects        []project.Project
 	scanElapsed     time.Duration
 	recentByPath    map[string][]ovwformat.RecentCommit
@@ -115,6 +123,7 @@ func NewWithOptions(opts app.Options) Model {
 		editor:        runEditor,
 		terminal:      runTerminal,
 		recent:        loadRecentCommits,
+		configWriter:  config.Write,
 		activeFilter:  optionsFromRequest(opts),
 		activeSort:    sortFromRequest(opts),
 		activeSortDir: sortDirFromRequest(opts),
@@ -150,6 +159,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenSort {
 			return m.updateSort(msg)
+		}
+		if m.screen == screenColumns {
+			return m.updateColumns(msg)
 		}
 		if m.screen == screenNote {
 			return m.updateNote(msg)
@@ -242,6 +254,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sortSelected = m.currentSortIndex()
 			return m, nil
 		}
+		if isColumnsKey(msg.String()) {
+			m.openColumns()
+			return m, nil
+		}
 		if isNoteKey(msg.String()) && m.canOpenDetail() {
 			project, _ := m.currentProject()
 			m.screen = screenNote
@@ -278,6 +294,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.screen = screenTable
 		m.config = msg.result.Config
+		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
@@ -313,6 +330,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadErr = nil
 		m.screen = screenTable
 		m.config = msg.result.Config
+		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
@@ -324,6 +342,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.loadErr = nil
 		m.config = msg.result.Config
+		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
@@ -342,6 +361,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.loadErr = nil
 		m.config = msg.result.Config
+		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
@@ -370,6 +390,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.recentByPath[msg.path] = msg.commits
 		}
+	case columnsSavedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.message = "Failed to write columns: " + msg.err.Error()
+			return m, nil
+		}
+		m.config = msg.config
+		m.tableXOffset = 0
+		m.message = "Columns saved"
 	}
 	return m, nil
 }
@@ -490,6 +519,34 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		m.selected = 0
 		return m, m.loadOverview()
+	}
+	return m, nil
+}
+
+func (m Model) updateColumns(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+		m.columnErr = ""
+	case isEnterKey(value):
+		m.screen = screenTable
+		m.loading = true
+		m.columnErr = ""
+		return m, m.saveColumns()
+	case isDownKey(value):
+		if m.columnSelected < len(m.columnOrder)-1 {
+			m.columnSelected++
+		}
+	case isUpKey(value):
+		if m.columnSelected > 0 {
+			m.columnSelected--
+		}
+	case isLeftKey(value):
+		m.moveColumn(-1)
+	case isRightKey(value):
+		m.moveColumn(1)
+	case value == " ":
+		m.toggleColumn()
 	}
 	return m, nil
 }
@@ -920,6 +977,11 @@ type recentLoadedMsg struct {
 	err     error
 }
 
+type columnsSavedMsg struct {
+	config config.Config
+	err    error
+}
+
 func (m Model) loadOverview() tea.Cmd {
 	return m.reloadOverview("", "")
 }
@@ -1192,6 +1254,8 @@ func renderShell(m Model) string {
 				content = overlayModal(content, filterView(m.filterOptions(), m.filterSelected), m.contentWidth())
 			case screenSort:
 				content = overlayModal(content, sortView(sortOptions(), m.sortSelected, m.activeSortDir), m.contentWidth())
+			case screenColumns:
+				content = overlayModal(content, columnsView(m.columnOrder, m.columnChecked, m.columnSelected, m.columnErr), m.contentWidth())
 			case screenNote:
 				project, _ := m.currentProject()
 				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display, m.noteCursor), m.contentWidth())
@@ -1367,7 +1431,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenFilter, screenSort, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenFilter, screenSort, screenColumns, screenNote, screenStatus, screenStatusInput:
 		return true
 	default:
 		return false

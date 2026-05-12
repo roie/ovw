@@ -11,6 +11,7 @@ func helpView() string {
 		{key: "a", action: "add"},
 		{key: "f", action: "filter"},
 		{key: "s", action: "sort"},
+		{key: "c", action: "columns"},
 		{key: "enter", action: "details"},
 		{key: "n", action: "note"},
 		{key: "m", action: "status"},

@@ -80,6 +80,10 @@ func isSortKey(value string) bool {
 	return value == "s"
 }
 
+func isColumnsKey(value string) bool {
+	return value == "c"
+}
+
 func isNoteKey(value string) bool {
 	return value == "n"
 }
@@ -119,9 +123,13 @@ func isDeleteKey(value string) bool {
 func footerView(width int) string {
 	keys := defaultKeyMap()
 	left := "↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
+	withColumns := "↑↓ move · ←→ scroll · / search · f filter · s sort · c columns · enter details · n note · m status · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
 	right := "ovw " + buildinfo.Version
 	if width <= 0 {
 		return mutedStyle.Render(left)
+	}
+	if lipglossWidth(withColumns)+lipglossWidth(right)+2 <= width {
+		left = withColumns
 	}
 	if lipglossWidth(left)+lipglossWidth(right)+2 > width {
 		return mutedStyle.Render(left)

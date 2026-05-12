@@ -1488,6 +1488,99 @@ func TestModelFilterPickerIncludesConfiguredStatuses(t *testing.T) {
 	}
 }
 
+func TestModelColumnPickerTogglesAndSavesColumns(t *testing.T) {
+	cfg := config.Default()
+	var saved config.Config
+	model := Model{
+		width:    140,
+		height:   24,
+		config:   cfg,
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		configWriter: func(path string, cfg config.Config) error {
+			saved = cfg
+			return nil
+		},
+	}
+
+	model = updateKey(t, model, "c")
+	if model.screen != screenColumns {
+		t.Fatalf("screen = %v, want columns", model.screen)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"Columns", "[x] name", "[ ] path", "space toggle", "←→ reorder", "enter save"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("columns modal missing %q:\n%s", want, view)
+		}
+	}
+
+	for !strings.Contains(stripANSI(model.View()), "> [ ] path") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateKey(t, model, " ")
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected columns save command")
+	}
+	model = updateMsg(t, model, cmd())
+
+	want := []string{"name", "stack", "activity", "status", "note", "path"}
+	if !reflect.DeepEqual(saved.Columns, want) {
+		t.Fatalf("saved columns = %#v, want %#v", saved.Columns, want)
+	}
+	if !reflect.DeepEqual(model.config.Columns, want) {
+		t.Fatalf("model columns = %#v, want %#v", model.config.Columns, want)
+	}
+	if model.message != "Columns saved" {
+		t.Fatalf("message = %q, want Columns saved", model.message)
+	}
+}
+
+func TestModelColumnPickerReordersTableColumns(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "stack"}
+	model := Model{
+		width:    100,
+		height:   20,
+		config:   cfg,
+		projects: []project.Project{{Name: "app", StackDisplay: "Go"}},
+		configWriter: func(path string, cfg config.Config) error {
+			return nil
+		},
+	}
+
+	model = updateKey(t, model, "c")
+	model = updateKey(t, model, "j")
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model = updateMsg(t, model, cmd())
+
+	header := strings.Split(stripANSI(model.View()), "\n")[2]
+	if !strings.HasPrefix(header, "Stack  Name") {
+		t.Fatalf("header = %q, want Stack before Name\n%s", header, stripANSI(model.View()))
+	}
+}
+
+func TestModelColumnPickerKeepsOneVisibleColumn(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name"}
+	model := Model{
+		config:   cfg,
+		projects: []project.Project{{Name: "app"}},
+	}
+
+	model = updateKey(t, model, "c")
+	model = updateKey(t, model, " ")
+
+	if !reflect.DeepEqual(model.config.Columns, []string{"name"}) {
+		t.Fatalf("columns = %#v, want name still visible", model.config.Columns)
+	}
+	if !strings.Contains(stripANSI(model.View()), "keep at least one column") {
+		t.Fatalf("columns modal missing guard message:\n%s", stripANSI(model.View()))
+	}
+}
+
 func TestModalPickersUseCaretSelection(t *testing.T) {
 	cases := []struct {
 		name string
