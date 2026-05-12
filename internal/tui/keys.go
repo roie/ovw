@@ -124,6 +124,26 @@ func isDeleteKey(value string) bool {
 	return value == "delete" || value == "ctrl+d"
 }
 
+func isMoveStartKey(value string) bool {
+	return value == "ctrl+a"
+}
+
+func isMoveEndKey(value string) bool {
+	return value == "ctrl+e"
+}
+
+func isClearBeforeKey(value string) bool {
+	return value == "ctrl+u"
+}
+
+func isClearAfterKey(value string) bool {
+	return value == "ctrl+k"
+}
+
+func isDeletePreviousWordKey(value string) bool {
+	return value == "ctrl+w"
+}
+
 func footerView(width int) string {
 	keys := defaultKeyMap()
 	left := "↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · p pin · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc

@@ -27,6 +27,14 @@ func textMoveRight(value string, cursor int) int {
 	return cursor + 1
 }
 
+func textMoveStart(value string, cursor int) int {
+	return 0
+}
+
+func textMoveEnd(value string, cursor int) int {
+	return len([]rune(value))
+}
+
 func textInsert(value string, cursor int, text string) (string, int) {
 	if text == "" {
 		return value, textCursor(value, cursor)
@@ -39,6 +47,37 @@ func textInsert(value string, cursor int, text string) (string, int) {
 	next = append(next, inserted...)
 	next = append(next, runes[cursor:]...)
 	return string(next), cursor + len(inserted)
+}
+
+func textClearBefore(value string, cursor int) (string, int) {
+	runes := []rune(value)
+	cursor = textCursor(value, cursor)
+	return string(runes[cursor:]), 0
+}
+
+func textClearAfter(value string, cursor int) (string, int) {
+	runes := []rune(value)
+	cursor = textCursor(value, cursor)
+	return string(runes[:cursor]), cursor
+}
+
+func textDeletePreviousWord(value string, cursor int) (string, int) {
+	runes := []rune(value)
+	cursor = textCursor(value, cursor)
+	if cursor == 0 {
+		return value, cursor
+	}
+	start := cursor
+	for start > 0 && runes[start-1] == ' ' {
+		start--
+	}
+	for start > 0 && runes[start-1] != ' ' {
+		start--
+	}
+	next := make([]rune, 0, len(runes)-(cursor-start))
+	next = append(next, runes[:start]...)
+	next = append(next, runes[cursor:]...)
+	return string(next), start
 }
 
 func textBackspace(value string, cursor int) (string, int) {

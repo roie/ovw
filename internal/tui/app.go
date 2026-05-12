@@ -452,6 +452,16 @@ func (m Model) updateAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.addCursor = textMoveLeft(m.addInput, m.addCursor)
 	case value == "right":
 		m.addCursor = textMoveRight(m.addInput, m.addCursor)
+	case isMoveStartKey(value):
+		m.addCursor = textMoveStart(m.addInput, m.addCursor)
+	case isMoveEndKey(value):
+		m.addCursor = textMoveEnd(m.addInput, m.addCursor)
+	case isClearBeforeKey(value):
+		m.addInput, m.addCursor = textClearBefore(m.addInput, m.addCursor)
+	case isClearAfterKey(value):
+		m.addInput, m.addCursor = textClearAfter(m.addInput, m.addCursor)
+	case isDeletePreviousWordKey(value):
+		m.addInput, m.addCursor = textDeletePreviousWord(m.addInput, m.addCursor)
 	case isBackspaceKey(value):
 		m.addInput, m.addCursor = textBackspace(m.addInput, m.addCursor)
 	case isDeleteKey(value):
@@ -469,6 +479,16 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchCursor = textMoveLeft(m.search, m.searchCursor)
 	case value == "right":
 		m.searchCursor = textMoveRight(m.search, m.searchCursor)
+	case isMoveStartKey(value):
+		m.searchCursor = textMoveStart(m.search, m.searchCursor)
+	case isMoveEndKey(value):
+		m.searchCursor = textMoveEnd(m.search, m.searchCursor)
+	case isClearBeforeKey(value):
+		m.search, m.searchCursor = textClearBefore(m.search, m.searchCursor)
+	case isClearAfterKey(value):
+		m.search, m.searchCursor = textClearAfter(m.search, m.searchCursor)
+	case isDeletePreviousWordKey(value):
+		m.search, m.searchCursor = textDeletePreviousWord(m.search, m.searchCursor)
 	case isBackspaceKey(value):
 		m.search, m.searchCursor = textBackspace(m.search, m.searchCursor)
 	case isDeleteKey(value):
@@ -611,6 +631,16 @@ func (m Model) updateOnboardingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.onboardCursor = textMoveLeft(m.onboardInput, m.onboardCursor)
 	case value == "right":
 		m.onboardCursor = textMoveRight(m.onboardInput, m.onboardCursor)
+	case isMoveStartKey(value):
+		m.onboardCursor = textMoveStart(m.onboardInput, m.onboardCursor)
+	case isMoveEndKey(value):
+		m.onboardCursor = textMoveEnd(m.onboardInput, m.onboardCursor)
+	case isClearBeforeKey(value):
+		m.onboardInput, m.onboardCursor = textClearBefore(m.onboardInput, m.onboardCursor)
+	case isClearAfterKey(value):
+		m.onboardInput, m.onboardCursor = textClearAfter(m.onboardInput, m.onboardCursor)
+	case isDeletePreviousWordKey(value):
+		m.onboardInput, m.onboardCursor = textDeletePreviousWord(m.onboardInput, m.onboardCursor)
 	case isBackspaceKey(value):
 		m.onboardInput, m.onboardCursor = textBackspace(m.onboardInput, m.onboardCursor)
 	case isDeleteKey(value):
@@ -658,6 +688,16 @@ func (m Model) updateNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.noteCursor = textMoveLeft(m.noteInput, m.noteCursor)
 	case value == "right":
 		m.noteCursor = textMoveRight(m.noteInput, m.noteCursor)
+	case isMoveStartKey(value):
+		m.noteCursor = textMoveStart(m.noteInput, m.noteCursor)
+	case isMoveEndKey(value):
+		m.noteCursor = textMoveEnd(m.noteInput, m.noteCursor)
+	case isClearBeforeKey(value):
+		m.noteInput, m.noteCursor = textClearBefore(m.noteInput, m.noteCursor)
+	case isClearAfterKey(value):
+		m.noteInput, m.noteCursor = textClearAfter(m.noteInput, m.noteCursor)
+	case isDeletePreviousWordKey(value):
+		m.noteInput, m.noteCursor = textDeletePreviousWord(m.noteInput, m.noteCursor)
 	case isBackspaceKey(value):
 		m.noteInput, m.noteCursor = textBackspace(m.noteInput, m.noteCursor)
 	case isDeleteKey(value):
@@ -714,6 +754,16 @@ func (m Model) updateStatusInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.statusCursor = textMoveLeft(m.statusInput, m.statusCursor)
 	case value == "right":
 		m.statusCursor = textMoveRight(m.statusInput, m.statusCursor)
+	case isMoveStartKey(value):
+		m.statusCursor = textMoveStart(m.statusInput, m.statusCursor)
+	case isMoveEndKey(value):
+		m.statusCursor = textMoveEnd(m.statusInput, m.statusCursor)
+	case isClearBeforeKey(value):
+		m.statusInput, m.statusCursor = textClearBefore(m.statusInput, m.statusCursor)
+	case isClearAfterKey(value):
+		m.statusInput, m.statusCursor = textClearAfter(m.statusInput, m.statusCursor)
+	case isDeletePreviousWordKey(value):
+		m.statusInput, m.statusCursor = textDeletePreviousWord(m.statusInput, m.statusCursor)
 	case isBackspaceKey(value):
 		m.statusInput, m.statusCursor = textBackspace(m.statusInput, m.statusCursor)
 	case isDeleteKey(value):
@@ -736,7 +786,7 @@ func inputText(msg tea.KeyMsg) string {
 
 func isTextInputKey(msg tea.KeyMsg) bool {
 	value := msg.String()
-	return value == "left" || value == "right" || isBackspaceKey(value) || isDeleteKey(value) || msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace
+	return value == "left" || value == "right" || isMoveStartKey(value) || isMoveEndKey(value) || isClearBeforeKey(value) || isClearAfterKey(value) || isDeletePreviousWordKey(value) || isBackspaceKey(value) || isDeleteKey(value) || msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace
 }
 
 func isDetailScrollKey(value string) bool {

@@ -1414,6 +1414,32 @@ func TestModelSearchSupportsCursorEditing(t *testing.T) {
 	}
 }
 
+func TestModelSearchSupportsReadlineEditing(t *testing.T) {
+	model := Model{
+		projects:     []project.Project{{Name: "web-api", Path: "/tmp/web-api"}},
+		searching:    true,
+		search:       "web api",
+		searchCursor: len([]rune("web api")),
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyCtrlA)
+	if model.searchCursor != 0 {
+		t.Fatalf("searchCursor after ctrl+a = %d, want 0", model.searchCursor)
+	}
+	model = updateSpecialKey(t, model, tea.KeyCtrlE)
+	if model.searchCursor != len([]rune(model.search)) {
+		t.Fatalf("searchCursor after ctrl+e = %d, want end", model.searchCursor)
+	}
+	model = updateSpecialKey(t, model, tea.KeyCtrlW)
+	if model.search != "web " || model.searchCursor != len([]rune("web ")) {
+		t.Fatalf("search after ctrl+w = %q cursor %d, want web and cursor after space", model.search, model.searchCursor)
+	}
+	model = updateSpecialKey(t, model, tea.KeyCtrlU)
+	if model.search != "" || model.searchCursor != 0 {
+		t.Fatalf("search after ctrl+u = %q cursor %d, want empty", model.search, model.searchCursor)
+	}
+}
+
 func TestModelSearchBlurAllowsActions(t *testing.T) {
 	model := Model{
 		projects: []project.Project{
@@ -1807,6 +1833,24 @@ func TestModelNoteEditorSupportsCursorEditing(t *testing.T) {
 	}
 }
 
+func TestModelNoteEditorSupportsReadlineEditing(t *testing.T) {
+	model := Model{
+		screen:     screenNote,
+		noteInput:  "waiting for api",
+		noteCursor: len([]rune("waiting for api")),
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyCtrlW)
+	if model.noteInput != "waiting for " {
+		t.Fatalf("noteInput after ctrl+w = %q, want waiting for space", model.noteInput)
+	}
+	model = updateSpecialKey(t, model, tea.KeyCtrlA)
+	model = updateSpecialKey(t, model, tea.KeyCtrlK)
+	if model.noteInput != "" || model.noteCursor != 0 {
+		t.Fatalf("noteInput after ctrl+a ctrl+k = %q cursor %d, want empty", model.noteInput, model.noteCursor)
+	}
+}
+
 func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 	var savedNote *string
 	model := Model{
@@ -1995,6 +2039,25 @@ func TestModelStatusInputSupportsCursorEditing(t *testing.T) {
 	model = updateSpecialKey(t, model, tea.KeyDelete)
 	if model.statusInput != "tod" {
 		t.Fatalf("statusInput after delete = %q, want tod", model.statusInput)
+	}
+}
+
+func TestModelStatusInputSupportsReadlineEditing(t *testing.T) {
+	model := Model{
+		screen:       screenStatusInput,
+		statusInput:  "needs review",
+		statusCursor: len([]rune("needs review")),
+		projects:     []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyCtrlA)
+	model = updateSpecialKey(t, model, tea.KeyCtrlE)
+	if model.statusCursor != len([]rune("needs review")) {
+		t.Fatalf("statusCursor after ctrl+a ctrl+e = %d, want end", model.statusCursor)
+	}
+	model = updateSpecialKey(t, model, tea.KeyCtrlU)
+	if model.statusInput != "" || model.statusCursor != 0 {
+		t.Fatalf("statusInput after ctrl+u = %q cursor %d, want empty", model.statusInput, model.statusCursor)
 	}
 }
 
@@ -2336,6 +2399,20 @@ func TestModelAddProjectModalSupportsCursorEditing(t *testing.T) {
 	model = updateMsg(t, model, cmd())
 	if addedPath != "/tmp/app" {
 		t.Fatalf("addedPath = %q, want /tmp/app", addedPath)
+	}
+}
+
+func TestModelAddProjectModalSupportsReadlineEditing(t *testing.T) {
+	model := Model{
+		screen:    screenAdd,
+		addInput:  "/tmp/old-path",
+		addCursor: len([]rune("/tmp/old-path")),
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyCtrlA)
+	model = updateSpecialKey(t, model, tea.KeyCtrlK)
+	if model.addInput != "" || model.addCursor != 0 {
+		t.Fatalf("addInput after ctrl+a ctrl+k = %q cursor %d, want empty", model.addInput, model.addCursor)
 	}
 }
 
