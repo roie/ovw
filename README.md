@@ -74,9 +74,11 @@ left/right or h/l  scroll columns
 /                  search
 f                  filter
 s                  sort
+c                  columns
 enter              details
 n                  note
 m                  status
+p                  pin
 a                  add
 r                  reload
 o                  open
@@ -95,8 +97,10 @@ ovw --hidden                 # list hidden projects
 
 ovw set <name> --status active
 ovw set <name> --note "fix check-in flow"
+ovw set <name> --pin
 ovw unset <name> --status
 ovw unset <name> --note
+ovw unset <name> --pin
 
 ovw --status active          # filter by status
 ovw --dirty                  # filter dirty projects
@@ -125,9 +129,16 @@ Available columns:
 columns = ["name", "path", "stack", "manager", "scripts", "version", "ports", "branch", "updated", "activity", "status", "note"]
 ```
 
-`ovw` stores user metadata only: hidden projects, status, and notes. Detected
-project details such as stack, manager, scripts, version, descriptions, Git
-activity, and recent commits are read live from your local files and Git history.
+In the TUI, `c` lets you show, hide, and reorder columns without editing the
+config file.
+
+The table keeps configured columns stable. The side pane and details view hide
+empty rows so only available project details are shown.
+
+`ovw` stores user metadata only: hidden projects, status, notes, and pins.
+Detected project details such as stack, manager, scripts, version, ports,
+descriptions, Git activity, recent commits, and recent files are read live from
+your local files, running processes, and Git history.
 
 Hiding a project never deletes files.
 
