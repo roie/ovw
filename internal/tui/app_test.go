@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ovw/internal/app"
+	"ovw/internal/buildinfo"
 	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
@@ -705,10 +706,11 @@ func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
 
 func TestFooterShowsVersionWhenWide(t *testing.T) {
 	got := stripANSI(footerView(180))
-	if !strings.HasSuffix(got, "ovw 1.0.1") {
+	want := "ovw " + buildinfo.Version
+	if !strings.HasSuffix(got, want) {
 		t.Fatalf("footer should put version on the right:\n%s", got)
 	}
-	if strings.Contains(stripANSI(footerView(40)), "ovw 1.0.1") {
+	if strings.Contains(stripANSI(footerView(40)), want) {
 		t.Fatalf("narrow footer should hide version:\n%s", stripANSI(footerView(40)))
 	}
 }

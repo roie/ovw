@@ -177,6 +177,7 @@ On Windows, remove `ovw.exe` from your Go bin directory, then remove:
 go run .
 go test ./...
 go build ./...
+go run ./tools/bump-version <version>
 ```
 
 ## License

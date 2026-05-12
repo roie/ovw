@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"ovw/internal/app"
+	"ovw/internal/buildinfo"
 	"ovw/internal/config"
 	"ovw/internal/format"
 	"ovw/internal/project"
@@ -119,7 +120,8 @@ func TestVersionOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute(-v) error = %v", err)
 	}
-	if out != "ovw 1.0.1\n" {
+	want := "ovw " + buildinfo.Version + "\n"
+	if out != want {
 		t.Fatalf("version output = %q", out)
 	}
 }
