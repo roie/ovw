@@ -21,7 +21,7 @@ type Options struct {
 
 func Title(project project.Project, name string) string {
 	if project.Pinned {
-		return "* " + name
+		return "★ " + name
 	}
 	return name
 }

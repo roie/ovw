@@ -54,7 +54,7 @@ func TestDetailSummaryMarksPinnedTitle(t *testing.T) {
 	project.Pinned = true
 
 	got := stripANSI(detailSummaryView(project, 60))
-	if !strings.Contains(got, "* eventca") {
+	if !strings.Contains(got, "★ eventca") {
 		t.Fatalf("detail summary missing pinned title:\n%s", got)
 	}
 	if strings.Contains(got, "Pinned") {
@@ -88,7 +88,7 @@ func TestDetailModalShowsPinAction(t *testing.T) {
 
 	project.Pinned = true
 	got = stripANSI(detailModalView(project, true, 60))
-	if !strings.Contains(got, "* eventca") {
+	if !strings.Contains(got, "★ eventca") {
 		t.Fatalf("detail modal missing pinned title:\n%s", got)
 	}
 	if !strings.Contains(got, "p unpin") {
