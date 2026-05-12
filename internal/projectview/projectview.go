@@ -14,9 +14,10 @@ type Field struct {
 }
 
 type Options struct {
-	Path     func(string) string
-	Time     func(time.Time) string
-	Activity func(project.Project) string
+	Path                  func(string) string
+	Time                  func(time.Time) string
+	Activity              func(project.Project) string
+	HideEmptyDisplayFields bool
 }
 
 func Title(project project.Project, name string) string {
@@ -36,20 +37,19 @@ func Fields(project project.Project, opts Options) []Field {
 		activity = opts.Activity(project)
 	}
 
-	fields := []Field{
-		{Label: "Path", Value: path},
-	}
-	fields = append(fields,
-		Field{Label: "Stack", Value: stackDisplay(project.Stack)},
-		Field{Label: "Manager", Value: managerDisplay(project.Managers)},
-		Field{Label: "Scripts", Value: scriptsDisplay(project.Scripts)},
-	)
+	fields := []Field{{Label: "Path", Value: path}}
 	add := func(label, value string) {
+		if opts.HideEmptyDisplayFields && value == "—" {
+			return
+		}
 		if value != "" {
 			fields = append(fields, Field{Label: label, Value: value})
 		}
 	}
 
+	add("Stack", stackDisplay(project.Stack))
+	add("Manager", managerDisplay(project.Managers))
+	add("Scripts", scriptsDisplay(project.Scripts))
 	add("Version", project.Version)
 	add("Ports", portsDisplay(project.Ports))
 	add("Branch", project.Activity.Branch)

@@ -49,6 +49,26 @@ func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 	}
 }
 
+func TestDetailSummaryHidesEmptyRows(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.Stack = nil
+	project.Managers = nil
+	project.Scripts = nil
+	project.Version = ""
+	project.Ports = nil
+	project.Activity.Branch = ""
+
+	got := stripANSI(detailSummaryView(project, 60))
+	for _, unwanted := range []string{"Stack", "Manager", "Scripts", "Version", "Ports", "Branch"} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("detail summary should hide empty row %q:\n%s", unwanted, got)
+		}
+	}
+	if !strings.Contains(got, "Path") {
+		t.Fatalf("detail summary should keep path:\n%s", got)
+	}
+}
+
 func TestDetailSummaryMarksPinnedTitle(t *testing.T) {
 	project := detailTestProject("eventca")
 	project.Pinned = true

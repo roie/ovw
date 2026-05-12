@@ -20,7 +20,7 @@ func detailView(project project.Project, ok bool) string {
 	if subtitle := projectview.Subtitle(project); subtitle != "" {
 		lines = append(lines, subtitle, "")
 	}
-	for _, field := range projectview.Fields(project, projectview.Options{Activity: projectview.DetailActivity}) {
+	for _, field := range detailFields(project, projectview.DetailActivity) {
 		lines = append(lines, detailLine(field.Label, field.Value))
 	}
 	return strings.Join(lines, "\n")
@@ -65,7 +65,7 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int, expa
 		lines = append(lines, "")
 	}
 	hasCompactContent := detailModalHasCompactContent(project)
-	for _, field := range projectview.Fields(project, projectview.Options{Activity: projectview.DetailActivity}) {
+	for _, field := range detailFields(project, projectview.DetailActivity) {
 		if field.Label == "Scripts" && !expanded {
 			field.Value, _ = compactScripts(project.Scripts)
 		}
@@ -96,6 +96,18 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int, expa
 func detailModalHasCompactContent(project project.Project) bool {
 	_, compacted := compactScripts(project.Scripts)
 	return compacted
+}
+
+func detailFields(project project.Project, activity func(project.Project) string) []projectview.Field {
+	return projectview.Fields(project, detailOptions(nil, activity))
+}
+
+func detailOptions(path func(string) string, activity func(project.Project) string) projectview.Options {
+	return projectview.Options{
+		Path:                  path,
+		Activity:              activity,
+		HideEmptyDisplayFields: true,
+	}
 }
 
 func visibilityAction(project project.Project) string {
@@ -140,10 +152,7 @@ func detailSummaryView(project project.Project, width int) string {
 		}
 		lines = append(lines, truncateText(detailLine(label, value), contentWidth))
 	}
-	fields := projectview.Fields(project, projectview.Options{
-		Path:     shortPath,
-		Activity: projectview.DetailActivity,
-	})
+	fields := projectview.Fields(project, detailOptions(shortPath, projectview.DetailActivity))
 	for _, field := range fields {
 		addSummaryLine(field)
 	}

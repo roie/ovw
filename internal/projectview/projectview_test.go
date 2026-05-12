@@ -52,6 +52,27 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 	}
 }
 
+func TestFieldsCanHideEmptyDisplayFields(t *testing.T) {
+	fields := Fields(project.Project{Path: "/tmp/app"}, Options{HideEmptyDisplayFields: true})
+
+	got := make([]string, 0, len(fields))
+	for _, field := range fields {
+		got = append(got, field.Label)
+		if field.Value == "—" {
+			t.Fatalf("Fields() should hide placeholder field = %#v", field)
+		}
+	}
+	want := []string{"Path"}
+	if len(got) != len(want) {
+		t.Fatalf("labels = %#v, want %#v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("labels = %#v, want %#v", got, want)
+		}
+	}
+}
+
 func TestColumnValueMarksPinnedProjectName(t *testing.T) {
 	proj := project.Project{Pinned: true}
 
