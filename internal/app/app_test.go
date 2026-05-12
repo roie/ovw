@@ -29,7 +29,8 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	withPortDetector(t, func(paths []string) map[string][]int {
-		return map[string][]int{appPath: []int{3000, 8787}}
+		t.Fatalf("port detector should not run for JSON unless ports column is enabled: %#v", paths)
+		return nil
 	})
 
 	var out bytes.Buffer
@@ -41,13 +42,45 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 	if !strings.HasPrefix(strings.TrimSpace(got), "[") {
 		t.Fatalf("json output has prefix/logs: %q", got)
 	}
-	for _, want := range []string{`"name": "app"`, `"SvelteKit"`, `"Cloudflare Workers"`, `"ports": [`} {
+	for _, want := range []string{`"name": "app"`, `"SvelteKit"`, `"Cloudflare Workers"`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("json output missing %q = %s", want, got)
 		}
 	}
+	if strings.Contains(got, `"ports": [`) {
+		t.Fatalf("json output should not include detected ports unless ports column is enabled: %s", got)
+	}
 	if strings.Contains(got, "stack_display") {
 		t.Fatalf("json output = %s", got)
+	}
+}
+
+func TestOverviewJSONDetectsPortsWhenColumnVisible(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	appPath := filepath.Join(root, "app")
+	writePackage(t, appPath, `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	cfg.Columns = []string{"name", "ports"}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	withPortDetector(t, func(paths []string) map[string][]int {
+		return map[string][]int{appPath: []int{3000}}
+	})
+
+	var out bytes.Buffer
+	if err := Run(Options{JSON: true, Cwd: root, Out: &out, In: strings.NewReader("\n")}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !strings.Contains(out.String(), `"ports": [`) || !strings.Contains(out.String(), "3000") {
+		t.Fatalf("json output missing ports when ports column enabled: %s", out.String())
 	}
 }
 
@@ -60,6 +93,65 @@ func TestProjectFromPathDetectsPorts(t *testing.T) {
 	project := ProjectFromPath(path, config.Default(), metadata.New(), time.Now())
 	if len(project.Ports) != 1 || project.Ports[0] != 5173 {
 		t.Fatalf("ports = %#v, want 5173", project.Ports)
+	}
+}
+
+func TestLoadOverviewSkipsPortDetectionWhenColumnHidden(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	cfg.Columns = []string{"name", "stack", "activity", "status", "note"}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	withPortDetector(t, func(paths []string) map[string][]int {
+		t.Fatalf("port detector should not run when ports column is hidden: %#v", paths)
+		return nil
+	})
+
+	if _, err := LoadOverview(Options{Plain: true, Cwd: root, In: strings.NewReader("\n")}); err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+}
+
+func TestLoadOverviewDetectsPortsWhenColumnVisible(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	appPath := filepath.Join(root, "app")
+	writePackage(t, appPath, `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	cfg.Columns = []string{"name", "ports"}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	withPortDetector(t, func(paths []string) map[string][]int {
+		called = true
+		return map[string][]int{appPath: []int{5173}}
+	})
+
+	result, err := LoadOverview(Options{Plain: true, Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if !called {
+		t.Fatal("port detector was not called")
+	}
+	if len(result.Projects) != 1 || len(result.Projects[0].Ports) != 1 || result.Projects[0].Ports[0] != 5173 {
+		t.Fatalf("ports = %#v", result.Projects)
 	}
 }
 

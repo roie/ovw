@@ -1,11 +1,13 @@
 package gitactivity
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDetectNoGit(t *testing.T) {
@@ -142,6 +144,101 @@ func TestDetectRecentCommitsCapsAtThree(t *testing.T) {
 		if got.At.IsZero() {
 			t.Fatalf("RecentCommits[%d].At is zero", index)
 		}
+	}
+}
+
+func TestDetectorReusesGitInfoForNestedPathsInSameWorktree(t *testing.T) {
+	calls := 0
+	detector := newDetectorWithRunner(func(path string, args ...string) (string, error) {
+		calls++
+		command := strings.Join(args, " ")
+		switch command {
+		case "rev-parse --show-toplevel":
+			if strings.HasPrefix(path, "/repo") {
+				return "/repo\n", nil
+			}
+			return "", errors.New("not a git repo")
+		case "rev-parse --abbrev-ref HEAD":
+			return "main\n", nil
+		case "log -1 --format=%ct":
+			return "1762000000\n", nil
+		case "log -1 --format=%B":
+			return "initial commit\n", nil
+		case "status --porcelain --untracked-files=no":
+			return "", nil
+		case "rev-list --count @{upstream}..HEAD":
+			return "0\n", nil
+		default:
+			t.Fatalf("unexpected git command for %s: %v", path, args)
+			return "", nil
+		}
+	}, time.Second)
+
+	first := detector.Detect("/repo/node_modules/a")
+	firstCalls := calls
+	second := detector.Detect("/repo/node_modules/b")
+
+	if !first.HasGit || !second.HasGit {
+		t.Fatalf("git info not detected: first=%#v second=%#v", first, second)
+	}
+	if firstCalls == 0 {
+		t.Fatal("expected first detection to call git")
+	}
+	if calls != firstCalls {
+		t.Fatalf("second nested path called git again: first calls=%d total=%d", firstCalls, calls)
+	}
+}
+
+func TestDetectorDoesNotReuseParentGitInfoForNestedGitProject(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "repo")
+	child := filepath.Join(parent, "nested")
+	if err := os.MkdirAll(filepath.Join(parent, "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(parent, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(child, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	detector := newDetectorWithRunner(func(path string, args ...string) (string, error) {
+		command := strings.Join(args, " ")
+		if command == "rev-parse --show-toplevel" {
+			if strings.HasPrefix(path, child) {
+				return child + "\n", nil
+			}
+			return parent + "\n", nil
+		}
+		if command == "rev-parse --abbrev-ref HEAD" {
+			if path == child {
+				return "nested\n", nil
+			}
+			return "parent\n", nil
+		}
+		switch command {
+		case "log -1 --format=%ct":
+			return "1762000000\n", nil
+		case "log -1 --format=%B":
+			return "initial commit\n", nil
+		case "status --porcelain --untracked-files=no":
+			return "", nil
+		case "rev-list --count @{upstream}..HEAD":
+			return "0\n", nil
+		default:
+			t.Fatalf("unexpected git command for %s: %v", path, args)
+			return "", nil
+		}
+	}, time.Second)
+
+	parentInfo := detector.Detect(filepath.Join(parent, "pkg"))
+	childInfo := detector.Detect(child)
+
+	if parentInfo.Branch != "parent" {
+		t.Fatalf("parent branch = %q", parentInfo.Branch)
+	}
+	if childInfo.Branch != "nested" {
+		t.Fatalf("child branch = %q, want nested", childInfo.Branch)
 	}
 }
 

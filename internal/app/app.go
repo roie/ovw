@@ -129,11 +129,14 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	}
 	projects := make([]project.Project, 0, len(scanned))
 	now := time.Now()
+	gitDetector := gitactivity.NewDetector()
 	for _, scannedProject := range scanned {
-		enriched := Enrich(scannedProject, cfg, now)
+		enriched := EnrichWithGit(scannedProject, cfg, now, gitDetector.Detect(scannedProject.Path))
 		projects = append(projects, enriched)
 	}
-	attachPorts(projects, detectPorts(projectPaths(projects)))
+	if shouldDetectPorts(cfg, opts) {
+		attachPorts(projects, detectPorts(projectPaths(projects)))
+	}
 	filtered, err := filter.Apply(projects, filter.Options{
 		Status:   opts.Status,
 		Path:     opts.Path,
@@ -301,6 +304,15 @@ func ProjectFromPath(path string, cfg config.Config, store metadata.Store, now t
 	return projects[0]
 }
 
+func shouldDetectPorts(cfg config.Config, _ Options) bool {
+	for _, column := range cfg.Columns {
+		if column == "ports" {
+			return true
+		}
+	}
+	return false
+}
+
 func projectPaths(projects []project.Project) []string {
 	paths := make([]string, 0, len(projects))
 	for _, project := range projects {
@@ -455,10 +467,13 @@ func (err *ProjectNotFoundError) Error() string {
 }
 
 func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.Project {
+	return EnrichWithGit(scanned, cfg, now, gitactivity.Detect(scanned.Path))
+}
+
+func EnrichWithGit(scanned scanner.Project, cfg config.Config, now time.Time, gitInfo gitactivity.Info) project.Project {
 	stackResult, _ := stack.Detect(scanned.Path, cfg.Stack)
 	managers := manager.Detect(scanned.Path)
 	detectedScripts := scripts.Detect(scanned.Path)
-	gitInfo := gitactivity.Detect(scanned.Path)
 	description := projectdescription.Detect(scanned.Path)
 	version := projectversion.Detect(scanned.Path)
 	activity := ovwformat.Activity(gitInfo, cfg, now)

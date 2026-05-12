@@ -136,9 +136,10 @@ The table keeps configured columns stable. The side pane and details view hide
 empty rows so only available project details are shown.
 
 `ovw` stores user metadata only: hidden projects, status, notes, and pins.
-Detected project details such as stack, manager, scripts, version, ports,
+Detected project details such as stack, manager, scripts, version,
 descriptions, Git activity, recent commits, and recent files are read live from
-your local files, running processes, and Git history.
+your local files and Git history. The optional `ports` column inspects running
+local processes and is only scanned when enabled.
 
 Hiding a project never deletes files.
 
