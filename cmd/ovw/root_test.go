@@ -85,6 +85,9 @@ func TestHelpTextDescriptions(t *testing.T) {
 	if strings.Contains(got, "scan      Rescan configured roots") {
 		t.Fatalf("help output should not list scan command:\n%s", got)
 	}
+	if strings.Contains(got, "--timing") {
+		t.Fatalf("help output should hide timing flag:\n%s", got)
+	}
 	if strings.Contains(got, "help        Help about any command") {
 		t.Fatalf("help output should not list help command:\n%s", got)
 	}
@@ -824,6 +827,32 @@ func TestConflictingOutputModesShowClearErrorWithoutUsage(t *testing.T) {
 	}
 	if strings.Contains(out, "Usage:") {
 		t.Fatalf("conflicting output mode printed usage:\n%s", out)
+	}
+}
+
+func TestTimingRequiresPlainOrJSON(t *testing.T) {
+	out, err := executeCommand([]string{"--timing"})
+	if err == nil || err.Error() != "--timing requires --plain or --json" {
+		t.Fatalf("timing error = %v", err)
+	}
+	if strings.Contains(out, "Usage:") {
+		t.Fatalf("timing error printed usage:\n%s", out)
+	}
+}
+
+func TestInteractiveTimingDoesNotStartTUI(t *testing.T) {
+	called := false
+	withTerminalRouting(t, true, func(app.Options) error {
+		called = true
+		return nil
+	})
+
+	_, err := executeCommand([]string{"--timing"})
+	if err == nil || err.Error() != "--timing requires --plain or --json" {
+		t.Fatalf("timing error = %v", err)
+	}
+	if called {
+		t.Fatal("timing validation should run before starting TUI")
 	}
 }
 

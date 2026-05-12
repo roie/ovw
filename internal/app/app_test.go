@@ -55,6 +55,65 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 	}
 }
 
+func TestOverviewJSONTimingWritesOnlyToErr(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	err = Run(Options{JSON: true, Timing: true, Cwd: root, Out: &out, Err: &errOut, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(out.String()), "[") {
+		t.Fatalf("json stdout is not pure JSON: %q", out.String())
+	}
+	for _, want := range []string{"timing: total", "timing: config", "timing: discover", "timing: enrich", "timing: ports skipped", "timing: filter/sort"} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Fatalf("timing stderr missing %q:\n%s", want, errOut.String())
+		}
+	}
+}
+
+func TestLoadOverviewTimingDoesNotWrite(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	var errOut bytes.Buffer
+	result, err := LoadOverview(Options{Plain: true, Timing: true, Cwd: root, Err: &errOut, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("LoadOverview() wrote timing before render: %q", errOut.String())
+	}
+	if result.Timing.Total <= 0 {
+		t.Fatalf("LoadOverview() did not record total timing: %s", result.Timing.Total)
+	}
+}
+
 func TestOverviewJSONDetectsPortsWhenColumnVisible(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()
@@ -164,6 +223,28 @@ func TestRunRejectsConflictingOutputModes(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Fatalf("Run() wrote output on invalid modes: %q", out.String())
+	}
+}
+
+func TestRunRejectsTimingWithoutPlainOrJSON(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	err := Run(Options{Timing: true, Out: &out, Err: &errOut, In: strings.NewReader("\n")})
+
+	if err == nil || err.Error() != "--timing requires --plain or --json" {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if out.Len() != 0 || errOut.Len() != 0 {
+		t.Fatalf("Run() wrote output on invalid timing: out=%q err=%q", out.String(), errOut.String())
+	}
+}
+
+func TestFormatDurationShowsSubMillisecondValues(t *testing.T) {
+	if got := formatDuration(time.Nanosecond); got != "<1ms" {
+		t.Fatalf("formatDuration() = %q, want <1ms", got)
+	}
+	if got := formatDuration(0); got != "0s" {
+		t.Fatalf("formatDuration(0) = %q, want 0s", got)
 	}
 }
 

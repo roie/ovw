@@ -54,6 +54,10 @@ func NewRootCommand() *cobra.Command {
 			opts.Cwd = cwd
 			opts.In = cmd.InOrStdin()
 			opts.Out = cmd.OutOrStdout()
+			opts.Err = cmd.ErrOrStderr()
+			if err := app.ValidateOptions(opts); err != nil {
+				return err
+			}
 			if !opts.Plain && !opts.JSON && interactiveTerminal(opts.In, opts.Out) {
 				setup, err := app.CheckConfig(opts)
 				if err != nil {
@@ -84,6 +88,8 @@ func NewRootCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show projects without status")
 	cmd.Flags().BoolVar(&opts.Hidden, "hidden", false, "show hidden projects")
 	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, updated, name, or status; optional :asc or :desc")
+	cmd.Flags().BoolVar(&opts.Timing, "timing", false, "print scan timing to stderr")
+	_ = cmd.Flags().MarkHidden("timing")
 	cmd.AddCommand(newAddCommand())
 	cmd.AddCommand(newVisibilityCommand("hide", true))
 	cmd.AddCommand(newVisibilityCommand("remove", true))

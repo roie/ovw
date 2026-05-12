@@ -2,9 +2,11 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"ovw/internal/config"
@@ -36,9 +38,11 @@ type Options struct {
 	Untagged bool
 	Hidden   bool
 	Sort     string
+	Timing   bool
 	Cwd      string
 	In       io.Reader
 	Out      io.Writer
+	Err      io.Writer
 }
 
 type OverviewResult struct {
@@ -46,6 +50,25 @@ type OverviewResult struct {
 	Config   config.Config
 	Projects []project.Project
 	Elapsed  time.Duration
+	Timing   timingInfo
+}
+
+type timingInfo struct {
+	Config     time.Duration
+	Metadata   time.Duration
+	Discover   time.Duration
+	Enrich     time.Duration
+	Ports      time.Duration
+	FilterSort time.Duration
+	Total      time.Duration
+	PortsRan   bool
+	Slow       []projectTiming
+}
+
+type projectTiming struct {
+	Name     string
+	Path     string
+	Duration time.Duration
 }
 
 type ConfigSetup struct {
@@ -86,7 +109,10 @@ func Run(opts Options) error {
 	if opts.Out == nil {
 		opts.Out = io.Discard
 	}
-	if err := validateOutputModes(opts); err != nil {
+	if opts.Err == nil {
+		opts.Err = io.Discard
+	}
+	if err := ValidateOptions(opts); err != nil {
 		return err
 	}
 	overview, err := LoadOverview(opts)
@@ -94,30 +120,47 @@ func Run(opts Options) error {
 		return err
 	}
 	if opts.JSON {
-		return render.JSON(opts.Out, overview.Projects)
+		if err := render.JSON(opts.Out, overview.Projects); err != nil {
+			return err
+		}
+		writeTiming(opts, overview.Timing)
+		return nil
 	}
-	return render.Table(opts.Out, overview.Projects, overview.Config, overview.Elapsed)
+	if err := render.Table(opts.Out, overview.Projects, overview.Config, overview.Elapsed); err != nil {
+		return err
+	}
+	writeTiming(opts, overview.Timing)
+	return nil
 }
 
 func LoadOverview(opts Options) (OverviewResult, error) {
 	start := time.Now()
+	timing := timingInfo{}
 	if opts.Out == nil {
 		opts.Out = io.Discard
 	}
-	if err := validateOutputModes(opts); err != nil {
+	if opts.Err == nil {
+		opts.Err = io.Discard
+	}
+	if err := ValidateOptions(opts); err != nil {
 		return OverviewResult{}, err
 	}
+	phaseStart := time.Now()
 	paths, cfg, err := EnsureConfig(opts)
 	if err != nil {
 		return OverviewResult{}, err
 	}
+	timing.Config = time.Since(phaseStart)
 	if _, err := filter.ParseSort(opts.Sort, cfg); err != nil {
 		return OverviewResult{}, err
 	}
+	phaseStart = time.Now()
 	meta, err := metadata.Load(paths.Metadata)
 	if err != nil {
 		return OverviewResult{}, err
 	}
+	timing.Metadata = time.Since(phaseStart)
+	phaseStart = time.Now()
 	var scanned []scanner.Project
 	if opts.Hidden {
 		scanned, err = scanner.ScanAll(cfg, meta)
@@ -127,16 +170,29 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	if err != nil {
 		return OverviewResult{}, err
 	}
+	timing.Discover = time.Since(phaseStart)
+	phaseStart = time.Now()
 	projects := make([]project.Project, 0, len(scanned))
 	now := time.Now()
 	gitDetector := gitactivity.NewDetector()
 	for _, scannedProject := range scanned {
+		projectStart := time.Now()
 		enriched := EnrichWithGit(scannedProject, cfg, now, gitDetector.Detect(scannedProject.Path))
 		projects = append(projects, enriched)
+		timing.Slow = append(timing.Slow, projectTiming{
+			Name:     scannedProject.Name,
+			Path:     scannedProject.Path,
+			Duration: time.Since(projectStart),
+		})
 	}
+	timing.Enrich = time.Since(phaseStart)
 	if shouldDetectPorts(cfg, opts) {
+		phaseStart = time.Now()
 		attachPorts(projects, detectPorts(projectPaths(projects)))
+		timing.Ports = time.Since(phaseStart)
+		timing.PortsRan = true
 	}
+	phaseStart = time.Now()
 	filtered, err := filter.Apply(projects, filter.Options{
 		Status:   opts.Status,
 		Path:     opts.Path,
@@ -149,17 +205,72 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 		return OverviewResult{}, err
 	}
 	filtered = filter.Sort(filtered, opts.Sort, cfg)
+	timing.FilterSort = time.Since(phaseStart)
+	timing.Total = time.Since(start)
 	return OverviewResult{
 		Paths:    paths,
 		Config:   cfg,
 		Projects: filtered,
-		Elapsed:  time.Since(start),
+		Elapsed:  timing.Total,
+		Timing:   timing,
 	}, nil
 }
 
-func validateOutputModes(opts Options) error {
+func writeTiming(opts Options, timing timingInfo) {
+	if !opts.Timing {
+		return
+	}
+	errOut := opts.Err
+	if errOut == nil {
+		errOut = io.Discard
+	}
+	fmt.Fprintf(errOut, "timing: total %s\n", formatDuration(timing.Total))
+	fmt.Fprintf(errOut, "timing: config %s\n", formatDuration(timing.Config))
+	fmt.Fprintf(errOut, "timing: metadata %s\n", formatDuration(timing.Metadata))
+	fmt.Fprintf(errOut, "timing: discover %s\n", formatDuration(timing.Discover))
+	fmt.Fprintf(errOut, "timing: enrich %s\n", formatDuration(timing.Enrich))
+	if timing.PortsRan {
+		fmt.Fprintf(errOut, "timing: ports %s\n", formatDuration(timing.Ports))
+	} else {
+		fmt.Fprintln(errOut, "timing: ports skipped")
+	}
+	fmt.Fprintf(errOut, "timing: filter/sort %s\n", formatDuration(timing.FilterSort))
+	slow := slowProjects(timing.Slow, 5)
+	if len(slow) == 0 {
+		return
+	}
+	fmt.Fprintln(errOut, "timing: slow projects")
+	for _, item := range slow {
+		fmt.Fprintf(errOut, "timing:   %s %s %s\n", item.Name, formatDuration(item.Duration), item.Path)
+	}
+}
+
+func slowProjects(items []projectTiming, limit int) []projectTiming {
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].Duration > items[j].Duration
+	})
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	return items
+}
+
+func formatDuration(value time.Duration) string {
+	if value > 0 && value < time.Millisecond {
+		return "<1ms"
+	}
+	if value < time.Second {
+		return value.Round(time.Millisecond).String()
+	}
+	return value.Round(100 * time.Millisecond).String()
+}
+
+func ValidateOptions(opts Options) error {
 	if opts.Plain && opts.JSON {
 		return errors.New("choose only one output mode: --plain or --json")
+	}
+	if opts.Timing && !opts.Plain && !opts.JSON {
+		return errors.New("--timing requires --plain or --json")
 	}
 	return nil
 }
