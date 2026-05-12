@@ -4,7 +4,9 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"ovw/internal/config"
@@ -25,6 +27,7 @@ import (
 type Options struct {
 	Plain    bool
 	JSON     bool
+	Open     bool
 	Status   string
 	Dirty    bool
 	Stale    bool
@@ -456,6 +459,15 @@ func firstRunWriter(opts Options) io.Writer {
 		return io.Discard
 	}
 	return opts.Out
+}
+
+func OpenProject(path, editor string) error {
+	parts := strings.Fields(editor)
+	if len(parts) == 0 {
+		return errors.New("editor is not configured")
+	}
+	args := append(parts[1:], path)
+	return exec.Command(parts[0], args...).Run()
 }
 
 func quoteProject(value string) string {
