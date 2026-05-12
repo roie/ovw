@@ -27,7 +27,7 @@ func TestDefaultConfigValues(t *testing.T) {
 	if !reflect.DeepEqual(cfg.Statuses, []string{"active", "parked", "shipped", "idea"}) {
 		t.Fatalf("Statuses = %#v", cfg.Statuses)
 	}
-	if !reflect.DeepEqual(cfg.Columns, []string{"name", "stack", "activity", "status", "note"}) {
+	if !reflect.DeepEqual(cfg.Columns, []string{"name", "stack", "activity", "ports", "status", "note"}) {
 		t.Fatalf("Columns = %#v", cfg.Columns)
 	}
 	if cfg.SortBy != "activity" || cfg.SortDir != "desc" {
@@ -108,7 +108,7 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				cfg.Columns = []string{"name", "url"}
 				return cfg
 			},
-			want: `invalid column "url": expected name, path, stack, manager, scripts, version, activity, status, or note`,
+			want: `invalid column "url": expected name, path, stack, manager, scripts, version, ports, activity, status, or note`,
 		},
 		{
 			name: "unknown sort",
@@ -185,10 +185,10 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !strings.Contains(text, `"Cloudflare Workers" = "CF"`) {
 		t.Fatalf("stack alias key is not a quoted string:\n%s", text)
 	}
-	if !strings.Contains(text, `columns = ["name", "stack", "activity", "status", "note"]`) {
+	if !strings.Contains(text, `columns = ["name", "stack", "activity", "ports", "status", "note"]`) {
 		t.Fatalf("default config missing status column:\n%s", text)
 	}
-	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, activity, status, note") {
+	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, activity, status, note") {
 		t.Fatalf("default config missing column options comment:\n%s", text)
 	}
 	if strings.Contains(text, "show_untagged") || strings.Contains(text, "relative_dates") {

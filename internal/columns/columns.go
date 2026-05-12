@@ -2,7 +2,7 @@ package columns
 
 import "strings"
 
-var ids = []string{"name", "path", "stack", "manager", "scripts", "version", "activity", "status", "note"}
+var ids = []string{"name", "path", "stack", "manager", "scripts", "version", "ports", "activity", "status", "note"}
 
 func IDs() []string {
 	return append([]string(nil), ids...)

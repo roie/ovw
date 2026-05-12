@@ -14,6 +14,7 @@ type Project struct {
 	Managers     []string            `json:"managers"`
 	Scripts      []string            `json:"scripts"`
 	Version      string              `json:"version"`
+	Ports        []int               `json:"ports"`
 	Activity     format.ActivityInfo `json:"activity"`
 	Status       format.StatusInfo   `json:"status"`
 	Note         format.NoteInfo     `json:"note"`

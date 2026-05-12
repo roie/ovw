@@ -16,6 +16,7 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 		Managers:    []string{"go modules"},
 		Scripts:     []string{"dev", "build", "check"},
 		Version:     "1.2.3",
+		Ports:       []int{3000, 8787},
 		Status:      format.StatusFromTags("parked", []string{"dirty", "parked"}),
 		Description: "Project description",
 		Note:        format.NoteInfo{Display: "user note"},
@@ -37,7 +38,7 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 	for _, field := range fields {
 		got = append(got, field.Label)
 	}
-	want := []string{"Path", "Stack", "Manager", "Scripts", "Version", "Branch", "Activity", "Updated", "Status", "Note"}
+	want := []string{"Path", "Stack", "Manager", "Scripts", "Version", "Ports", "Branch", "Activity", "Updated", "Status", "Note"}
 	if len(got) != len(want) {
 		t.Fatalf("labels = %#v, want %#v", got, want)
 	}
@@ -48,6 +49,17 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 	}
 	if subtitle := Subtitle(project); subtitle != "Project description" {
 		t.Fatalf("Subtitle() = %q, want Project description", subtitle)
+	}
+}
+
+func TestColumnValueShowsPorts(t *testing.T) {
+	proj := project.Project{Ports: []int{3000, 8787}}
+
+	if got := ColumnValue(proj, "ports", "app"); got != "3000, 8787" {
+		t.Fatalf("ColumnValue(ports) = %q, want 3000, 8787", got)
+	}
+	if got := ColumnValue(project.Project{}, "ports", "app"); got != "—" {
+		t.Fatalf("ColumnValue(empty ports) = %q, want —", got)
 	}
 }
 

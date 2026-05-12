@@ -19,6 +19,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 	projects := []project.Project{{
 		Name:         "eventca",
 		StackDisplay: "SvelteKit+CF",
+		Ports:        []int{3000},
 		Activity:     format.ActivityInfo{Display: "2d ↑2"},
 		Status:       format.StatusFromTags("shipped", []string{"dirty", "stale", "shipped"}),
 		Note:         format.NoteInfo{Display: "feat/checkin · fix"},
@@ -28,7 +29,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 		t.Fatalf("Table() error = %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"ovw — 1 projects · scanned in 0.2s", "Name", "Stack", "Activity", "Status", "Note", "----", "eventca", "SvelteKit+CF", "2d ↑2", "dirty · stale · shipped"} {
+	for _, want := range []string{"ovw — 1 projects · scanned in 0.2s", "Name", "Stack", "Activity", "Ports", "Status", "Note", "----", "eventca", "SvelteKit+CF", "2d ↑2", "3000", "dirty · stale · shipped"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing %q:\n%s", want, got)
 		}
@@ -36,7 +37,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 	if strings.Contains(got, "----  -----") {
 		t.Fatalf("table uses disconnected column separators:\n%s", got)
 	}
-	for _, unwanted := range []string{"NAME", "STACK", "ACTIVITY", "STATUS", "NOTE", "2d ↑2 !"} {
+	for _, unwanted := range []string{"NAME", "STACK", "ACTIVITY", "PORTS", "STATUS", "NOTE", "2d ↑2 !"} {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("table contains uppercase header %q:\n%s", unwanted, got)
 		}
@@ -179,6 +180,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		Managers:     []string{"go modules"},
 		Scripts:      []string{"dev", "build"},
 		Version:      "1.2.3",
+		Ports:        []int{3000, 8787},
 		Activity: format.ActivityInfo{
 			Display:           "1d !",
 			LastCommitAge:     "1d",
@@ -229,6 +231,10 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	if version, ok := item["version"].(string); !ok || version != "1.2.3" {
 		t.Fatalf("version = %#v, want 1.2.3\n%s", item["version"], out.String())
 	}
+	ports, ok := item["ports"].([]any)
+	if !ok || len(ports) != 2 || ports[0] != float64(3000) || ports[1] != float64(8787) {
+		t.Fatalf("ports = %#v, want 3000/8787\n%s", item["ports"], out.String())
+	}
 	managers, ok := item["managers"].([]any)
 	if !ok || len(managers) != 1 || managers[0] != "go modules" {
 		t.Fatalf("managers = %#v, want go modules\n%s", item["managers"], out.String())
@@ -259,7 +265,9 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		`"path":`,
 		`"stack":`,
 		`"managers":`,
+		`"scripts":`,
 		`"version":`,
+		`"ports":`,
 		`"activity":`,
 		`"tags":`,
 		`"status":`,

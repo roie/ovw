@@ -1,6 +1,7 @@
 package projectview
 
 import (
+	"strconv"
 	"strings"
 
 	"ovw/internal/columns"
@@ -26,6 +27,8 @@ func ColumnValue(project project.Project, column, displayName string) string {
 		return scriptsDisplay(project.Scripts)
 	case "version":
 		return project.Version
+	case "ports":
+		return portsDisplay(project.Ports)
 	case "activity":
 		return project.Activity.Display
 	case "status":
@@ -35,4 +38,15 @@ func ColumnValue(project project.Project, column, displayName string) string {
 	default:
 		return ""
 	}
+}
+
+func portsDisplay(ports []int) string {
+	if len(ports) == 0 {
+		return "—"
+	}
+	values := make([]string, 0, len(ports))
+	for _, port := range ports {
+		values = append(values, strconv.Itoa(port))
+	}
+	return strings.Join(values, ", ")
 }

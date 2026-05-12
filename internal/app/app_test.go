@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"ovw/internal/config"
 	"ovw/internal/metadata"
@@ -16,7 +17,8 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()
 	t.Setenv("HOME", home)
-	writePackage(t, filepath.Join(root, "app"), `{"dependencies":{"@sveltejs/kit":"latest","wrangler":"latest"}}`)
+	appPath := filepath.Join(root, "app")
+	writePackage(t, appPath, `{"dependencies":{"@sveltejs/kit":"latest","wrangler":"latest"}}`)
 	paths, err := config.Paths()
 	if err != nil {
 		t.Fatal(err)
@@ -26,6 +28,9 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 	if err := config.Write(paths.Config, cfg); err != nil {
 		t.Fatal(err)
 	}
+	withPortDetector(t, func(paths []string) map[string][]int {
+		return map[string][]int{appPath: []int{3000, 8787}}
+	})
 
 	var out bytes.Buffer
 	err = Run(Options{JSON: true, Cwd: root, Out: &out, In: strings.NewReader("\n")})
@@ -36,13 +41,25 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 	if !strings.HasPrefix(strings.TrimSpace(got), "[") {
 		t.Fatalf("json output has prefix/logs: %q", got)
 	}
-	for _, want := range []string{`"name": "app"`, `"SvelteKit"`, `"Cloudflare Workers"`} {
+	for _, want := range []string{`"name": "app"`, `"SvelteKit"`, `"Cloudflare Workers"`, `"ports": [`} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("json output missing %q = %s", want, got)
 		}
 	}
 	if strings.Contains(got, "stack_display") {
 		t.Fatalf("json output = %s", got)
+	}
+}
+
+func TestProjectFromPathDetectsPorts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app")
+	withPortDetector(t, func(paths []string) map[string][]int {
+		return map[string][]int{path: []int{5173}}
+	})
+
+	project := ProjectFromPath(path, config.Default(), metadata.New(), time.Now())
+	if len(project.Ports) != 1 || project.Ports[0] != 5173 {
+		t.Fatalf("ports = %#v, want 5173", project.Ports)
 	}
 }
 
@@ -521,6 +538,15 @@ func writePackage(t *testing.T, dir, data string) {
 	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(data), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func withPortDetector(t *testing.T, detector func([]string) map[string][]int) {
+	t.Helper()
+	previous := detectPorts
+	detectPorts = detector
+	t.Cleanup(func() {
+		detectPorts = previous
+	})
 }
 
 func quote(s string) string {

@@ -14,6 +14,7 @@ import (
 	"ovw/internal/gitactivity"
 	"ovw/internal/manager"
 	"ovw/internal/metadata"
+	"ovw/internal/ports"
 	"ovw/internal/project"
 	projectversion "ovw/internal/projectversion"
 	"ovw/internal/render"
@@ -21,6 +22,8 @@ import (
 	"ovw/internal/scripts"
 	"ovw/internal/stack"
 )
+
+var detectPorts = ports.Detect
 
 type Options struct {
 	Plain    bool
@@ -129,6 +132,7 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 		enriched := Enrich(scannedProject, cfg, now)
 		projects = append(projects, enriched)
 	}
+	attachPorts(projects, detectPorts(projectPaths(projects)))
 	filtered, err := filter.Apply(projects, filter.Options{
 		Status:   opts.Status,
 		Path:     opts.Path,
@@ -283,13 +287,30 @@ func (err *AmbiguousProjectError) Error() string {
 
 func ProjectFromPath(path string, cfg config.Config, store metadata.Store, now time.Time) project.Project {
 	entry := store.Projects[path]
-	return Enrich(scanner.Project{
+	enriched := Enrich(scanner.Project{
 		Name:   filepath.Base(path),
 		Path:   path,
 		Hidden: entry.Hidden,
 		Status: entry.Status,
 		Note:   entry.Note,
 	}, cfg, now)
+	projects := []project.Project{enriched}
+	attachPorts(projects, detectPorts([]string{path}))
+	return projects[0]
+}
+
+func projectPaths(projects []project.Project) []string {
+	paths := make([]string, 0, len(projects))
+	for _, project := range projects {
+		paths = append(paths, project.Path)
+	}
+	return paths
+}
+
+func attachPorts(projects []project.Project, portsByPath map[string][]int) {
+	for index := range projects {
+		projects[index].Ports = portsByPath[projects[index].Path]
+	}
 }
 
 func UpdateProjectMetadata(target string, update MetadataUpdate) (MetadataUpdateResult, error) {
