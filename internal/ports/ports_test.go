@@ -113,3 +113,27 @@ func TestMapPortHintsToProjectsUsesCommandLinePath(t *testing.T) {
 		t.Fatalf("mapPortHintsToProjects() = %#v, want %#v", got, want)
 	}
 }
+
+func TestMapPortHintsToProjectsRejectsSiblingPathPrefix(t *testing.T) {
+	processes := []processPorts{
+		{PID: 100, Ports: []int{3000}, PathHint: "node /home/me/dev/app-old/server.js"},
+		{PID: 200, Ports: []int{5173}, PathHint: "node /home/me/dev/application/server.js"},
+	}
+
+	got := mapPortHintsToProjects([]string{"/home/me/dev/app"}, processes)
+	if len(got) != 0 {
+		t.Fatalf("mapPortHintsToProjects() = %#v, want no matches", got)
+	}
+}
+
+func TestMapPortHintsToProjectsRejectsWindowsSiblingPathPrefix(t *testing.T) {
+	processes := []processPorts{
+		{PID: 100, Ports: []int{3000}, PathHint: "node C:\\Users\\me\\dev\\app-old\\server.js"},
+		{PID: 200, Ports: []int{5173}, PathHint: "node C:\\Users\\me\\dev\\application\\server.js"},
+	}
+
+	got := mapPortHintsToProjects([]string{"C:/Users/me/dev/app"}, processes)
+	if len(got) != 0 {
+		t.Fatalf("mapPortHintsToProjects() = %#v, want no matches", got)
+	}
+}

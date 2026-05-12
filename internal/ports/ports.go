@@ -380,7 +380,33 @@ func matchesProjectPath(projectPath, value string) bool {
 	}
 	projectPath = normalizePathText(projectPath)
 	value = normalizePathText(value)
-	return strings.Contains(value, projectPath)
+	return containsProjectPathHint(value, projectPath)
+}
+
+func containsProjectPathHint(value, projectPath string) bool {
+	if projectPath == "" {
+		return false
+	}
+	start := 0
+	for {
+		index := strings.Index(value[start:], projectPath)
+		if index < 0 {
+			return false
+		}
+		index += start
+		after := index + len(projectPath)
+		if after == len(value) || isPathHintBoundary(value[after]) {
+			return true
+		}
+		start = index + 1
+	}
+}
+
+func isPathHintBoundary(char byte) bool {
+	return char == '/' || char == ' ' || char == '\t' || char == '\n' || char == '\r' ||
+		char == '"' || char == '\'' || char == '`' ||
+		char == ')' || char == ']' || char == '}' ||
+		char == ';' || char == ',' || char == ':'
 }
 
 func normalizePathText(value string) string {
