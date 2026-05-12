@@ -103,6 +103,7 @@ ovw --dirty                  # filter dirty projects
 ovw --stale                  # filter stale projects
 ovw --untagged               # filter projects without status
 ovw --sort name:asc          # sort by name
+ovw --sort updated:desc      # sort by exact updated time
 ovw --sort activity:desc     # sort by activity
 
 ovw config path              # print config path
@@ -121,7 +122,7 @@ columns = ["name", "stack", "activity", "status", "note"]
 Available columns:
 
 ```toml
-columns = ["name", "path", "stack", "manager", "scripts", "version", "ports", "activity", "status", "note"]
+columns = ["name", "path", "stack", "manager", "scripts", "version", "ports", "branch", "updated", "activity", "status", "note"]
 ```
 
 `ovw` stores user metadata only: hidden projects, status, and notes. Detected

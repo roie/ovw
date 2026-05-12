@@ -239,7 +239,7 @@ func TestLoadOverviewRejectsInvalidSort(t *testing.T) {
 	}
 
 	_, err = LoadOverview(Options{Sort: "recent", Cwd: root, In: strings.NewReader("\n")})
-	if err == nil || err.Error() != `invalid sort "recent": expected activity, name, or status` {
+	if err == nil || err.Error() != `invalid sort "recent": expected activity, updated, name, or status` {
 		t.Fatalf("LoadOverview() error = %v", err)
 	}
 }

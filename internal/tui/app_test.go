@@ -1531,7 +1531,7 @@ func TestModelColumnPickerTogglesAndSavesColumns(t *testing.T) {
 		t.Fatalf("screen = %v, want columns", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Columns", "[x] name", "[ ] path", "space toggle", "←→ reorder", "enter save"} {
+	for _, want := range []string{"Columns", "[x] name", "[ ] path", "[ ] branch", "[ ] updated", "space toggle", "←→ reorder", "enter save"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("columns modal missing %q:\n%s", want, view)
 		}
@@ -1659,11 +1659,12 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 		t.Fatalf("sort view missing name option:\n%s", model.View())
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Name", "Sort", "> activity   desc", "name", "enter apply", "<-> direction", "esc"} {
+	for _, want := range []string{"Name", "Sort", "> activity   desc", "updated", "name", "enter apply", "<-> direction", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("sort modal view missing %q:\n%s", want, view)
 		}
 	}
+	model = updateKey(t, model, "j")
 	model = updateKey(t, model, "j")
 	if !strings.Contains(stripANSI(model.View()), "> name   desc") {
 		t.Fatalf("selected sort row should show direction:\n%s", stripANSI(model.View()))

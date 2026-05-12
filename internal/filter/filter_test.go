@@ -114,6 +114,10 @@ func TestSortModes(t *testing.T) {
 	if got[0].Name != "beta" {
 		t.Fatalf("activity sort = %#v", got)
 	}
+	got = Sort(projects, "updated", config.Default())
+	if got[0].Name != "beta" {
+		t.Fatalf("updated sort = %#v", got)
+	}
 	got = Sort(projects, "name:desc", config.Default())
 	if got[0].Name != "beta" {
 		t.Fatalf("name desc inline sort = %#v", got)
@@ -158,7 +162,7 @@ func TestSortDirectionAppliesToNameAndStatus(t *testing.T) {
 
 func TestValidateSortRejectsUnknownValue(t *testing.T) {
 	err := ValidateSort("recent")
-	if err == nil || err.Error() != `invalid sort "recent": expected activity, name, or status` {
+	if err == nil || err.Error() != `invalid sort "recent": expected activity, updated, name, or status` {
 		t.Fatalf("ValidateSort() error = %v", err)
 	}
 	err = ValidateSort("name:up")
@@ -169,7 +173,7 @@ func TestValidateSortRejectsUnknownValue(t *testing.T) {
 	if err == nil || err.Error() != `invalid sort "name:": expected direction asc or desc` {
 		t.Fatalf("ValidateSort() error = %v", err)
 	}
-	for _, value := range []string{"", "activity", "name", "status", "name:asc", "activity:desc"} {
+	for _, value := range []string{"", "activity", "updated", "name", "status", "name:asc", "updated:desc", "activity:desc"} {
 		if err := ValidateSort(value); err != nil {
 			t.Fatalf("ValidateSort(%q) error = %v", value, err)
 		}

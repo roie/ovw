@@ -29,6 +29,16 @@ func ColumnValue(project project.Project, column, displayName string) string {
 		return project.Version
 	case "ports":
 		return portsDisplay(project.Ports)
+	case "branch":
+		if project.Activity.Branch == "" {
+			return "—"
+		}
+		return project.Activity.Branch
+	case "updated":
+		if project.Activity.LastCommitAt.IsZero() {
+			return "—"
+		}
+		return project.Activity.LastCommitAt.Format("2006-01-02 15:04")
 	case "activity":
 		return project.Activity.Display
 	case "status":

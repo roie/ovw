@@ -71,6 +71,30 @@ func TestColumnValueShowsPorts(t *testing.T) {
 	}
 }
 
+func TestColumnValueShowsBranch(t *testing.T) {
+	proj := project.Project{Activity: format.ActivityInfo{Branch: "feat/pins"}}
+
+	if got := ColumnValue(proj, "branch", "app"); got != "feat/pins" {
+		t.Fatalf("ColumnValue(branch) = %q, want feat/pins", got)
+	}
+	if got := ColumnValue(project.Project{}, "branch", "app"); got != "—" {
+		t.Fatalf("ColumnValue(empty branch) = %q, want —", got)
+	}
+}
+
+func TestColumnValueShowsUpdatedTimestamp(t *testing.T) {
+	proj := project.Project{Activity: format.ActivityInfo{
+		LastCommitAt: time.Date(2026, 5, 12, 9, 30, 0, 0, time.UTC),
+	}}
+
+	if got := ColumnValue(proj, "updated", "app"); got != "2026-05-12 09:30" {
+		t.Fatalf("ColumnValue(updated) = %q, want 2026-05-12 09:30", got)
+	}
+	if got := ColumnValue(project.Project{}, "updated", "app"); got != "—" {
+		t.Fatalf("ColumnValue(empty updated) = %q, want —", got)
+	}
+}
+
 func TestFieldsDoNotExposeRedundantGitOrLastCommitFields(t *testing.T) {
 	project := project.Project{
 		Path:   "/tmp/eventca",

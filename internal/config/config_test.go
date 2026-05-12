@@ -108,7 +108,7 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				cfg.Columns = []string{"name", "url"}
 				return cfg
 			},
-			want: `invalid column "url": expected name, path, stack, manager, scripts, version, ports, activity, status, or note`,
+			want: `invalid column "url": expected name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, or note`,
 		},
 		{
 			name: "unknown sort",
@@ -116,7 +116,7 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				cfg.SortBy = "recent"
 				return cfg
 			},
-			want: `invalid sort_by "recent": expected activity, name, or status`,
+			want: `invalid sort_by "recent": expected activity, updated, name, or status`,
 		},
 		{
 			name: "unknown sort dir",
@@ -188,7 +188,7 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !strings.Contains(text, `columns = ["name", "stack", "activity", "status", "note"]`) {
 		t.Fatalf("default config missing status column:\n%s", text)
 	}
-	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, activity, status, note") {
+	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note") {
 		t.Fatalf("default config missing column options comment:\n%s", text)
 	}
 	if strings.Contains(text, "show_untagged") || strings.Contains(text, "relative_dates") {

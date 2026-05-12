@@ -87,7 +87,7 @@ func Sort(projects []project.Project, mode string, cfg config.Config) []project.
 				return out[i].Status.Value > out[j].Status.Value
 			}
 			return out[i].Status.Value < out[j].Status.Value
-		case "activity":
+		case "activity", "updated":
 			fallthrough
 		default:
 			left := out[i].Activity.LastCommitAt
@@ -151,7 +151,7 @@ func parseSortValue(mode string) (string, string, error) {
 	}
 	parts := strings.Split(mode, ":")
 	if len(parts) > 2 {
-		return "", "", fmt.Errorf("invalid sort %q: expected activity, name, or status", mode)
+		return "", "", fmt.Errorf("invalid sort %q: expected activity, updated, name, or status", mode)
 	}
 	by := parts[0]
 	dir := ""
@@ -162,9 +162,9 @@ func parseSortValue(mode string) (string, string, error) {
 		}
 	}
 	switch by {
-	case "activity", "name", "status":
+	case "activity", "updated", "name", "status":
 	default:
-		return "", "", fmt.Errorf("invalid sort %q: expected activity, name, or status", mode)
+		return "", "", fmt.Errorf("invalid sort %q: expected activity, updated, name, or status", mode)
 	}
 	if dir != "" && dir != "asc" && dir != "desc" {
 		return "", "", fmt.Errorf("invalid sort %q: expected direction asc or desc", mode)

@@ -83,7 +83,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Stale, "stale", false, "show stale projects")
 	cmd.Flags().BoolVar(&opts.Untagged, "untagged", false, "show projects without status")
 	cmd.Flags().BoolVar(&opts.Hidden, "hidden", false, "show hidden projects")
-	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, name, or status; optional :asc or :desc")
+	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort by activity, updated, name, or status; optional :asc or :desc")
 	cmd.AddCommand(newAddCommand())
 	cmd.AddCommand(newVisibilityCommand("hide", true))
 	cmd.AddCommand(newVisibilityCommand("remove", true))
@@ -138,7 +138,7 @@ Flags:
   --stale           show stale projects
   --untagged        show projects without status
   --hidden          show hidden projects
-  --sort string     sort by activity, name, or status; optional :asc or :desc
+  --sort string     sort by activity, updated, name, or status; optional :asc or :desc
   -h, --help        help for ovw
   -v, --version     version for ovw
 

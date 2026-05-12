@@ -150,7 +150,7 @@ func Validate(cfg Config) error {
 		}
 	}
 	if !validSortBy(cfg.SortBy) {
-		return fmt.Errorf("invalid sort_by %q: expected activity, name, or status", cfg.SortBy)
+		return fmt.Errorf("invalid sort_by %q: expected activity, updated, name, or status", cfg.SortBy)
 	}
 	if cfg.SortDir != "asc" && cfg.SortDir != "desc" {
 		return fmt.Errorf("invalid sort_dir %q: expected asc or desc", cfg.SortDir)
@@ -160,7 +160,7 @@ func Validate(cfg Config) error {
 
 func validSortBy(sortBy string) bool {
 	switch sortBy {
-	case "activity", "name", "status":
+	case "activity", "updated", "name", "status":
 		return true
 	default:
 		return false
@@ -442,10 +442,10 @@ statuses = ["active", "parked", "shipped", "idea"]
 # ─────────────────────────────────────────
 
 # Columns to show and their order.
-# Options: name, path, stack, manager, scripts, version, ports, activity, status, note
+# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note
 columns = ["name", "stack", "activity", "status", "note"]
 
-# Default sort column. Options: activity, name, status
+# Default sort column. Options: activity, updated, name, status
 sort_by = "activity"
 
 # Sort direction. Options: asc, desc

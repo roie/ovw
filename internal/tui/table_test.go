@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
@@ -97,7 +98,8 @@ func TestTableViewScrollsToSelectedRowWithinHeight(t *testing.T) {
 
 func TestTableViewFollowsConfiguredColumns(t *testing.T) {
 	cfg := config.Default()
-	cfg.Columns = []string{"name", "path", "manager", "scripts", "version", "status"}
+	cfg.Columns = []string{"name", "path", "manager", "scripts", "version", "branch", "updated", "status"}
+	updated := time.Date(2026, 5, 12, 9, 30, 0, 0, time.Local)
 	got := tableView([]project.Project{
 		{
 			Name:     "eventca",
@@ -105,11 +107,12 @@ func TestTableViewFollowsConfiguredColumns(t *testing.T) {
 			Managers: []string{"pnpm"},
 			Scripts:  []string{"dev", "build"},
 			Version:  "1.2.3",
+			Activity: ovwformat.ActivityInfo{Branch: "feat/pins", LastCommitAt: updated},
 			Status:   ovwformat.StatusFromTags("", []string{"active"}),
 		},
 	}, -1, 100, 0, 0, cfg, "name", "asc")
 
-	for _, want := range []string{"Name ↑", "Path", "Manager", "Scripts", "Version", "Status", "eventca", "/tmp/eventca", "pnpm", "dev, build", "1.2.3", "active"} {
+	for _, want := range []string{"Name ↑", "Path", "Manager", "Scripts", "Version", "Branch", "Updated", "Status", "eventca", "/tmp/eventca", "pnpm", "dev, build", "1.2.3", "feat/pins", "2026-05-12 09:30", "active"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing configured column value %q:\n%s", want, got)
 		}

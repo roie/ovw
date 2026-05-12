@@ -14,6 +14,7 @@ type sortOption struct {
 func sortOptions() []sortOption {
 	return []sortOption{
 		{Label: "activity", Value: "activity"},
+		{Label: "updated", Value: "updated"},
 		{Label: "name", Value: "name"},
 		{Label: "status", Value: "status"},
 	}
