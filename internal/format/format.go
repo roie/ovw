@@ -7,6 +7,7 @@ import (
 
 	"ovw/internal/config"
 	"ovw/internal/gitactivity"
+	"ovw/internal/recentfiles"
 )
 
 type ActivityInfo struct {
@@ -26,6 +27,11 @@ type RecentCommit struct {
 	Hash    string
 	Subject string
 	Age     string
+}
+
+type RecentFile struct {
+	Path string
+	Age  string
 }
 
 type NoteInfo struct {
@@ -74,6 +80,17 @@ func RecentCommits(commits []gitactivity.CommitInfo, now time.Time) []RecentComm
 			Hash:    commit.Hash,
 			Subject: commit.Subject,
 			Age:     RelativeAge(commit.At, now),
+		})
+	}
+	return out
+}
+
+func RecentFiles(files []recentfiles.File, now time.Time) []RecentFile {
+	out := make([]RecentFile, 0, len(files))
+	for _, file := range files {
+		out = append(out, RecentFile{
+			Path: file.Path,
+			Age:  RelativeAge(file.ModifiedAt, now),
 		})
 	}
 	return out

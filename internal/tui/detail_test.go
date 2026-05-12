@@ -325,6 +325,38 @@ func TestDetailSummaryShowsRecentCommits(t *testing.T) {
 	mustAppearInOrder(t, got, []string{"Note", "Value note", "Recent"})
 }
 
+func TestDetailSummaryShowsRecentFiles(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.RecentFiles = []ovwformat.RecentFile{
+		{Path: "internal/tui/app.go", Age: "4m"},
+		{Path: "README.md", Age: "12m"},
+	}
+
+	got := stripANSI(detailSummaryView(project, 60))
+	for _, want := range []string{
+		"Recent files",
+		"internal/tui/app.go",
+		"4m",
+		"README.md",
+		"12m",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("detail summary missing recent file %q:\n%s", want, got)
+		}
+	}
+	mustAppearInOrder(t, got, []string{"Note", "Value note", "Recent files"})
+}
+
+func TestDetailSummaryHidesRecentFilesWhenEmpty(t *testing.T) {
+	project := detailTestProject("eventca")
+	project.RecentFiles = nil
+
+	got := stripANSI(detailSummaryView(project, 60))
+	if strings.Contains(got, "Recent files") {
+		t.Fatalf("detail summary should hide empty recent files:\n%s", got)
+	}
+}
+
 func TestDetailSummaryLimitsFallbackNotePreview(t *testing.T) {
 	project := detailTestProject("ripgrep")
 	project.Note = ovwformat.NoteInfo{

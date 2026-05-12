@@ -6,6 +6,7 @@ import (
 
 	"ovw/internal/config"
 	"ovw/internal/gitactivity"
+	"ovw/internal/recentfiles"
 )
 
 func TestActivityDisplayIncludesAgeAndUnpushed(t *testing.T) {
@@ -55,6 +56,18 @@ func TestActivityFormatsRecentCommits(t *testing.T) {
 	}
 	if got[1].Age != "2h" {
 		t.Fatalf("RecentCommits[1] = %#v", got[1])
+	}
+}
+
+func TestRecentFilesFormatsModifiedAge(t *testing.T) {
+	now := time.Date(2026, 5, 12, 12, 0, 0, 0, time.Local)
+	files := []recentfiles.File{
+		{Path: "internal/tui/app.go", ModifiedAt: now.Add(-4 * time.Minute)},
+	}
+
+	got := RecentFiles(files, now)
+	if len(got) != 1 || got[0].Path != "internal/tui/app.go" || got[0].Age != "4m" {
+		t.Fatalf("RecentFiles() = %#v", got)
 	}
 }
 

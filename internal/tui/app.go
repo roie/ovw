@@ -12,6 +12,7 @@ import (
 	ovwformat "ovw/internal/format"
 	"ovw/internal/gitactivity"
 	"ovw/internal/project"
+	"ovw/internal/recentfiles"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -26,6 +27,7 @@ type projectAdder func(string) (app.AddProjectResult, error)
 type editorRunner func(string, string) error
 type terminalRunner func(string, string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
+type recentFilesLoader func(string, []string, time.Time) ([]ovwformat.RecentFile, error)
 type configWriter func(string, config.Config) error
 
 var terminalTitleWriter io.Writer = os.Stdout
@@ -58,6 +60,7 @@ type Model struct {
 	editor       editorRunner
 	terminal     terminalRunner
 	recent       recentLoader
+	recentFiles  recentFilesLoader
 	configWriter configWriter
 
 	width           int
@@ -102,6 +105,7 @@ type Model struct {
 	projects        []project.Project
 	scanElapsed     time.Duration
 	recentByPath    map[string][]ovwformat.RecentCommit
+	filesByPath     map[string][]ovwformat.RecentFile
 }
 
 func New() Model {
@@ -123,12 +127,14 @@ func NewWithOptions(opts app.Options) Model {
 		editor:        OpenEditor,
 		terminal:      runTerminal,
 		recent:        loadRecentCommits,
+		recentFiles:   loadRecentFiles,
 		configWriter:  config.Write,
 		activeFilter:  optionsFromRequest(opts),
 		activeSort:    sortFromRequest(opts),
 		activeSortDir: sortDirFromRequest(opts),
 		loading:       true,
 		recentByPath:  map[string][]ovwformat.RecentCommit{},
+		filesByPath:   map[string][]ovwformat.RecentFile{},
 	}
 }
 
@@ -303,6 +309,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.filesByPath = map[string][]ovwformat.RecentFile{}
 		if msg.message != "" {
 			m.message = msg.message
 		}
@@ -339,6 +346,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.filesByPath = map[string][]ovwformat.RecentFile{}
 		m.message = "Project root saved"
 		m.detailYOffset = 0
 		return m, m.loadSelectedRecent()
@@ -351,6 +359,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scanElapsed = msg.result.Elapsed
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.filesByPath = map[string][]ovwformat.RecentFile{}
 		m.message = msg.message
 		if msg.preservePath != "" {
 			m.selectProjectPath(msg.preservePath)
@@ -369,6 +378,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.filesByPath = map[string][]ovwformat.RecentFile{}
 		m.screen = screenTable
 		m.message = msg.message
 		m.addInput = ""
@@ -391,8 +401,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.recentByPath == nil {
 			m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		}
-		if msg.err == nil {
+		if m.filesByPath == nil {
+			m.filesByPath = map[string][]ovwformat.RecentFile{}
+		}
+		if msg.commitErr == nil {
 			m.recentByPath[msg.path] = msg.commits
+		}
+		if msg.fileErr == nil {
+			m.filesByPath[msg.path] = msg.files
 		}
 	case columnsSavedMsg:
 		m.loading = false
@@ -941,6 +957,9 @@ func (m Model) currentScrollableDetail() (string, int) {
 	if commits, ok := m.recentByPath[detail.Path]; ok {
 		detail.Activity.RecentCommits = commits
 	}
+	if files, ok := m.filesByPath[detail.Path]; ok {
+		detail.RecentFiles = files
+	}
 	return scrollableDetailSummary(detail, detailWidth, m.tableHeight(), m.detailYOffset)
 }
 
@@ -1032,9 +1051,11 @@ type terminalFailedMsg struct {
 }
 
 type recentLoadedMsg struct {
-	path    string
-	commits []ovwformat.RecentCommit
-	err     error
+	path      string
+	commits   []ovwformat.RecentCommit
+	files     []ovwformat.RecentFile
+	commitErr error
+	fileErr   error
 }
 
 type columnsSavedMsg struct {
@@ -1260,10 +1281,15 @@ func (m Model) loadSelectedRecent() tea.Cmd {
 		return nil
 	}
 	project, ok := m.currentProject()
-	if !ok || !project.Activity.HasGit || !project.Activity.HasCommits {
+	if !ok {
 		return nil
 	}
-	if _, ok := m.recentByPath[project.Path]; ok {
+	commitsCached := true
+	if project.Activity.HasGit && project.Activity.HasCommits {
+		_, commitsCached = m.recentByPath[project.Path]
+	}
+	_, filesCached := m.filesByPath[project.Path]
+	if commitsCached && filesCached {
 		return nil
 	}
 	path := project.Path
@@ -1271,9 +1297,26 @@ func (m Model) loadSelectedRecent() tea.Cmd {
 	if loader == nil {
 		loader = loadRecentCommits
 	}
+	fileLoader := m.recentFiles
+	if fileLoader == nil {
+		fileLoader = loadRecentFiles
+	}
+	ignoreDirs := append([]string{}, m.config.IgnoreDirs...)
+	loadCommits := project.Activity.HasGit && project.Activity.HasCommits && !commitsCached
+	loadFiles := !filesCached
 	return func() tea.Msg {
-		commits, err := loader(path, time.Now())
-		return recentLoadedMsg{path: path, commits: commits, err: err}
+		now := time.Now()
+		var commits []ovwformat.RecentCommit
+		var commitErr error
+		if loadCommits {
+			commits, commitErr = loader(path, now)
+		}
+		var files []ovwformat.RecentFile
+		var fileErr error
+		if loadFiles {
+			files, fileErr = fileLoader(path, ignoreDirs, now)
+		}
+		return recentLoadedMsg{path: path, commits: commits, files: files, commitErr: commitErr, fileErr: fileErr}
 	}
 }
 
@@ -1283,6 +1326,14 @@ func loadRecentCommits(path string, now time.Time) ([]ovwformat.RecentCommit, er
 		return nil, err
 	}
 	return ovwformat.RecentCommits(commits, now), nil
+}
+
+func loadRecentFiles(path string, ignoreDirs []string, now time.Time) ([]ovwformat.RecentFile, error) {
+	files, err := recentfiles.Detect(path, ignoreDirs, 5)
+	if err != nil {
+		return nil, err
+	}
+	return ovwformat.RecentFiles(files, now), nil
 }
 
 type errNoProjectSelected struct{}
@@ -1499,6 +1550,9 @@ func (m Model) tablePanel(visible []project.Project) string {
 			detail, _ := m.currentProject()
 			if commits, ok := m.recentByPath[detail.Path]; ok {
 				detail.Activity.RecentCommits = commits
+			}
+			if files, ok := m.filesByPath[detail.Path]; ok {
+				detail.RecentFiles = files
 			}
 			detailText, maxOffset := scrollableDetailSummary(detail, detailWidth, tableHeight, m.detailYOffset)
 			if m.detailYOffset > maxOffset {

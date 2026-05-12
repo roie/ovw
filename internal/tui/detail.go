@@ -147,6 +147,7 @@ func detailSummaryView(project project.Project, width int) string {
 	for _, field := range fields {
 		addSummaryLine(field)
 	}
+	addRecentFiles(&lines, project.RecentFiles, contentWidth)
 	addRecentCommits(&lines, project.Activity.RecentCommits, contentWidth)
 	return strings.Join(lines, "\n")
 }
@@ -232,6 +233,34 @@ func addSummaryNote(lines *[]string, note string, width int, source string) {
 
 func isFallbackNoteSource(source string) bool {
 	return source == "commit" || source == "description"
+}
+
+func addRecentFiles(lines *[]string, files []ovwformat.RecentFile, width int) {
+	if len(files) == 0 {
+		return
+	}
+	if len(*lines) > 1 {
+		*lines = append(*lines, "")
+	}
+	*lines = append(*lines, truncateText("Recent files", width))
+	for _, file := range files {
+		*lines = append(*lines, recentFileLine(file, width))
+	}
+}
+
+func recentFileLine(file ovwformat.RecentFile, width int) string {
+	ageWidth := len([]rune(file.Age))
+	gap := 2
+	pathWidth := width - ageWidth - gap
+	if pathWidth < 8 {
+		return truncateText(file.Path, width)
+	}
+	path := truncateText(file.Path, pathWidth)
+	padding := width - len([]rune(path)) - ageWidth
+	if padding < 1 {
+		padding = 1
+	}
+	return path + strings.Repeat(" ", padding) + file.Age
 }
 
 func scrollDetailModalLines(lines []string, height int, offset int, width int) ([]string, int) {

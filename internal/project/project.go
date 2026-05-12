@@ -18,6 +18,7 @@ type Project struct {
 	Activity     format.ActivityInfo `json:"activity"`
 	Status       format.StatusInfo   `json:"status"`
 	Note         format.NoteInfo     `json:"note"`
+	RecentFiles  []format.RecentFile `json:"-"`
 	Hidden       bool                `json:"hidden"`
 	Pinned       bool                `json:"pinned"`
 	Description  string              `json:"-"`

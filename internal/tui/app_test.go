@@ -823,6 +823,40 @@ func TestModelLoadsRecentCommitsOnlyForWideSidepane(t *testing.T) {
 	}
 }
 
+func TestModelLoadsRecentFilesForWideSidepaneWithoutGit(t *testing.T) {
+	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
+		return app.OverviewResult{
+			Config: config.Default(),
+			Projects: []project.Project{
+				{Name: "app", Path: "/tmp/app", StackDisplay: "Go"},
+			},
+		}, nil
+	})
+	model.width = 140
+	model.height = 24
+	model.recentFiles = func(path string, ignoreDirs []string, now time.Time) ([]ovwformat.RecentFile, error) {
+		if path != "/tmp/app" {
+			t.Fatalf("recent files path = %q, want /tmp/app", path)
+		}
+		return []ovwformat.RecentFile{{Path: "internal/tui/app.go", Age: "4m"}}, nil
+	}
+
+	updated, cmd := model.Update(model.Init()())
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected lazy recent files command for wide sidepane")
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+
+	view := stripANSI(model.View())
+	for _, want := range []string{"Recent files", "internal/tui/app.go", "4m"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("wide sidepane missing %q:\n%s", want, view)
+		}
+	}
+}
+
 func TestModelDoesNotLoadRecentCommitsForNarrowLayout(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{
