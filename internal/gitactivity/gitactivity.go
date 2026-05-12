@@ -48,7 +48,7 @@ func Detect(path string) Info {
 	if message, err := run(path, "log", "-1", "--format=%B"); err == nil {
 		info.LastCommitMessage = strings.TrimSpace(message)
 	}
-	if status, err := run(path, "status", "--porcelain"); err == nil {
+	if status, err := run(path, "status", "--porcelain", "--untracked-files=no"); err == nil {
 		info.Dirty = strings.TrimSpace(status) != ""
 	}
 	if count, err := run(path, "rev-list", "--count", "@{upstream}..HEAD"); err == nil {

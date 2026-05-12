@@ -57,6 +57,23 @@ func TestDetectCommitBranchAndDirty(t *testing.T) {
 	}
 }
 
+func TestDetectDirtyIgnoresUntrackedFiles(t *testing.T) {
+	dir := gitRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "tracked.txt"), []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, dir, "add", "tracked.txt")
+	git(t, dir, "commit", "-m", "initial commit")
+	if err := os.WriteFile(filepath.Join(dir, "untracked.txt"), []byte("two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	info := Detect(dir)
+	if info.Dirty {
+		t.Fatalf("Dirty = true for untracked-only repo: %#v", info)
+	}
+}
+
 func TestDetectDetachedHeadBranch(t *testing.T) {
 	dir := gitRepo(t)
 	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("one"), 0o644); err != nil {
