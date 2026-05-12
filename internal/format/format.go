@@ -87,13 +87,16 @@ func isStale(activity ActivityInfo, cfg config.Config, now time.Time) bool {
 }
 
 func Tags(activity ActivityInfo, status string, cfg config.Config, now time.Time) []string {
+	if status != "" {
+		return []string{status}
+	}
 	if !activity.HasGit {
-		return appendManualTag([]string{}, status)
+		return []string{}
 	}
 	tags := []string{}
 	if !activity.HasCommits {
 		tags = append(tags, "no commits")
-		return appendManualTag(tags, status)
+		return tags
 	}
 	if activity.Dirty {
 		tags = append(tags, "dirty")
@@ -103,19 +106,7 @@ func Tags(activity ActivityInfo, status string, cfg config.Config, now time.Time
 	} else if len(tags) == 0 {
 		tags = append(tags, "active")
 	}
-	return appendManualTag(tags, status)
-}
-
-func appendManualTag(tags []string, status string) []string {
-	if status == "" {
-		return tags
-	}
-	for _, tag := range tags {
-		if tag == status {
-			return tags
-		}
-	}
-	return append(tags, status)
+	return tags
 }
 
 func TagDisplay(tags []string) string {
@@ -181,7 +172,7 @@ func Note(userNote, description string, activity gitactivity.Info, cfg config.Co
 	if text == "" {
 		return note
 	}
-	if cfg.NoteShowBranch && activity.Branch != "" && !isDefaultBranch(activity.Branch, cfg.DefaultBranches) {
+	if note.Source != "user" && cfg.NoteShowBranch && activity.Branch != "" && !isDefaultBranch(activity.Branch, cfg.DefaultBranches) {
 		text = activity.Branch + " · " + text
 	}
 	note.Display = text

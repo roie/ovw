@@ -101,9 +101,9 @@ func TestTagsBuildAutomaticAndManualStatusTags(t *testing.T) {
 	}{
 		{name: "no git", info: ActivityInfo{}, want: []string{}},
 		{name: "no git user", info: ActivityInfo{}, status: "parked", want: []string{"parked"}},
-		{name: "no commits", info: ActivityInfo{HasGit: true}, status: "parked", want: []string{"no commits", "parked"}},
-		{name: "dirty stale user", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "stale", "parked"}},
-		{name: "dirty unpushed stale user", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"dirty", "stale", "parked"}},
+		{name: "no commits user", info: ActivityInfo{HasGit: true}, status: "parked", want: []string{"parked"}},
+		{name: "dirty stale user", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"parked"}},
+		{name: "dirty unpushed stale user", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -60)}, status: "parked", want: []string{"parked"}},
 		{name: "dirty recent", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"dirty"}},
 		{name: "unpushed recent", info: ActivityInfo{HasGit: true, HasCommits: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"active"}},
 		{name: "dirty unpushed recent", info: ActivityInfo{HasGit: true, HasCommits: true, Dirty: true, Unpushed: 2, LastCommitAt: now.AddDate(0, 0, -2)}, want: []string{"dirty"}},
@@ -125,6 +125,25 @@ func TestTagsBuildAutomaticAndManualStatusTags(t *testing.T) {
 	}
 }
 
+func TestUserStatusDisplayDoesNotIncludeGeneratedTags(t *testing.T) {
+	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
+	activity := ActivityInfo{
+		HasGit:       true,
+		HasCommits:   true,
+		Dirty:        true,
+		Unpushed:     9,
+		LastCommitAt: now.AddDate(0, 0, -60),
+	}
+
+	got := Status(activity, "blocked", config.Default(), now)
+	if got.Display != "blocked" || got.Value != "blocked" {
+		t.Fatalf("Status() = %#v, want clean user status", got)
+	}
+	if len(got.Tags) != 1 || got.Tags[0] != "blocked" {
+		t.Fatalf("Status tags = %#v, want blocked only", got.Tags)
+	}
+}
+
 func TestTagDisplay(t *testing.T) {
 	if got := TagDisplay([]string{"dirty", "unpushed", "stale", "parked"}); got != "dirty · unpushed · stale · parked" {
 		t.Fatalf("TagDisplay() = %q", got)
@@ -136,7 +155,7 @@ func TestNoteFallbackChain(t *testing.T) {
 	info := gitactivity.Info{Branch: "feat/checkin", LastCommitMessage: "commit msg"}
 
 	got := Note("user note", "description", info, cfg)
-	if got.Display != "feat/checkin · user note" || got.Source != "user" || got.Value != "user note" {
+	if got.Display != "user note" || got.Source != "user" || got.Value != "user note" {
 		t.Fatalf("user note = %#v", got)
 	}
 
