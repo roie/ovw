@@ -25,6 +25,7 @@ import (
 type Options struct {
 	Plain    bool
 	JSON     bool
+	Open     bool
 	Status   string
 	Path     string
 	Dirty    bool

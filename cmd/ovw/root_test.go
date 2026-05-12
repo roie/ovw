@@ -61,6 +61,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"unset     Clear project status or note",
 		"config    Manage ovw config",
 		"--json            output JSON for overview or project",
+		"-o, --open        open project in editor",
 		"--path string     filter by project path",
 		"--status string   filter by status",
 	} {
@@ -100,6 +101,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 	mustAppearInOrder(t, got, []string{
 		"--json            output JSON for overview or project",
 		"--plain           force plain table output",
+		"-o, --open        open project in editor",
 		"--path string     filter by project path",
 		"--status string   filter by status",
 		"--dirty           show dirty projects",
@@ -984,6 +986,66 @@ func TestRootArgShowsSingleProjectJSON(t *testing.T) {
 	}
 }
 
+func TestRootArgOpenProjectUsesConfiguredEditor(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, "dev")
+	t.Setenv("HOME", home)
+	projectPath := filepath.Join(root, "scanned")
+	if err := os.MkdirAll(projectPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectPath, "go.mod"), []byte("module scanned"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	editorPath := writeEditorRecorder(t, filepath.Join(home, "opened.txt"))
+	configPath := configForTest(t, root)
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Editor = editorPath
+	if err := config.Write(configPath, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	out := runCommand(t, []string{"scanned", "--open"})
+	if strings.TrimSpace(out) != "Opened scanned." {
+		t.Fatalf("open output = %q", out)
+	}
+	got, err := os.ReadFile(filepath.Join(home, "opened.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(got)) != projectPath {
+		t.Fatalf("opened path = %q, want %q", strings.TrimSpace(string(got)), projectPath)
+	}
+}
+
+func TestOpenRequiresProjectName(t *testing.T) {
+	_, err := executeCommand([]string{"--open"})
+	if err == nil || err.Error() != "pass a project name with --open" {
+		t.Fatalf("Execute(--open) error = %v", err)
+	}
+}
+
+func TestOpenAndJSONAreMutuallyExclusive(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, "dev")
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(root, "scanned"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scanned", "go.mod"), []byte("module scanned"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configForTest(t, root)
+
+	_, err := executeCommand([]string{"scanned", "--json", "--open"})
+	if err == nil || err.Error() != "choose only one action: --json or --open" {
+		t.Fatalf("Execute(--json --open) error = %v", err)
+	}
+}
+
 func TestDetailActivityDoesNotAppendAgoToNow(t *testing.T) {
 	got := detailActivity(project.Project{
 		Activity: format.ActivityInfo{
@@ -1073,4 +1135,15 @@ func writePackage(t *testing.T, dir, data string) {
 	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(data), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeEditorRecorder(t *testing.T, outputPath string) string {
+	t.Helper()
+	scriptPath := filepath.Join(t.TempDir(), "editor")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$1\" > \"$OVW_EDITOR_OUTPUT\"\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OVW_EDITOR_OUTPUT", outputPath)
+	return scriptPath
 }

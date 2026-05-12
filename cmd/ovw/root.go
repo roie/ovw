@@ -42,7 +42,10 @@ func NewRootCommand() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
-				return runShow(cmd, args[0], opts.JSON)
+				return runShow(cmd, args[0], opts.JSON, opts.Open)
+			}
+			if opts.Open {
+				return fmt.Errorf("pass a project name with --open")
 			}
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -73,6 +76,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.SetUsageTemplate(rootUsageTemplate())
 	cmd.Flags().BoolVar(&opts.Plain, "plain", false, "force plain table output")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "output JSON for overview or project")
+	cmd.Flags().BoolVarP(&opts.Open, "open", "o", false, "open project in editor")
 	cmd.Flags().StringVar(&opts.Path, "path", "", "filter by project path")
 	cmd.Flags().StringVar(&opts.Status, "status", "", "filter by status")
 	cmd.Flags().BoolVar(&opts.Dirty, "dirty", false, "show dirty projects")
@@ -127,6 +131,7 @@ Commands:
 Flags:
   --json            output JSON for overview or project
   --plain           force plain table output
+  -o, --open        open project in editor
   --path string     filter by project path
   --status string   filter by status
   --dirty           show dirty projects
@@ -511,7 +516,7 @@ func newShowCommand() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runShow(cmd, args[0], jsonOutput)
+			return runShow(cmd, args[0], jsonOutput, false)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output JSON")
@@ -530,7 +535,7 @@ Flags:
 `
 }
 
-func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
+func runShow(cmd *cobra.Command, target string, jsonOutput, openProject bool) error {
 	state, err := app.LoadState()
 	if err != nil {
 		return err
@@ -542,7 +547,17 @@ func runShow(cmd *cobra.Command, target string, jsonOutput bool) error {
 	enriched := app.ProjectFromPath(path, state.Config, state.Store, time.Now())
 	out := cmd.OutOrStdout()
 	if jsonOutput {
+		if openProject {
+			return fmt.Errorf("choose only one action: --json or --open")
+		}
 		return render.ProjectJSON(out, enriched)
+	}
+	if openProject {
+		if err := tui.OpenEditor(state.Config.Editor, path); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "Opened %s.\n", filepath.Base(path))
+		return nil
 	}
 	fmt.Fprintf(out, "%s\n", filepath.Base(path))
 	if subtitle := projectview.Subtitle(enriched); subtitle != "" {

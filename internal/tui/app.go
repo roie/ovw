@@ -120,7 +120,7 @@ func NewWithOptions(opts app.Options) Model {
 		updater:       app.UpdateProjectMetadata,
 		visible:       app.SetProjectHidden,
 		adder:         app.AddProject,
-		editor:        runEditor,
+		editor:        OpenEditor,
 		terminal:      runTerminal,
 		recent:        loadRecentCommits,
 		configWriter:  config.Write,

@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func runEditor(editor, path string) error {
+func OpenEditor(editor, path string) error {
 	parts := strings.Fields(editor)
 	if len(parts) == 0 {
 		return errors.New("editor is not configured")
