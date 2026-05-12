@@ -2,6 +2,7 @@ package filter
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 type Options struct {
 	Status   string
+	Path     string
 	Dirty    bool
 	Stale    bool
 	Untagged bool
@@ -26,8 +28,12 @@ type SortSpec struct {
 
 func Apply(projects []project.Project, opts Options, cfg config.Config, now time.Time) ([]project.Project, error) {
 	out := []project.Project{}
+	pathQuery := strings.ToLower(strings.TrimSpace(opts.Path))
 	for _, p := range projects {
 		if opts.Hidden && !p.Hidden {
+			continue
+		}
+		if pathQuery != "" && !projectPathMatches(p.Path, pathQuery) {
 			continue
 		}
 		if opts.Status != "" && p.Status.Value != opts.Status {
@@ -45,6 +51,18 @@ func Apply(projects []project.Project, opts Options, cfg config.Config, now time
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+func projectPathMatches(path, query string) bool {
+	path = strings.ToLower(filepath.ToSlash(path))
+	query = strings.ToLower(filepath.ToSlash(strings.TrimSpace(query)))
+	if query == "" {
+		return true
+	}
+	if strings.Contains(query, "/") {
+		return strings.Contains(path, query)
+	}
+	return strings.Contains(strings.ToLower(filepath.ToSlash(filepath.Dir(path))), query)
 }
 
 func Sort(projects []project.Project, mode string, cfg config.Config) []project.Project {

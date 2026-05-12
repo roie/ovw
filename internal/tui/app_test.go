@@ -586,6 +586,30 @@ func TestModelHeaderShowsAllFilter(t *testing.T) {
 	}
 }
 
+func TestModelHeaderShowsPathScope(t *testing.T) {
+	t.Setenv("HOME", "/home/roie")
+
+	model := Model{
+		width:         100,
+		height:        12,
+		request:       app.Options{Path: "/home/roie/dev/extensions"},
+		activeFilter:  "all",
+		activeSort:    "activity",
+		activeSortDir: "desc",
+		projects:      []project.Project{{Name: "api"}},
+	}
+
+	lines := strings.Split(stripANSI(model.View()), "\n")
+	header := lines[0]
+	footer := lines[len(lines)-1]
+	if !strings.Contains(header, "ovw  1 project  ~/dev/extensions") {
+		t.Fatalf("header missing path scope:\n%s", header)
+	}
+	if strings.Contains(footer, "~/dev/extensions") {
+		t.Fatalf("footer should not show path scope:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
 func TestModelHeaderShowsSortWhenSortColumnIsHidden(t *testing.T) {
 	cfg := config.Default()
 	cfg.Columns = []string{"name", "status", "note"}
@@ -2472,6 +2496,19 @@ func TestModelNoProjectsState(t *testing.T) {
 		if !strings.Contains(view, want) {
 			t.Fatalf("View() missing %q:\n%s", want, view)
 		}
+	}
+}
+
+func TestModelNoProjectsStateShowsPathScope(t *testing.T) {
+	model := Model{
+		width:   100,
+		height:  24,
+		request: app.Options{Path: "library1"},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "No projects match path: library1") {
+		t.Fatalf("empty path scope view missing message:\n%s", view)
 	}
 }
 

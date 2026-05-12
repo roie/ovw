@@ -61,6 +61,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 		"unset     Clear project status or note",
 		"config    Manage ovw config",
 		"--json            output JSON for overview or project",
+		"--path string     filter by project path",
 		"--status string   filter by status",
 	} {
 		if !strings.Contains(got, want) {
@@ -99,6 +100,7 @@ func TestHelpTextDescriptions(t *testing.T) {
 	mustAppearInOrder(t, got, []string{
 		"--json            output JSON for overview or project",
 		"--plain           force plain table output",
+		"--path string     filter by project path",
 		"--status string   filter by status",
 		"--dirty           show dirty projects",
 		"--stale           show stale projects",

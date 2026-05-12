@@ -73,6 +73,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.SetUsageTemplate(rootUsageTemplate())
 	cmd.Flags().BoolVar(&opts.Plain, "plain", false, "force plain table output")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "output JSON for overview or project")
+	cmd.Flags().StringVar(&opts.Path, "path", "", "filter by project path")
 	cmd.Flags().StringVar(&opts.Status, "status", "", "filter by status")
 	cmd.Flags().BoolVar(&opts.Dirty, "dirty", false, "show dirty projects")
 	cmd.Flags().BoolVar(&opts.Stale, "stale", false, "show stale projects")
@@ -126,6 +127,7 @@ Commands:
 Flags:
   --json            output JSON for overview or project
   --plain           force plain table output
+  --path string     filter by project path
   --status string   filter by status
   --dirty           show dirty projects
   --stale           show stale projects

@@ -1235,6 +1235,8 @@ func renderShell(m Model) string {
 		if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
 			body += "\n" + keyActionLine("esc", "clear search", 8)
+		} else if len(visible) == 0 && m.pathScope() != "" {
+			body += "\n\n" + mutedStyle.Render("No projects match path: "+m.pathScope())
 		} else {
 			content := m.tablePanel(visible)
 			switch m.screen {
@@ -1299,6 +1301,9 @@ func pinFooter(body, footer string, height int) string {
 
 func headerView(m Model) string {
 	leftParts := []string{formatProjectCount(len(m.projects))}
+	if scope := m.pathScope(); scope != "" {
+		leftParts = append(leftParts, shortPath(scope))
+	}
 	if m.search != "" || m.searching {
 		leftParts = append(leftParts, "search: "+m.searchDisplay())
 	} else if elapsed := formatScanElapsed(m.scanElapsed); elapsed != "" {
@@ -1319,6 +1324,10 @@ func headerView(m Model) string {
 	}
 	gap := width - lipglossWidth(left) - lipglossWidth(right)
 	return left + strings.Repeat(" ", gap) + right
+}
+
+func (m Model) pathScope() string {
+	return strings.TrimSpace(m.request.Path)
 }
 
 func tableColumnVisible(columns []string, column string) bool {

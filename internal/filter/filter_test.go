@@ -64,6 +64,35 @@ func TestApplyHiddenFilter(t *testing.T) {
 	}
 }
 
+func TestApplyPathFilterMatchesProjectPathOnly(t *testing.T) {
+	projects := []project.Project{
+		{Name: "library1-api", Path: "/home/me/work/client-a/api"},
+		{Name: "api", Path: "/home/me/work/library1/api"},
+		{Name: "other", Path: "/home/me/work/library2/other"},
+	}
+	got, err := Apply(projects, Options{Path: "library1"}, config.Default(), time.Now())
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "api" {
+		t.Fatalf("projects = %#v", got)
+	}
+}
+
+func TestApplyPathFilterCanMatchFullPath(t *testing.T) {
+	projects := []project.Project{
+		{Name: "api", Path: "/home/me/work/library1/api"},
+		{Name: "web", Path: "/home/me/work/library2/web"},
+	}
+	got, err := Apply(projects, Options{Path: "library1/api"}, config.Default(), time.Now())
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "api" {
+		t.Fatalf("projects = %#v", got)
+	}
+}
+
 func TestSortModes(t *testing.T) {
 	now := time.Date(2026, 5, 6, 0, 0, 0, 0, time.Local)
 	cfg := config.Default()

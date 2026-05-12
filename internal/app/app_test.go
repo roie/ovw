@@ -97,6 +97,37 @@ func TestOverviewPlainAppliesStatusFilter(t *testing.T) {
 	}
 }
 
+func TestOverviewPlainAppliesPathFilter(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "client-a", "app"), `{}`)
+	writePackage(t, filepath.Join(root, "client-b", "library1-name"), `{}`)
+	writePackage(t, filepath.Join(root, "library1", "api"), `{}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	err = Run(Options{Path: "library1", Plain: true, Cwd: root, Out: &out, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "api") {
+		t.Fatalf("table output missing path match: %s", got)
+	}
+	if strings.Contains(got, "app") || strings.Contains(got, "library1-name") {
+		t.Fatalf("path filter should not match non-path projects by name: %s", got)
+	}
+}
+
 func TestOverviewCanFilterHiddenProjects(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()

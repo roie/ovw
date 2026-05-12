@@ -26,6 +26,7 @@ type Options struct {
 	Plain    bool
 	JSON     bool
 	Status   string
+	Path     string
 	Dirty    bool
 	Stale    bool
 	Untagged bool
@@ -129,6 +130,7 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	}
 	filtered, err := filter.Apply(projects, filter.Options{
 		Status:   opts.Status,
+		Path:     opts.Path,
 		Dirty:    opts.Dirty,
 		Stale:    opts.Stale,
 		Untagged: opts.Untagged,
