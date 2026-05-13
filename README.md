@@ -113,6 +113,7 @@ ovw --sort activity:desc     # sort by activity
 ovw config path              # print config path
 ovw config edit              # edit config
 ovw config setup             # choose project folders again
+ovw config reset             # reset config and run setup next time
 ```
 
 ## Config And Data

@@ -261,6 +261,7 @@ func TestConfigHelpIsFocused(t *testing.T) {
 				"path      Print config path",
 				"edit      Edit config",
 				"setup     Select project roots",
+				"reset     Reset config",
 			},
 		},
 		{
@@ -285,6 +286,14 @@ func TestConfigHelpIsFocused(t *testing.T) {
 			want: []string{
 				"Run the project root setup picker again.",
 				"ovw config setup",
+			},
+		},
+		{
+			name: "config reset",
+			args: []string{"config", "reset", "--help"},
+			want: []string{
+				"Remove config.toml so the next ovw run starts setup again.",
+				"ovw config reset",
 			},
 		},
 	}
@@ -483,10 +492,49 @@ func TestConfigSubcommandsRejectExtraArgs(t *testing.T) {
 		{"config", "path", "extra"},
 		{"config", "edit", "extra"},
 		{"config", "setup", "extra"},
+		{"config", "reset", "extra"},
 	} {
 		if _, err := executeCommand(args); err == nil {
 			t.Fatalf("Execute(%v) error = nil, want extra arg error", args)
 		}
+	}
+}
+
+func TestConfigResetRemovesConfigOnly(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	configPath := configForTest(t, root)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.Metadata), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.Metadata, []byte(`{"projects":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := runCommand(t, []string{"config", "reset"})
+	if strings.TrimSpace(out) != "Config reset. Run ovw to set up project folders again." {
+		t.Fatalf("reset output = %q", out)
+	}
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Fatalf("config should be removed, stat err = %v", err)
+	}
+	if _, err := os.Stat(paths.Metadata); err != nil {
+		t.Fatalf("metadata should remain, stat err = %v", err)
+	}
+}
+
+func TestConfigResetIsIdempotent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	out := runCommand(t, []string{"config", "reset"})
+	if strings.TrimSpace(out) != "Config already reset." {
+		t.Fatalf("reset output = %q", out)
 	}
 }
 

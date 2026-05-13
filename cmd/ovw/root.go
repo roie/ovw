@@ -193,6 +193,7 @@ Commands:
   path      Print config path
   edit      Edit config
   setup     Select project roots
+  reset     Reset config
 
 Use "{{.CommandPath}} <command> --help" for more information about a command.
 `
@@ -211,6 +212,12 @@ func configEditUsageTemplate() string {
 }
 
 func configSetupUsageTemplate() string {
+	return `Usage:
+  {{.CommandPath}}
+`
+}
+
+func configResetUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}}
 `
@@ -290,9 +297,32 @@ func newConfigCommand() *cobra.Command {
 		},
 	}
 	setupCmd.SetUsageTemplate(configSetupUsageTemplate())
+	resetCmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Reset config",
+		Long:  "Remove config.toml so the next ovw run starts setup again.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			paths, err := config.Paths()
+			if err != nil {
+				return err
+			}
+			if err := os.Remove(paths.Config); err != nil {
+				if os.IsNotExist(err) {
+					fmt.Fprintln(cmd.OutOrStdout(), "Config already reset.")
+					return nil
+				}
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "Config reset. Run ovw to set up project folders again.")
+			return nil
+		},
+	}
+	resetCmd.SetUsageTemplate(configResetUsageTemplate())
 	configCmd.AddCommand(pathCmd)
 	configCmd.AddCommand(editCmd)
 	configCmd.AddCommand(setupCmd)
+	configCmd.AddCommand(resetCmd)
 	return configCmd
 }
 
