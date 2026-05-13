@@ -159,6 +159,28 @@ func TestTableViewHorizontallyScrollsConfiguredColumns(t *testing.T) {
 	}
 }
 
+func TestTableViewExpandsToViewport(t *testing.T) {
+	got := tableView([]project.Project{
+		{
+			Name:         "speaklines",
+			StackDisplay: "Node",
+			Activity:     ovwformat.ActivityInfo{Display: "no commits"},
+			Status:       ovwformat.StatusFromTags("parked", nil),
+			Note:         ovwformat.NoteInfo{Display: "testing notes here"},
+		},
+	}, -1, 120, 8, 0, config.Default(), "activity", "desc")
+
+	lines := strings.Split(stripANSI(got), "\n")
+	if len(lines) < 3 {
+		t.Fatalf("table missing rows:\n%s", got)
+	}
+	for _, line := range lines[:3] {
+		if width := lipglossWidth(line); width != 120 {
+			t.Fatalf("line width = %d, want 120: %q\n%s", width, line, got)
+		}
+	}
+}
+
 func stripANSI(value string) string {
 	return ansiPattern.ReplaceAllString(value, "")
 }

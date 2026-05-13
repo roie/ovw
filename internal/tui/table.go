@@ -31,6 +31,7 @@ func tableView(projects []project.Project, selected, width, height, xOffset int,
 	}
 	columns := tableColumns(cfg)
 	rows := tableRows(projects, columns, sortBy, sortDir)
+	expandTableRows(rows, width)
 	header := tableHeader(columns, rows, sortBy, sortDir)
 	xOffset = clampTableXOffset(xOffset, width, tableLineWidth(header))
 	lines := []string{
@@ -104,6 +105,23 @@ func fitTableRows(rows []tableRow, columns []string, sortBy, sortDir string) {
 	for rowIndex := range rows {
 		for cellIndex := range rows[rowIndex].Cells {
 			rows[rowIndex].Cells[cellIndex].Width = widths[cellIndex]
+		}
+	}
+}
+
+func expandTableRows(rows []tableRow, viewportWidth int) {
+	if viewportWidth <= 0 || len(rows) == 0 || len(rows[0].Cells) == 0 {
+		return
+	}
+	currentWidth := tableLineWidth(rows[0])
+	if currentWidth >= viewportWidth {
+		return
+	}
+	lastIndex := len(rows[0].Cells) - 1
+	extra := viewportWidth - currentWidth
+	for rowIndex := range rows {
+		if lastIndex < len(rows[rowIndex].Cells) {
+			rows[rowIndex].Cells[lastIndex].Width += extra
 		}
 	}
 }
