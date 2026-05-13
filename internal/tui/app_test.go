@@ -12,6 +12,7 @@ import (
 	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
+	"ovw/internal/scanner"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -2047,6 +2048,57 @@ func TestModelColumnPickerTogglesAndSavesColumns(t *testing.T) {
 	}
 	if model.message != "Columns saved" {
 		t.Fatalf("message = %q, want Columns saved", model.message)
+	}
+}
+
+func TestModelColumnPickerDetectsPortsWhenEnabled(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "ports"}
+	appPath := "/tmp/app"
+	var detectedPaths []string
+	model := Model{
+		config:   config.Default(),
+		projects: []project.Project{{Name: "app", Path: appPath}},
+		portDetector: func(paths []string) map[string][]int {
+			detectedPaths = append([]string{}, paths...)
+			return map[string][]int{appPath: []int{5173}}
+		},
+	}
+
+	updated, cmd := model.Update(columnsSavedMsg{config: cfg})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected port detection command")
+	}
+	model = updateMsg(t, model, cmd())
+
+	if !reflect.DeepEqual(detectedPaths, []string{appPath}) {
+		t.Fatalf("detected paths = %#v, want app path", detectedPaths)
+	}
+	if !reflect.DeepEqual(model.projects[0].Ports, []int{5173}) {
+		t.Fatalf("ports = %#v, want 5173", model.projects[0].Ports)
+	}
+}
+
+func TestStartEnrichmentDetectsPortsWhenColumnVisible(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "ports"}
+	appPath := "/tmp/app"
+	var detectedPaths []string
+	updates := startEnrichment([]scanner.Project{{Name: "app", Path: appPath}}, cfg, func(paths []string) map[string][]int {
+		detectedPaths = append([]string{}, paths...)
+		return map[string][]int{appPath: []int{3000}}
+	})
+
+	update := <-updates
+	if !reflect.DeepEqual(detectedPaths, []string{appPath}) {
+		t.Fatalf("detected paths = %#v, want app path", detectedPaths)
+	}
+	if !reflect.DeepEqual(update.project.Ports, []int{3000}) {
+		t.Fatalf("ports = %#v, want 3000", update.project.Ports)
+	}
+	if _, ok := <-updates; ok {
+		t.Fatal("expected enrichment channel to close")
 	}
 }
 

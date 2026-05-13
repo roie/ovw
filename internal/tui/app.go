@@ -13,6 +13,7 @@ import (
 	"ovw/internal/filter"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/gitactivity"
+	"ovw/internal/ports"
 	"ovw/internal/project"
 	"ovw/internal/recentfiles"
 	"ovw/internal/scanner"
@@ -34,6 +35,7 @@ type terminalRunner func(string, string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
 type recentFilesLoader func(string, []string, time.Time) ([]ovwformat.RecentFile, error)
 type configWriter func(string, config.Config) error
+type portDetector func([]string) map[string][]int
 
 var terminalTitleWriter io.Writer = os.Stdout
 
@@ -69,6 +71,7 @@ type Model struct {
 	recent       recentLoader
 	recentFiles  recentFilesLoader
 	configWriter configWriter
+	portDetector portDetector
 
 	width           int
 	height          int
@@ -146,6 +149,7 @@ func NewWithOptions(opts app.Options) Model {
 		recent:        loadRecentCommits,
 		recentFiles:   loadRecentFiles,
 		configWriter:  config.Write,
+		portDetector:  ports.Detect,
 		activeFilter:  optionsFromRequest(opts),
 		activeSort:    sortFromRequest(opts),
 		activeSortDir: sortDirFromRequest(opts),
@@ -505,6 +509,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.config = msg.config
 		m.tableXOffset = 0
 		m.message = "Columns saved"
+		if shouldDetectPortsForColumns(m.config.Columns) {
+			return m, m.detectProjectPorts()
+		}
+	case portsDetectedMsg:
+		m.attachPorts(msg.portsByPath)
 	}
 	return m, nil
 }
@@ -1098,6 +1107,10 @@ type projectEnrichedMsg struct {
 
 type enrichmentDoneMsg struct{}
 
+type portsDetectedMsg struct {
+	portsByPath map[string][]int
+}
+
 type inputCursorBlinkMsg struct {
 	id int
 }
@@ -1211,11 +1224,11 @@ func (m Model) loadOverviewMessage(preservePath, message string) tea.Msg {
 	if err != nil {
 		return overviewLoadFailedMsg{err: err}
 	}
-	updates := startEnrichment(result.Scanned, result.Config)
+	updates := startEnrichment(result.Scanned, result.Config, m.portDetector)
 	return overviewDiscoveredMsg{result: result, updates: updates, preservePath: preservePath, message: message}
 }
 
-func startEnrichment(scanned []scanner.Project, cfg config.Config) <-chan enrichmentUpdate {
+func startEnrichment(scanned []scanner.Project, cfg config.Config, detect portDetector) <-chan enrichmentUpdate {
 	out := make(chan enrichmentUpdate, len(scanned))
 	go func() {
 		defer close(out)
@@ -1225,6 +1238,13 @@ func startEnrichment(scanned []scanner.Project, cfg config.Config) <-chan enrich
 		start := time.Now()
 		now := time.Now()
 		detector := gitactivity.NewDetector()
+		portsByPath := map[string][]int{}
+		if shouldDetectPortsForColumns(cfg.Columns) {
+			if detect == nil {
+				detect = ports.Detect
+			}
+			portsByPath = detect(scannedProjectPaths(scanned))
+		}
 		jobs := make(chan scanner.Project)
 		results := make(chan project.Project)
 		workers := app.DefaultEnrichmentWorkers
@@ -1234,7 +1254,9 @@ func startEnrichment(scanned []scanner.Project, cfg config.Config) <-chan enrich
 		for i := 0; i < workers; i++ {
 			go func() {
 				for scannedProject := range jobs {
-					results <- app.EnrichWithGit(scannedProject, cfg, now, detector.Detect(scannedProject.Path))
+					enriched := app.EnrichWithGit(scannedProject, cfg, now, detector.Detect(scannedProject.Path))
+					enriched.Ports = portsByPath[scannedProject.Path]
+					results <- enriched
 				}
 			}()
 		}
@@ -1264,6 +1286,48 @@ func waitForEnrichment(updates <-chan enrichmentUpdate) tea.Cmd {
 		}
 		return projectEnrichedMsg{update: update, updates: updates}
 	}
+}
+
+func (m Model) detectProjectPorts() tea.Cmd {
+	paths := projectPathsForPorts(m.projects)
+	detect := m.portDetector
+	if detect == nil {
+		detect = ports.Detect
+	}
+	return func() tea.Msg {
+		return portsDetectedMsg{portsByPath: detect(paths)}
+	}
+}
+
+func (m *Model) attachPorts(portsByPath map[string][]int) {
+	for index := range m.projects {
+		m.projects[index].Ports = portsByPath[m.projects[index].Path]
+	}
+}
+
+func shouldDetectPortsForColumns(columns []string) bool {
+	for _, column := range columns {
+		if column == "ports" {
+			return true
+		}
+	}
+	return false
+}
+
+func scannedProjectPaths(scanned []scanner.Project) []string {
+	paths := make([]string, 0, len(scanned))
+	for _, scannedProject := range scanned {
+		paths = append(paths, scannedProject.Path)
+	}
+	return paths
+}
+
+func projectPathsForPorts(projects []project.Project) []string {
+	paths := make([]string, 0, len(projects))
+	for _, project := range projects {
+		paths = append(paths, project.Path)
+	}
+	return paths
 }
 
 func (m *Model) startInputCursorBlink() tea.Cmd {
