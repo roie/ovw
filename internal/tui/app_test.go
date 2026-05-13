@@ -2124,6 +2124,98 @@ func TestModalPickersUseCaretSelection(t *testing.T) {
 	}
 }
 
+func TestWrapPickerSelection(t *testing.T) {
+	cases := []struct {
+		name     string
+		selected int
+		total    int
+		delta    int
+		want     int
+	}{
+		{name: "down wraps at end", selected: 2, total: 3, delta: 1, want: 0},
+		{name: "up wraps at start", selected: 0, total: 3, delta: -1, want: 2},
+		{name: "moves inside list", selected: 1, total: 3, delta: 1, want: 2},
+		{name: "empty list", selected: 1, total: 0, delta: 1, want: 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := wrapPickerSelection(tc.selected, tc.total, tc.delta); got != tc.want {
+				t.Fatalf("wrapPickerSelection() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestModelPickerNavigationWraps(t *testing.T) {
+	cfg := config.Default()
+
+	filterModel := Model{screen: screenFilter, config: cfg}
+	filterModel.filterSelected = len(filterModel.filterOptions()) - 1
+	filterModel = updateKey(t, filterModel, "j")
+	if filterModel.filterSelected != 0 {
+		t.Fatalf("filter selected = %d, want wrapped to 0", filterModel.filterSelected)
+	}
+	filterModel = updateKey(t, filterModel, "k")
+	if filterModel.filterSelected != len(filterModel.filterOptions())-1 {
+		t.Fatalf("filter selected = %d, want wrapped to end", filterModel.filterSelected)
+	}
+
+	sortModel := Model{screen: screenSort}
+	sortModel.sortSelected = len(sortOptions()) - 1
+	sortModel = updateKey(t, sortModel, "j")
+	if sortModel.sortSelected != 0 {
+		t.Fatalf("sort selected = %d, want wrapped to 0", sortModel.sortSelected)
+	}
+
+	columnModel := Model{screen: screenColumns, columnOrder: []string{"name", "stack"}}
+	columnModel.columnSelected = len(columnModel.columnOrder) - 1
+	columnModel = updateKey(t, columnModel, "j")
+	if columnModel.columnSelected != 0 {
+		t.Fatalf("column selected = %d, want wrapped to 0", columnModel.columnSelected)
+	}
+
+	statusModel := Model{screen: screenStatus, config: cfg, projects: []project.Project{{Name: "app"}}}
+	statusModel.statusSelected = len(statusModel.statusOptions()) - 1
+	statusModel = updateKey(t, statusModel, "j")
+	if statusModel.statusSelected != 0 {
+		t.Fatalf("status selected = %d, want wrapped to 0", statusModel.statusSelected)
+	}
+
+	commandModel := Model{}
+	commandModel.openCommandPalette()
+	commandModel.commandSelected = len(commandModel.filteredCommandActions()) - 1
+	commandModel = updateKey(t, commandModel, "j")
+	if commandModel.commandSelected != 0 {
+		t.Fatalf("command selected = %d, want wrapped to 0", commandModel.commandSelected)
+	}
+
+	onboardingModel := Model{screen: screenOnboarding, onboardOptions: []string{"/tmp/a", "/tmp/b"}}
+	onboardingModel.onboardSelected = len(onboardingModel.onboardOptions)
+	onboardingModel = updateKey(t, onboardingModel, "j")
+	if onboardingModel.onboardSelected != 0 {
+		t.Fatalf("onboarding selected = %d, want wrapped to 0", onboardingModel.onboardSelected)
+	}
+	onboardingModel = updateKey(t, onboardingModel, "k")
+	if onboardingModel.onboardSelected != len(onboardingModel.onboardOptions) {
+		t.Fatalf("onboarding selected = %d, want wrapped to custom path", onboardingModel.onboardSelected)
+	}
+
+	setupPicker := setupModel{
+		options:  []string{"/tmp/a", "/tmp/b"},
+		checked:  map[string]bool{},
+		expanded: map[string]bool{},
+		children: map[string][]string{},
+		counts:   map[string]int{},
+		selected: 2,
+	}
+	updated, _ := setupPicker.updatePicker(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	setupPicker = updated.(setupModel)
+	if setupPicker.selected != 0 {
+		t.Fatalf("setup selected = %d, want wrapped to 0", setupPicker.selected)
+	}
+}
+
 func TestModelSortPickerAppliesNameSort(t *testing.T) {
 	calledLoader := false
 	model := Model{

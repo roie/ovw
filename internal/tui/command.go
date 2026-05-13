@@ -26,13 +26,9 @@ func (m Model) updateCommand(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value):
 		m.screen = screenTable
 	case isDownKey(value):
-		if m.commandSelected < len(m.filteredCommandActions())-1 {
-			m.commandSelected++
-		}
+		m.commandSelected = wrapPickerSelection(m.commandSelected, len(m.filteredCommandActions()), 1)
 	case isUpKey(value):
-		if m.commandSelected > 0 {
-			m.commandSelected--
-		}
+		m.commandSelected = wrapPickerSelection(m.commandSelected, len(m.filteredCommandActions()), -1)
 	case isEnterKey(value):
 		actions := m.filteredCommandActions()
 		if len(actions) == 0 {

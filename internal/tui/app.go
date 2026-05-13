@@ -609,13 +609,9 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value):
 		m.screen = screenTable
 	case isDownKey(value):
-		if m.filterSelected < len(options)-1 {
-			m.filterSelected++
-		}
+		m.filterSelected = wrapPickerSelection(m.filterSelected, len(options), 1)
 	case isUpKey(value):
-		if m.filterSelected > 0 {
-			m.filterSelected--
-		}
+		m.filterSelected = wrapPickerSelection(m.filterSelected, len(options), -1)
 	case isEnterKey(value):
 		if len(options) == 0 {
 			m.screen = screenTable
@@ -636,13 +632,9 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value):
 		m.screen = screenTable
 	case isDownKey(value):
-		if m.sortSelected < len(options)-1 {
-			m.sortSelected++
-		}
+		m.sortSelected = wrapPickerSelection(m.sortSelected, len(options), 1)
 	case isUpKey(value):
-		if m.sortSelected > 0 {
-			m.sortSelected--
-		}
+		m.sortSelected = wrapPickerSelection(m.sortSelected, len(options), -1)
 	case isLeftKey(value), isRightKey(value):
 		m.toggleSortDir()
 	case isEnterKey(value):
@@ -667,13 +659,9 @@ func (m Model) updateColumns(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.columnErr = ""
 		return m, m.saveColumns()
 	case isDownKey(value):
-		if m.columnSelected < len(m.columnOrder)-1 {
-			m.columnSelected++
-		}
+		m.columnSelected = wrapPickerSelection(m.columnSelected, len(m.columnOrder), 1)
 	case isUpKey(value):
-		if m.columnSelected > 0 {
-			m.columnSelected--
-		}
+		m.columnSelected = wrapPickerSelection(m.columnSelected, len(m.columnOrder), -1)
 	case isLeftKey(value):
 		m.moveColumn(-1)
 	case isRightKey(value):
@@ -689,13 +677,9 @@ func (m Model) updateOnboarding(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isQuitKey(value):
 		return m, tea.Quit
 	case isDownKey(value):
-		if m.onboardSelected < len(m.onboardOptions) {
-			m.onboardSelected++
-		}
+		m.onboardSelected = wrapPickerSelection(m.onboardSelected, len(m.onboardOptions)+1, 1)
 	case isUpKey(value):
-		if m.onboardSelected > 0 {
-			m.onboardSelected--
-		}
+		m.onboardSelected = wrapPickerSelection(m.onboardSelected, len(m.onboardOptions)+1, -1)
 	case value == " ":
 		if m.onboardSelected < len(m.onboardOptions) {
 			m.toggleOnboardingOption(m.onboardOptions[m.onboardSelected])
@@ -817,13 +801,9 @@ func (m Model) updateStatusPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value):
 		m.screen = screenTable
 	case isDownKey(value):
-		if m.statusSelected < len(options)-1 {
-			m.statusSelected++
-		}
+		m.statusSelected = wrapPickerSelection(m.statusSelected, len(options), 1)
 	case isUpKey(value):
-		if m.statusSelected > 0 {
-			m.statusSelected--
-		}
+		m.statusSelected = wrapPickerSelection(m.statusSelected, len(options), -1)
 	case isEnterKey(value):
 		option := options[m.statusSelected]
 		switch option.Kind {
@@ -916,6 +896,17 @@ func (m Model) Size() (int, int) {
 
 func (m Model) canOpenDetail() bool {
 	return !m.loading && m.loadErr == nil && len(m.visibleProjects()) > 0
+}
+
+func wrapPickerSelection(selected, total, delta int) int {
+	if total <= 0 {
+		return 0
+	}
+	next := (selected + delta) % total
+	if next < 0 {
+		next += total
+	}
+	return next
 }
 
 func (m *Model) moveSelection(delta int) {

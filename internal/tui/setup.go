@@ -143,13 +143,9 @@ func (m setupModel) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cancelled = true
 		return m, tea.Quit
 	case isDownKey(value):
-		if m.selected < len(rows) {
-			m.selected++
-		}
+		m.selected = wrapPickerSelection(m.selected, len(rows)+1, 1)
 	case isUpKey(value):
-		if m.selected > 0 {
-			m.selected--
-		}
+		m.selected = wrapPickerSelection(m.selected, len(rows)+1, -1)
 	case isRightKey(value):
 		if m.selected < len(rows) {
 			children := m.expandSetupPath(rows[m.selected].Path)
