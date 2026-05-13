@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"ovw/internal/config"
@@ -26,6 +27,8 @@ import (
 )
 
 var detectPorts = ports.Detect
+
+const DefaultEnrichmentWorkers = 8
 
 type Options struct {
 	Plain    bool
@@ -49,6 +52,7 @@ type OverviewResult struct {
 	Paths    config.FilePaths
 	Config   config.Config
 	Projects []project.Project
+	Scanned  []scanner.Project
 	Elapsed  time.Duration
 	Timing   timingInfo
 }
@@ -172,19 +176,9 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	}
 	timing.Discover = time.Since(phaseStart)
 	phaseStart = time.Now()
-	projects := make([]project.Project, 0, len(scanned))
 	now := time.Now()
-	gitDetector := gitactivity.NewDetector()
-	for _, scannedProject := range scanned {
-		projectStart := time.Now()
-		enriched := EnrichWithGit(scannedProject, cfg, now, gitDetector.Detect(scannedProject.Path))
-		projects = append(projects, enriched)
-		timing.Slow = append(timing.Slow, projectTiming{
-			Name:     scannedProject.Name,
-			Path:     scannedProject.Path,
-			Duration: time.Since(projectStart),
-		})
-	}
+	projects, slow := enrichProjects(scanned, cfg, now, DefaultEnrichmentWorkers)
+	timing.Slow = slow
 	timing.Enrich = time.Since(phaseStart)
 	if shouldDetectPorts(cfg, opts) {
 		phaseStart = time.Now()
@@ -211,9 +205,138 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 		Paths:    paths,
 		Config:   cfg,
 		Projects: filtered,
+		Scanned:  scanned,
 		Elapsed:  timing.Total,
 		Timing:   timing,
 	}, nil
+}
+
+func enrichProjects(scanned []scanner.Project, cfg config.Config, now time.Time, workers int) ([]project.Project, []projectTiming) {
+	if len(scanned) == 0 {
+		return nil, nil
+	}
+	if workers <= 0 {
+		workers = DefaultEnrichmentWorkers
+	}
+	if workers > len(scanned) {
+		workers = len(scanned)
+	}
+	type result struct {
+		index    int
+		project  project.Project
+		duration time.Duration
+	}
+	jobs := make(chan int)
+	results := make(chan result, len(scanned))
+	detector := gitactivity.NewDetector()
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				scannedProject := scanned[index]
+				projectStart := time.Now()
+				enriched := EnrichWithGit(scannedProject, cfg, now, detector.Detect(scannedProject.Path))
+				results <- result{index: index, project: enriched, duration: time.Since(projectStart)}
+			}
+		}()
+	}
+	for index := range scanned {
+		jobs <- index
+	}
+	close(jobs)
+	wg.Wait()
+	close(results)
+
+	projects := make([]project.Project, len(scanned))
+	slow := make([]projectTiming, 0, len(scanned))
+	for result := range results {
+		projects[result.index] = result.project
+		scannedProject := scanned[result.index]
+		slow = append(slow, projectTiming{
+			Name:     scannedProject.Name,
+			Path:     scannedProject.Path,
+			Duration: result.duration,
+		})
+	}
+	return projects, slow
+}
+
+func DiscoverOverview(opts Options) (OverviewResult, error) {
+	start := time.Now()
+	if opts.Out == nil {
+		opts.Out = io.Discard
+	}
+	if opts.Err == nil {
+		opts.Err = io.Discard
+	}
+	if err := ValidateOptions(opts); err != nil {
+		return OverviewResult{}, err
+	}
+	paths, cfg, err := EnsureConfig(opts)
+	if err != nil {
+		return OverviewResult{}, err
+	}
+	if _, err := filter.ParseSort(opts.Sort, cfg); err != nil {
+		return OverviewResult{}, err
+	}
+	meta, err := metadata.Load(paths.Metadata)
+	if err != nil {
+		return OverviewResult{}, err
+	}
+	var scanned []scanner.Project
+	if opts.Hidden {
+		scanned, err = scanner.ScanAll(cfg, meta)
+	} else {
+		scanned, err = scanner.Scan(cfg, meta)
+	}
+	if err != nil {
+		return OverviewResult{}, err
+	}
+	projects := placeholderProjects(scanned)
+	filtered, err := filter.Apply(projects, filter.Options{
+		Path:   opts.Path,
+		Hidden: opts.Hidden,
+	}, cfg, time.Now())
+	if err != nil {
+		return OverviewResult{}, err
+	}
+	filtered = filter.Sort(filtered, filter.FormatSort("name", "asc"), cfg)
+	return OverviewResult{
+		Paths:    paths,
+		Config:   cfg,
+		Projects: filtered,
+		Scanned:  filterScannedByProjects(scanned, filtered),
+		Elapsed:  time.Since(start),
+	}, nil
+}
+
+func placeholderProjects(scanned []scanner.Project) []project.Project {
+	projects := make([]project.Project, 0, len(scanned))
+	for _, scannedProject := range scanned {
+		projects = append(projects, project.Project{
+			Name:   scannedProject.Name,
+			Path:   scannedProject.Path,
+			Hidden: scannedProject.Hidden,
+			Pinned: scannedProject.Pinned,
+		})
+	}
+	return projects
+}
+
+func filterScannedByProjects(scanned []scanner.Project, projects []project.Project) []scanner.Project {
+	visible := map[string]bool{}
+	for _, project := range projects {
+		visible[project.Path] = true
+	}
+	out := make([]scanner.Project, 0, len(projects))
+	for _, scannedProject := range scanned {
+		if visible[scannedProject.Path] {
+			out = append(out, scannedProject)
+		}
+	}
+	return out
 }
 
 func writeTiming(opts Options, timing timingInfo) {

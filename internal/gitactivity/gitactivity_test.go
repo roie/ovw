@@ -116,6 +116,56 @@ func TestDetectUnpushed(t *testing.T) {
 	}
 }
 
+func TestDetectUsesFastDirtyAndCombinedLogCommands(t *testing.T) {
+	calls := []string{}
+	detector := newDetectorWithRunner(func(path string, args ...string) (string, error) {
+		command := strings.Join(args, " ")
+		calls = append(calls, command)
+		switch command {
+		case "rev-parse --show-toplevel":
+			return "/repo\n", nil
+		case "rev-parse --abbrev-ref HEAD":
+			return "main\n", nil
+		case "log -1 --format=%ct%x00%B":
+			return "1762000000\x00initial commit\n\nbody\n", nil
+		case "status --porcelain --untracked-files=no":
+			return " M file.txt\n", nil
+		case "rev-list --count @{upstream}..HEAD":
+			return "2\n", nil
+		default:
+			t.Fatalf("unexpected git command for %s: %v", path, args)
+			return "", nil
+		}
+	}, time.Second)
+
+	info := detector.Detect("/repo")
+	if !info.HasGit || !info.HasCommits {
+		t.Fatalf("git info not detected: %#v", info)
+	}
+	if info.Branch != "main" {
+		t.Fatalf("Branch = %q", info.Branch)
+	}
+	if info.Unpushed != 2 {
+		t.Fatalf("Unpushed = %d", info.Unpushed)
+	}
+	if !info.Dirty {
+		t.Fatal("Dirty = false")
+	}
+	if info.LastCommitMessage != "initial commit\n\nbody" {
+		t.Fatalf("LastCommitMessage = %q", info.LastCommitMessage)
+	}
+	wantCalls := []string{
+		"rev-parse --show-toplevel",
+		"rev-parse --abbrev-ref HEAD",
+		"log -1 --format=%ct%x00%B",
+		"status --porcelain --untracked-files=no",
+		"rev-list --count @{upstream}..HEAD",
+	}
+	if strings.Join(calls, "|") != strings.Join(wantCalls, "|") {
+		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
+	}
+}
+
 func TestDetectRecentCommitsCapsAtThree(t *testing.T) {
 	dir := gitRepo(t)
 	for _, subject := range []string{"first", "second", "third", "fourth"} {
@@ -160,10 +210,8 @@ func TestDetectorReusesGitInfoForNestedPathsInSameWorktree(t *testing.T) {
 			return "", errors.New("not a git repo")
 		case "rev-parse --abbrev-ref HEAD":
 			return "main\n", nil
-		case "log -1 --format=%ct":
-			return "1762000000\n", nil
-		case "log -1 --format=%B":
-			return "initial commit\n", nil
+		case "log -1 --format=%ct%x00%B":
+			return "1762000000\x00initial commit\n", nil
 		case "status --porcelain --untracked-files=no":
 			return "", nil
 		case "rev-list --count @{upstream}..HEAD":
@@ -217,10 +265,8 @@ func TestDetectorDoesNotReuseParentGitInfoForNestedGitProject(t *testing.T) {
 			return "parent\n", nil
 		}
 		switch command {
-		case "log -1 --format=%ct":
-			return "1762000000\n", nil
-		case "log -1 --format=%B":
-			return "initial commit\n", nil
+		case "log -1 --format=%ct%x00%B":
+			return "1762000000\x00initial commit\n", nil
 		case "status --porcelain --untracked-files=no":
 			return "", nil
 		case "rev-list --count @{upstream}..HEAD":

@@ -9,10 +9,12 @@ import (
 
 	"ovw/internal/app"
 	"ovw/internal/config"
+	"ovw/internal/filter"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/gitactivity"
 	"ovw/internal/project"
 	"ovw/internal/recentfiles"
+	"ovw/internal/scanner"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -52,6 +54,7 @@ const (
 type Model struct {
 	request      app.Options
 	loader       overviewLoader
+	discover     overviewLoader
 	setup        configSetupLoader
 	roots        configRootsCreator
 	updater      metadataUpdater
@@ -100,6 +103,9 @@ type Model struct {
 	message         string
 	loading         bool
 	loadErr         error
+	enriching       bool
+	enrichedCount   int
+	enrichTotal     int
 	config          config.Config
 	configPaths     config.FilePaths
 	projects        []project.Project
@@ -119,6 +125,7 @@ func NewWithOptions(opts app.Options) Model {
 	return Model{
 		request:       opts,
 		loader:        app.LoadOverview,
+		discover:      app.DiscoverOverview,
 		setup:         app.CheckConfig,
 		roots:         app.CreateConfigRoots,
 		updater:       app.UpdateProjectMetadata,
@@ -141,6 +148,7 @@ func NewWithOptions(opts app.Options) Model {
 func NewWithLoader(loader overviewLoader) Model {
 	model := NewWithOptions(app.Options{})
 	model.loader = loader
+	model.discover = nil
 	model.setup = func(app.Options) (app.ConfigSetup, error) {
 		return app.ConfigSetup{Exists: true}, nil
 	}
@@ -301,6 +309,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.loadSelectedRecent()
 	case overviewLoadedMsg:
 		m.loading = false
+		m.enriching = false
+		m.enrichedCount = 0
+		m.enrichTotal = 0
 		m.loadErr = nil
 		m.screen = screenTable
 		m.config = msg.result.Config
@@ -320,9 +331,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.detailYOffset = 0
 		}
 		return m, m.loadSelectedRecent()
+	case overviewDiscoveredMsg:
+		m.loading = false
+		m.enriching = len(msg.result.Scanned) > 0
+		m.enrichedCount = 0
+		m.enrichTotal = len(msg.result.Scanned)
+		m.loadErr = nil
+		m.screen = screenTable
+		m.config = msg.result.Config
+		m.configPaths = msg.result.Paths
+		m.projects = msg.result.Projects
+		m.scanElapsed = msg.result.Elapsed
+		m.syncActiveSort()
+		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.filesByPath = map[string][]ovwformat.RecentFile{}
+		if msg.message != "" {
+			m.message = msg.message
+		}
+		if msg.preservePath != "" {
+			m.selectProjectPath(msg.preservePath)
+		} else if m.selected >= len(m.projects) {
+			m.selected = 0
+			m.detailYOffset = 0
+		}
+		if msg.updates == nil || !m.enriching {
+			m.enriching = false
+			return m, m.loadSelectedRecent()
+		}
+		return m, waitForEnrichment(msg.updates)
 	case overviewLoadFailedMsg:
 		m.loading = false
+		m.enriching = false
 		m.loadErr = msg.err
+	case projectEnrichedMsg:
+		selectedPath := m.selectedProjectPath()
+		m.enrichedCount = msg.update.done
+		m.enrichTotal = msg.update.total
+		m.scanElapsed = msg.update.elapsed
+		m.replaceProject(msg.update.project)
+		m.projects = filter.Sort(m.projects, filter.FormatSort(m.activeSort, m.activeSortDir), m.config)
+		if selectedPath != "" {
+			m.selectProjectPath(selectedPath)
+		} else {
+			m.clampSelection()
+		}
+		return m, waitForEnrichment(msg.updates)
+	case enrichmentDoneMsg:
+		m.loading = false
+		m.enriching = false
+		m.enrichedCount = m.enrichTotal
+		return m, m.loadSelectedRecent()
 	case onboardingLoadedMsg:
 		m.loading = false
 		m.loadErr = nil
@@ -998,6 +1056,27 @@ type overviewLoadedMsg struct {
 	message      string
 }
 
+type overviewDiscoveredMsg struct {
+	result       app.OverviewResult
+	updates      <-chan enrichmentUpdate
+	preservePath string
+	message      string
+}
+
+type enrichmentUpdate struct {
+	project project.Project
+	done    int
+	total   int
+	elapsed time.Duration
+}
+
+type projectEnrichedMsg struct {
+	update  enrichmentUpdate
+	updates <-chan enrichmentUpdate
+}
+
+type enrichmentDoneMsg struct{}
+
 type overviewLoadFailedMsg struct {
 	err error
 }
@@ -1080,25 +1159,85 @@ func (m Model) startup() tea.Cmd {
 		if !result.Exists {
 			return onboardingLoadedMsg{candidates: result.Candidates}
 		}
-		loader := m.loader
-		if loader == nil {
-			loader = app.LoadOverview
-		}
-		overview, err := loader(m.request)
-		if err != nil {
-			return overviewLoadFailedMsg{err: err}
-		}
-		return overviewLoadedMsg{result: overview}
+		return m.loadOverviewMessage("", "")
 	}
 }
 
 func (m Model) reloadOverview(preservePath, message string) tea.Cmd {
 	return func() tea.Msg {
-		result, err := m.loader(m.request)
+		return m.loadOverviewMessage(preservePath, message)
+	}
+}
+
+func (m Model) loadOverviewMessage(preservePath, message string) tea.Msg {
+	discover := m.discover
+	if discover == nil {
+		loader := m.loader
+		if loader == nil {
+			loader = app.LoadOverview
+		}
+		result, err := loader(m.request)
 		if err != nil {
 			return overviewLoadFailedMsg{err: err}
 		}
 		return overviewLoadedMsg{result: result, preservePath: preservePath, message: message}
+	}
+	result, err := discover(m.request)
+	if err != nil {
+		return overviewLoadFailedMsg{err: err}
+	}
+	updates := startEnrichment(result.Scanned, result.Config)
+	return overviewDiscoveredMsg{result: result, updates: updates, preservePath: preservePath, message: message}
+}
+
+func startEnrichment(scanned []scanner.Project, cfg config.Config) <-chan enrichmentUpdate {
+	out := make(chan enrichmentUpdate, len(scanned))
+	go func() {
+		defer close(out)
+		if len(scanned) == 0 {
+			return
+		}
+		start := time.Now()
+		now := time.Now()
+		detector := gitactivity.NewDetector()
+		jobs := make(chan scanner.Project)
+		results := make(chan project.Project)
+		workers := app.DefaultEnrichmentWorkers
+		if len(scanned) < workers {
+			workers = len(scanned)
+		}
+		for i := 0; i < workers; i++ {
+			go func() {
+				for scannedProject := range jobs {
+					results <- app.EnrichWithGit(scannedProject, cfg, now, detector.Detect(scannedProject.Path))
+				}
+			}()
+		}
+		go func() {
+			for _, scannedProject := range scanned {
+				jobs <- scannedProject
+			}
+			close(jobs)
+		}()
+		for done := 1; done <= len(scanned); done++ {
+			out <- enrichmentUpdate{
+				project: <-results,
+				done:    done,
+				total:   len(scanned),
+				elapsed: time.Since(start),
+			}
+		}
+	}()
+	return out
+}
+
+func waitForEnrichment(updates <-chan enrichmentUpdate) tea.Cmd {
+	return func() tea.Msg {
+		update, ok := <-updates
+		if !ok {
+			return enrichmentDoneMsg{}
+		}
+		return projectEnrichedMsg{update: update, updates: updates}
 	}
 }
 
@@ -1439,6 +1578,8 @@ func headerView(m Model) string {
 	}
 	if m.search != "" || m.searching {
 		leftParts = append(leftParts, "search: "+m.searchDisplay())
+	} else if m.enriching && m.enrichTotal > 0 {
+		leftParts = append(leftParts, fmt.Sprintf("enriching %d/%d", m.enrichedCount, m.enrichTotal))
 	} else if elapsed := formatScanElapsed(m.scanElapsed); elapsed != "" {
 		leftParts = append(leftParts, elapsed)
 	}
@@ -1736,6 +1877,16 @@ func (m Model) selectedProjectPath() string {
 		return ""
 	}
 	return project.Path
+}
+
+func (m *Model) replaceProject(updated project.Project) {
+	for index, project := range m.projects {
+		if project.Path == updated.Path {
+			m.projects[index] = updated
+			return
+		}
+	}
+	m.projects = append(m.projects, updated)
 }
 
 func (m Model) searchDisplay() string {

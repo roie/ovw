@@ -145,6 +145,42 @@ func TestModelLoadsOverviewData(t *testing.T) {
 	}
 }
 
+func TestModelStartsFromDiscoveryBeforeFullLoad(t *testing.T) {
+	calledFullLoader := false
+	calledDiscover := false
+	model := NewWithOptions(app.Options{})
+	model.setup = func(app.Options) (app.ConfigSetup, error) {
+		return app.ConfigSetup{Exists: true}, nil
+	}
+	model.loader = func(app.Options) (app.OverviewResult, error) {
+		calledFullLoader = true
+		return app.OverviewResult{}, nil
+	}
+	model.discover = func(app.Options) (app.OverviewResult, error) {
+		calledDiscover = true
+		return app.OverviewResult{
+			Config:   config.Default(),
+			Projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		}, nil
+	}
+
+	cmd := model.Init()
+	updated, _ := model.Update(cmd())
+	got := updated.(Model)
+	if !calledDiscover {
+		t.Fatal("discovery loader was not called")
+	}
+	if calledFullLoader {
+		t.Fatal("full loader should not block initial TUI startup")
+	}
+	if got.loading || got.enriching {
+		t.Fatalf("loading=%v enriching=%v", got.loading, got.enriching)
+	}
+	if len(got.projects) != 1 || got.projects[0].Name != "app" {
+		t.Fatalf("projects = %#v", got.projects)
+	}
+}
+
 func TestModelStartsOnboardingWhenConfigIsMissing(t *testing.T) {
 	model := NewWithOptions(app.Options{})
 	model.width = 100

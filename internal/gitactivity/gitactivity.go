@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -30,6 +31,7 @@ type runner func(path string, args ...string) (string, error)
 
 type Detector struct {
 	run   runner
+	mu    sync.Mutex
 	cache map[string]Info
 }
 
@@ -59,7 +61,7 @@ func (detector *Detector) Detect(path string) Info {
 	if err != nil {
 		return info
 	}
-	if cached, ok := detector.cache[root]; ok {
+	if cached, ok := detector.cachedRoot(root); ok {
 		return cached
 	}
 	info.HasGit = true
@@ -70,17 +72,8 @@ func (detector *Detector) Detect(path string) Info {
 			info.Branch = "detached"
 		}
 	}
-	if ts, err := detector.run(root, "log", "-1", "--format=%ct"); err == nil {
-		trimmed := strings.TrimSpace(ts)
-		if trimmed != "" {
-			if seconds, parseErr := strconv.ParseInt(trimmed, 10, 64); parseErr == nil {
-				info.LastCommitAt = time.Unix(seconds, 0)
-				info.HasCommits = true
-			}
-		}
-	}
-	if message, err := detector.run(root, "log", "-1", "--format=%B"); err == nil {
-		info.LastCommitMessage = strings.TrimSpace(message)
+	if commit, err := detector.run(root, "log", "-1", "--format=%ct%x00%B"); err == nil {
+		applyLastCommit(commit, &info)
 	}
 	if status, err := detector.run(root, "status", "--porcelain", "--untracked-files=no"); err == nil {
 		info.Dirty = strings.TrimSpace(status) != ""
@@ -90,11 +83,27 @@ func (detector *Detector) Detect(path string) Info {
 			info.Unpushed = n
 		}
 	}
-	detector.cache[root] = info
+	detector.store(root, info)
 	return info
 }
 
+func applyLastCommit(value string, info *Info) {
+	parts := strings.SplitN(value, "\x00", 2)
+	if len(parts) != 2 {
+		return
+	}
+	seconds, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+	if err != nil {
+		return
+	}
+	info.LastCommitAt = time.Unix(seconds, 0)
+	info.LastCommitMessage = strings.TrimSpace(parts[1])
+	info.HasCommits = true
+}
+
 func (detector *Detector) cached(path string) (string, Info, bool) {
+	detector.mu.Lock()
+	defer detector.mu.Unlock()
 	bestRoot := ""
 	var bestInfo Info
 	for root, info := range detector.cache {
@@ -109,6 +118,19 @@ func (detector *Detector) cached(path string) (string, Info, bool) {
 		}
 	}
 	return bestRoot, bestInfo, bestRoot != ""
+}
+
+func (detector *Detector) cachedRoot(root string) (Info, bool) {
+	detector.mu.Lock()
+	defer detector.mu.Unlock()
+	info, ok := detector.cache[root]
+	return info, ok
+}
+
+func (detector *Detector) store(root string, info Info) {
+	detector.mu.Lock()
+	defer detector.mu.Unlock()
+	detector.cache[root] = info
 }
 
 func (detector *Detector) gitRoot(path string) (string, error) {

@@ -55,6 +55,37 @@ func TestOverviewJSONScansAndRendersProject(t *testing.T) {
 	}
 }
 
+func TestDiscoverOverviewReturnsPlaceholderProjects(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, filepath.Join(root, "app"), `{"dependencies":{"@sveltejs/kit":"latest"}}`)
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := DiscoverOverview(Options{Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("DiscoverOverview() error = %v", err)
+	}
+	if len(result.Projects) != 1 || len(result.Scanned) != 1 {
+		t.Fatalf("discovered projects=%#v scanned=%#v", result.Projects, result.Scanned)
+	}
+	project := result.Projects[0]
+	if project.Name != "app" || project.Path == "" {
+		t.Fatalf("placeholder project = %#v", project)
+	}
+	if project.StackDisplay != "" || project.Activity.Display != "" || project.Status.Display != "" || project.Note.Display != "" {
+		t.Fatalf("placeholder should not be enriched yet: %#v", project)
+	}
+}
+
 func TestOverviewJSONTimingWritesOnlyToErr(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()
