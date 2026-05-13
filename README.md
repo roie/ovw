@@ -64,6 +64,8 @@ ovw --plain
 ovw --json
 ovw vibe-oke
 ovw parallel-booth --json
+ovw vibe-oke --open
+ovw .                       # temporary view for the current folder
 ```
 
 ## TUI
@@ -75,6 +77,7 @@ left/right or h/l  scroll columns
 f                  filter
 s                  sort
 c                  columns
+ctrl+p             command palette
 enter              details
 n                  note
 m                  status
@@ -103,6 +106,7 @@ ovw unset <name> --note
 ovw unset <name> --pin
 
 ovw --status active          # filter by status
+ovw --path ~/dev/web         # filter by project path
 ovw --dirty                  # filter dirty projects
 ovw --stale                  # filter stale projects
 ovw --untagged               # filter projects without status
@@ -153,7 +157,13 @@ brew uninstall ovw
 brew untap roie/tap
 ```
 
-Remove the binary:
+Remove the binary installed by curl:
+
+```sh
+rm ~/.local/bin/ovw
+```
+
+Remove the binary installed from source:
 
 ```sh
 rm "$(go env GOPATH)/bin/ovw"
@@ -166,11 +176,12 @@ rm -rf ~/.config/ovw
 rm -rf ~/.local/share/ovw
 ```
 
-On Windows, remove `ovw.exe` from your Go bin directory, then remove:
+On Windows, remove:
 
 ```txt
-%AppData%\ovw
+%LocalAppData%\ovw\bin\ovw.exe
 %LocalAppData%\ovw
+%AppData%\ovw
 ```
 
 ## Development
