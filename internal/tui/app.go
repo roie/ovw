@@ -1561,7 +1561,7 @@ func renderShell(m Model) string {
 		}
 		if len(visible) == 0 && m.search != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match search")
-			body += "\n" + keyActionLine("esc", "clear search", 8)
+			body += "\n" + inlineActionHint("esc", "clear search")
 		} else if len(visible) == 0 && m.pathScope() != "" {
 			body += "\n\n" + mutedStyle.Render("No projects match path: "+m.pathScope())
 		} else {

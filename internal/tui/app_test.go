@@ -1875,11 +1875,15 @@ func TestModelSearchNoMatchesState(t *testing.T) {
 		search:   "zzz",
 	}
 
-	view := stripANSI(model.View())
+	raw := model.View()
+	view := stripANSI(raw)
 	for _, want := range []string{"No projects match search", "esc", "clear search"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("View() missing %q:\n%s", want, view)
 		}
+	}
+	if strings.Contains(raw, "48;5;236") {
+		t.Fatalf("search empty state should not use modal background styling:\n%q", raw)
 	}
 }
 
@@ -3091,11 +3095,15 @@ func TestModelHelpOpensAndCloses(t *testing.T) {
 
 func TestModelNoProjectsState(t *testing.T) {
 	model := Model{width: 100, height: 24}
-	view := stripANSI(model.View())
+	raw := model.View()
+	view := stripANSI(raw)
 	for _, want := range []string{"No projects found", "a", "add project", "r", "reload"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("View() missing %q:\n%s", want, view)
 		}
+	}
+	if strings.Contains(raw, "48;5;236") {
+		t.Fatalf("empty table should not use modal background styling:\n%q", raw)
 	}
 }
 
@@ -3106,9 +3114,13 @@ func TestModelNoProjectsStateShowsPathScope(t *testing.T) {
 		request: app.Options{Path: "library1"},
 	}
 
-	view := stripANSI(model.View())
+	raw := model.View()
+	view := stripANSI(raw)
 	if !strings.Contains(view, "No projects match path: library1") {
 		t.Fatalf("empty path scope view missing message:\n%s", view)
+	}
+	if strings.Contains(raw, "48;5;236") {
+		t.Fatalf("path empty state should not use modal background styling:\n%q", raw)
 	}
 }
 

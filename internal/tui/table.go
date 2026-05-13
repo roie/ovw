@@ -24,8 +24,8 @@ func tableView(projects []project.Project, selected, width, height, xOffset int,
 		lines := []string{
 			mutedStyle.Render("No projects found"),
 			"",
-			keyActionLine("a", "add project", 8),
-			keyActionLine("r", "reload", 8),
+			inlineActionHint("a", "add project"),
+			inlineActionHint("r", "reload"),
 		}
 		return strings.Join(lines, "\n")
 	}
