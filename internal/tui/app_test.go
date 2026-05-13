@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"ovw/internal/app"
-	"ovw/internal/buildinfo"
 	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
@@ -19,7 +18,7 @@ import (
 
 func TestNewModelRendersLoadingState(t *testing.T) {
 	got := New().View()
-	for _, want := range []string{"ovw", "Loading projects...", "quit"} {
+	for _, want := range []string{"ovw", "Loading projects...", "ctrl+p command"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("View() missing %q:\n%s", want, got)
 		}
@@ -81,7 +80,7 @@ func TestModelPinsFooterToBottom(t *testing.T) {
 	if len(lines) != model.height {
 		t.Fatalf("View() rendered %d lines, want %d:\n%s", len(lines), model.height, strings.Join(lines, "\n"))
 	}
-	if !strings.Contains(lines[len(lines)-1], "q quit") {
+	if !strings.Contains(lines[len(lines)-1], "ctrl+p command") {
 		t.Fatalf("footer should stay on last row:\n%s", strings.Join(lines, "\n"))
 	}
 	if !strings.Contains(lines[0], "ovw") {
@@ -104,7 +103,7 @@ func TestModelClipsContentBeforeFooter(t *testing.T) {
 	if len(lines) != model.height {
 		t.Fatalf("View() rendered %d lines, want %d:\n%s", len(lines), model.height, strings.Join(lines, "\n"))
 	}
-	if !strings.Contains(lines[len(lines)-1], "q quit") {
+	if !strings.Contains(lines[len(lines)-1], "ctrl+p command") {
 		t.Fatalf("footer should remain visible when content is clipped:\n%s", strings.Join(lines, "\n"))
 	}
 }
@@ -722,7 +721,7 @@ func TestModelHeaderShowsAllFilter(t *testing.T) {
 	}
 }
 
-func TestModelHeaderShowsPathScope(t *testing.T) {
+func TestModelFooterShowsPathScope(t *testing.T) {
 	t.Setenv("HOME", "/home/roie")
 
 	model := Model{
@@ -738,11 +737,11 @@ func TestModelHeaderShowsPathScope(t *testing.T) {
 	lines := strings.Split(stripANSI(model.View()), "\n")
 	header := lines[0]
 	footer := lines[len(lines)-1]
-	if !strings.Contains(header, "ovw  1 project  ~/dev/extensions") {
-		t.Fatalf("header missing path scope:\n%s", header)
+	if strings.Contains(header, "~/dev/extensions") {
+		t.Fatalf("header should not show path scope:\n%s", header)
 	}
-	if strings.Contains(footer, "~/dev/extensions") {
-		t.Fatalf("footer should not show path scope:\n%s", strings.Join(lines, "\n"))
+	if !strings.Contains(footer, "~/dev/extensions") {
+		t.Fatalf("footer missing path scope:\n%s", footer)
 	}
 }
 
@@ -825,28 +824,125 @@ func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 	}
 }
 
-func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
-	got := stripANSI(footerView(0))
-	for _, want := range []string{"↑↓ move", "←→ scroll", "/ search", ": command", "f filter", "s sort", "enter details", "n note", "m status", "r reload", "o open", "t terminal", "esc back", "? help", "q quit"} {
+func TestModelFooterShowsScopeAndCommandHint(t *testing.T) {
+	t.Setenv("HOME", "/home/roie")
+	model := Model{
+		width:   80,
+		request: app.Options{Path: "/home/roie/dev/web"},
+	}
+
+	got := stripANSI(model.footerView())
+	if !strings.Contains(got, "~/dev/web") || !strings.HasSuffix(got, "ctrl+p command") {
+		t.Fatalf("footer should show scoped path and command hint:\n%s", got)
+	}
+}
+
+func TestModelFooterResolvesRelativeScope(t *testing.T) {
+	t.Setenv("HOME", "/home/roie")
+	model := Model{
+		width:   80,
+		request: app.Options{Path: "extensions", Cwd: "/home/roie/dev"},
+	}
+
+	got := stripANSI(model.footerView())
+	if !strings.Contains(got, "~/dev/extensions") {
+		t.Fatalf("footer should show complete resolved scope path:\n%s", got)
+	}
+}
+
+func TestModelFooterShowsSessionRoot(t *testing.T) {
+	t.Setenv("HOME", "/home/roie")
+	model := Model{
+		width:   80,
+		request: app.Options{SessionRoot: "/home/roie/dev/web"},
+	}
+
+	got := stripANSI(model.footerView())
+	if !strings.Contains(got, "~/dev/web") {
+		t.Fatalf("footer should show session root:\n%s", got)
+	}
+}
+
+func TestModelFooterShowsSingleConfigRoot(t *testing.T) {
+	t.Setenv("HOME", "/home/roie")
+	cfg := config.Default()
+	cfg.Roots = []string{"~/dev/web"}
+	model := Model{
+		width:  80,
+		config: cfg,
+	}
+
+	got := stripANSI(model.footerView())
+	if !strings.Contains(got, "~/dev/web") {
+		t.Fatalf("footer should show single configured root:\n%s", got)
+	}
+}
+
+func TestModelFooterShowsMultipleConfigRoots(t *testing.T) {
+	t.Setenv("HOME", "/home/roie")
+	cfg := config.Default()
+	cfg.Roots = []string{"~/dev/web", "~/dev/extensions"}
+	model := Model{
+		width:  100,
+		config: cfg,
+	}
+
+	got := stripANSI(model.footerView())
+	for _, want := range []string{"~/dev", "ctrl+p command"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("footer missing %q:\n%s", want, got)
 		}
 	}
-	for _, notWant := range []string{"a add"} {
-		if strings.Contains(got, notWant) {
-			t.Fatalf("footer should not include secondary action %q:\n%s", notWant, got)
+	if strings.Contains(got, "~/dev/web") || strings.Contains(got, "~/dev/extensions") {
+		t.Fatalf("footer should collapse sibling roots to shared parent:\n%s", got)
+	}
+}
+
+func TestModelFooterShowsUnrelatedRootsWithMoreCount(t *testing.T) {
+	t.Setenv("HOME", "/home/roie")
+	cfg := config.Default()
+	cfg.Roots = []string{"~/work/client-a", "~/personal/tools", "~/sandbox/lab", "~/src/lib", "~/tmp/demo"}
+	model := Model{
+		width:  120,
+		config: cfg,
+	}
+
+	got := stripANSI(model.footerView())
+	for _, want := range []string{"~/work/client-a", "~/personal/tools", "+3 more", "ctrl+p command"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("footer missing %q:\n%s", want, got)
 		}
 	}
 }
 
-func TestFooterShowsVersionWhenWide(t *testing.T) {
-	got := stripANSI(footerView(180))
-	want := "ovw " + buildinfo.Version
-	if !strings.HasSuffix(got, want) {
-		t.Fatalf("footer should put version on the right:\n%s", got)
+func TestModelFooterDoesNotShowSelectedProjectPath(t *testing.T) {
+	t.Setenv("HOME", "/home/roie")
+	model := Model{
+		width:    80,
+		projects: []project.Project{{Name: "eventca", Path: "/home/roie/dev/web/eventca"}},
 	}
-	if strings.Contains(stripANSI(footerView(40)), want) {
-		t.Fatalf("narrow footer should hide version:\n%s", stripANSI(footerView(40)))
+
+	got := stripANSI(model.footerView())
+	if strings.Contains(got, "eventca") {
+		t.Fatalf("footer should not change with selected project path:\n%s", got)
+	}
+	if !strings.HasSuffix(got, "ctrl+p command") {
+		t.Fatalf("footer should preserve command hint:\n%s", got)
+	}
+}
+
+func TestModelFooterTruncatesLongScope(t *testing.T) {
+	model := Model{
+		width:   24,
+		request: app.Options{Path: "/very/long/path/to/eventca"},
+	}
+
+	got := stripANSI(model.footerView())
+	if lipglossWidth(got) > model.width {
+		t.Fatalf("footer width = %d, want <= %d: %q", lipglossWidth(got), model.width, got)
+	}
+	if !strings.HasSuffix(got, "ctrl+p command") {
+		t.Fatalf("footer should preserve command hint:\n%s", got)
 	}
 }
 
@@ -3169,7 +3265,9 @@ func TestModelNarrowViewKeepsDetailPaneHidden(t *testing.T) {
 	}
 
 	view := model.View()
-	if strings.Contains(view, "Path") || strings.Contains(view, "/tmp/one") {
+	lines := strings.Split(view, "\n")
+	body := strings.Join(lines[:len(lines)-1], "\n")
+	if strings.Contains(body, "Path") || strings.Contains(body, "/tmp/one") {
 		t.Fatalf("narrow table view should not render inline detail:\n%s", view)
 	}
 }

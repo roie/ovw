@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -1600,9 +1601,135 @@ func renderShell(m Model) string {
 		}
 	}
 	if m.screen != screenOnboarding && m.screen != screenOnboardingInput {
-		body = pinFooter(body, footerView(m.contentWidth()), m.height)
+		body = pinFooter(body, m.footerView(), m.height)
 	}
 	return body
+}
+
+func (m Model) footerView() string {
+	left := m.footerPath()
+	right := "ctrl+p command"
+	width := m.contentWidth()
+	if width <= 0 {
+		return mutedStyle.Render(right)
+	}
+	if left == "" {
+		return mutedStyle.Render(right)
+	}
+	if lipglossWidth(left)+lipglossWidth(right)+2 > width {
+		leftWidth := width - lipglossWidth(right) - 2
+		if leftWidth <= 0 {
+			return mutedStyle.Render(truncateText(right, width))
+		}
+		left = truncateText(left, leftWidth)
+	}
+	gap := width - lipglossWidth(left) - lipglossWidth(right)
+	if gap < 1 {
+		gap = 1
+	}
+	return mutedStyle.Render(left + strings.Repeat(" ", gap) + right)
+}
+
+func (m Model) footerPath() string {
+	if scope := m.pathScope(); scope != "" {
+		return shortPath(m.resolveScopePath(scope))
+	}
+	if root := strings.TrimSpace(m.request.SessionRoot); root != "" {
+		return shortPath(m.resolveScopePath(root))
+	}
+	if len(m.config.Roots) == 1 {
+		return shortPath(m.resolveScopePath(m.config.Roots[0]))
+	}
+	if len(m.config.Roots) > 1 {
+		roots := make([]string, 0, len(m.config.Roots))
+		for _, root := range m.config.Roots {
+			if root = strings.TrimSpace(root); root != "" {
+				roots = append(roots, m.resolveScopePath(root))
+			}
+		}
+		return formatRootScope(roots)
+	}
+	return ""
+}
+
+func (m Model) resolveScopePath(scope string) string {
+	if scope == "~" || strings.HasPrefix(scope, "~/") {
+		if expanded, err := config.ExpandPath(scope); err == nil {
+			return expanded
+		}
+		return scope
+	}
+	if filepath.IsAbs(scope) {
+		if abs, err := filepath.Abs(scope); err == nil {
+			return abs
+		}
+		return scope
+	}
+	cwd := m.request.Cwd
+	if cwd == "" {
+		if value, err := os.Getwd(); err == nil {
+			cwd = value
+		}
+	}
+	if cwd == "" {
+		return scope
+	}
+	return filepath.Join(cwd, scope)
+}
+
+func formatRootScope(roots []string) string {
+	roots = cleanRootPaths(roots)
+	if len(roots) == 0 {
+		return ""
+	}
+	if len(roots) == 1 {
+		return shortPath(roots[0])
+	}
+	if parent, ok := commonRootParent(roots); ok {
+		return shortPath(parent)
+	}
+	display := make([]string, 0, 2)
+	for index := 0; index < len(roots) && index < 2; index++ {
+		display = append(display, shortPath(roots[index]))
+	}
+	if remaining := len(roots) - len(display); remaining > 0 {
+		display = append(display, fmt.Sprintf("+%d more", remaining))
+	}
+	return strings.Join(display, ", ")
+}
+
+func cleanRootPaths(roots []string) []string {
+	seen := map[string]bool{}
+	cleaned := make([]string, 0, len(roots))
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		root = filepath.Clean(root)
+		if seen[root] {
+			continue
+		}
+		seen[root] = true
+		cleaned = append(cleaned, root)
+	}
+	return cleaned
+}
+
+func commonRootParent(roots []string) (string, bool) {
+	if len(roots) < 2 {
+		return "", false
+	}
+	parent := filepath.Dir(roots[0])
+	if parent == "." || parent == string(filepath.Separator) {
+		return "", false
+	}
+	for _, root := range roots[1:] {
+		if filepath.Dir(root) != parent {
+			return "", false
+		}
+	}
+	return parent, true
 }
 
 func pinFooter(body, footer string, height int) string {
@@ -1630,9 +1757,6 @@ func pinFooter(body, footer string, height int) string {
 func headerView(m Model) string {
 	visible := m.visibleProjects()
 	leftParts := []string{formatProjectCount(len(visible))}
-	if scope := m.pathScope(); scope != "" {
-		leftParts = append(leftParts, shortPath(scope))
-	}
 	if m.search != "" || m.searching {
 		leftParts = append(leftParts, "search: "+m.searchDisplay())
 	} else if m.enriching && m.enrichTotal > 0 {
