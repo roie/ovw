@@ -1459,9 +1459,14 @@ func TestModelCommandPaletteOpensFromColonAndCtrlP(t *testing.T) {
 		t.Fatalf("screen = %v, want command", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Command", "type a command", "Search projects", "Open in editor", "Set status", "Filter projects", "Choose columns", "Reload projects"} {
+	for _, want := range []string{"Commands", "type a command", "Search projects", "Open in editor", "Set status", "Filter projects", "Choose columns", "Reload projects"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("command palette missing %q:\n%s", want, view)
+		}
+	}
+	for _, want := range []string{"/", "o", "m", "f", "c", "r", "q"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("command palette missing shortcut %q:\n%s", want, view)
 		}
 	}
 
@@ -1508,6 +1513,16 @@ func TestModelCommandPaletteShowsConditionalPinLabel(t *testing.T) {
 	actions := model.commandActions()
 	if !hasCommandLabel(actions, "Unpin project") || hasCommandLabel(actions, "Pin project") {
 		t.Fatalf("pinned command labels = %#v", commandLabels(actions))
+	}
+}
+
+func TestCommandOptionLineRightAlignsShortcut(t *testing.T) {
+	line := commandOptionLine(commandAction{Label: "Open in editor", Shortcut: "o"}, 30)
+	if !strings.HasPrefix(line, "Open in editor") || !strings.HasSuffix(line, "o") {
+		t.Fatalf("command option line = %q", line)
+	}
+	if lipglossWidth(line) != 30 {
+		t.Fatalf("command option line width = %d, want 30: %q", lipglossWidth(line), line)
 	}
 }
 

@@ -7,9 +7,10 @@ import (
 )
 
 type commandAction struct {
-	Label   string
-	Aliases []string
-	Run     func(Model) (Model, tea.Cmd)
+	Label    string
+	Shortcut string
+	Aliases  []string
+	Run      func(Model) (Model, tea.Cmd)
 }
 
 func (m *Model) openCommandPalette() {
@@ -116,35 +117,35 @@ func commandMatches(action commandAction, query string) bool {
 
 func (m Model) commandActions() []commandAction {
 	actions := []commandAction{
-		{Label: "Search projects", Aliases: []string{"search", "find"}, Run: func(m Model) (Model, tea.Cmd) {
+		{Label: "Search projects", Shortcut: "/", Aliases: []string{"search", "find"}, Run: func(m Model) (Model, tea.Cmd) {
 			m.screen = screenTable
 			m.searching = true
 			m.searchCursor = textCursor(m.search, m.searchCursor)
 			return m, nil
 		}},
-		{Label: "Open in editor", Aliases: []string{"open", "editor"}, Run: commandOpenSelectedProject},
-		{Label: "Open terminal here", Aliases: []string{"terminal", "shell"}, Run: commandOpenSelectedTerminal},
-		{Label: "Show details", Aliases: []string{"details", "detail"}, Run: commandShowDetails},
-		{Label: "Edit note", Aliases: []string{"note"}, Run: commandEditNote},
-		{Label: "Set status", Aliases: []string{"status"}, Run: commandSetStatus},
-		{Label: m.pinCommandLabel(), Aliases: []string{"pin", "unpin"}, Run: commandTogglePin},
-		{Label: "Filter projects", Aliases: []string{"filter"}, Run: commandFilterProjects},
-		{Label: "Sort projects", Aliases: []string{"sort"}, Run: commandSortProjects},
+		{Label: "Open in editor", Shortcut: "o", Aliases: []string{"open", "editor"}, Run: commandOpenSelectedProject},
+		{Label: "Open terminal here", Shortcut: "t", Aliases: []string{"terminal", "shell"}, Run: commandOpenSelectedTerminal},
+		{Label: "Show details", Shortcut: "enter", Aliases: []string{"details", "detail"}, Run: commandShowDetails},
+		{Label: "Edit note", Shortcut: "n", Aliases: []string{"note"}, Run: commandEditNote},
+		{Label: "Set status", Shortcut: "m", Aliases: []string{"status"}, Run: commandSetStatus},
+		{Label: m.pinCommandLabel(), Shortcut: "p", Aliases: []string{"pin", "unpin"}, Run: commandTogglePin},
+		{Label: "Filter projects", Shortcut: "f", Aliases: []string{"filter"}, Run: commandFilterProjects},
+		{Label: "Sort projects", Shortcut: "s", Aliases: []string{"sort"}, Run: commandSortProjects},
 	}
-	actions = append(actions, commandAction{Label: "Choose columns", Aliases: []string{"columns"}, Run: func(m Model) (Model, tea.Cmd) {
+	actions = append(actions, commandAction{Label: "Choose columns", Shortcut: "c", Aliases: []string{"columns"}, Run: func(m Model) (Model, tea.Cmd) {
 		m.openColumns()
 		return m, nil
 	}})
 	if !m.loading {
-		actions = append(actions, commandAction{Label: "Add project", Aliases: []string{"add"}, Run: commandAddProject})
+		actions = append(actions, commandAction{Label: "Add project", Shortcut: "a", Aliases: []string{"add"}, Run: commandAddProject})
 	}
 	actions = append(actions,
-		commandAction{Label: "Reload projects", Aliases: []string{"reload", "refresh"}, Run: commandReloadProjects},
-		commandAction{Label: "Show help", Aliases: []string{"help"}, Run: func(m Model) (Model, tea.Cmd) {
+		commandAction{Label: "Reload projects", Shortcut: "r", Aliases: []string{"reload", "refresh"}, Run: commandReloadProjects},
+		commandAction{Label: "Show help", Shortcut: "?", Aliases: []string{"help"}, Run: func(m Model) (Model, tea.Cmd) {
 			m.screen = screenHelp
 			return m, nil
 		}},
-		commandAction{Label: "Quit", Aliases: []string{"quit", "exit"}, Run: func(m Model) (Model, tea.Cmd) {
+		commandAction{Label: "Quit", Shortcut: "q", Aliases: []string{"quit", "exit"}, Run: func(m Model) (Model, tea.Cmd) {
 			return m, tea.Quit
 		}},
 	)
@@ -254,13 +255,33 @@ func commandView(input string, cursor int, actions []commandAction, selected int
 	lines := inputModalLines(input, "type a command...", 52, cursor)
 	if len(actions) == 0 {
 		lines = append(lines, "", modalMuted("No commands"))
-		return modalView("Command", lines, 56)
-	}
-	labels := make([]string, 0, len(actions))
-	for _, action := range actions {
-		labels = append(labels, action.Label)
+		return modalView("Commands", lines, 56)
 	}
 	lines = append(lines, "")
-	lines = append(lines, modalOptionLines(labels, selected)...)
-	return modalView("Command", lines, 56)
+	lines = append(lines, commandOptionLines(actions, selected, 50)...)
+	return modalView("Commands", lines, 56)
+}
+
+func commandOptionLines(actions []commandAction, selected int, width int) []string {
+	lines := make([]string, 0, len(actions))
+	for index, action := range actions {
+		line := commandOptionLine(action, width)
+		if index == selected {
+			lines = append(lines, modalAccent("> "+line))
+			continue
+		}
+		lines = append(lines, modalMuted("  "+line))
+	}
+	return lines
+}
+
+func commandOptionLine(action commandAction, width int) string {
+	if action.Shortcut == "" {
+		return action.Label
+	}
+	gap := width - lipglossWidth(action.Label) - lipglossWidth(action.Shortcut)
+	if gap < 2 {
+		gap = 2
+	}
+	return action.Label + strings.Repeat(" ", gap) + action.Shortcut
 }
