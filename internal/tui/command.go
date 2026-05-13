@@ -169,7 +169,7 @@ func commandAddProject(m Model) (Model, tea.Cmd) {
 	m.addInput = ""
 	m.addCursor = 0
 	m.addErr = ""
-	return m, nil
+	return m, m.startInputCursorBlink()
 }
 
 func commandOpenSelectedProject(m Model) (Model, tea.Cmd) {
@@ -208,7 +208,7 @@ func commandEditNote(m Model) (Model, tea.Cmd) {
 	m.screen = screenNote
 	m.noteInput = project.Note.Value
 	m.noteCursor = len([]rune(m.noteInput))
-	return m, nil
+	return m, m.startInputCursorBlink()
 }
 
 func commandSetStatus(m Model) (Model, tea.Cmd) {
@@ -251,8 +251,8 @@ func commandReloadProjects(m Model) (Model, tea.Cmd) {
 	return m, m.reloadOverview(path, "Reloaded")
 }
 
-func commandView(input string, cursor int, actions []commandAction, selected int) string {
-	lines := inputModalLines(input, "type a command...", 52, cursor)
+func commandView(input string, cursor int, actions []commandAction, selected int, cursorState ...inputCursorState) string {
+	lines := inputModalLines(input, "type a command...", 52, cursor, cursorState...)
 	if len(actions) == 0 {
 		lines = append(lines, "", modalMuted("No commands"))
 		return modalView("Commands", lines, 56)

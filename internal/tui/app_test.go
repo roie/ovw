@@ -1577,6 +1577,39 @@ func TestModelSearchCursorBlinks(t *testing.T) {
 	}
 }
 
+func TestModelIgnoresStaleCursorBlink(t *testing.T) {
+	model := Model{
+		projects:      []project.Project{{Name: "api"}},
+		searching:     true,
+		cursorBlinkID: 2,
+	}
+
+	updated, cmd := model.Update(inputCursorBlinkMsg{id: 1})
+	got := updated.(Model)
+	if got.cursorHidden {
+		t.Fatal("stale cursor blink should not toggle cursor state")
+	}
+	if cmd != nil {
+		t.Fatal("stale cursor blink should not schedule another blink")
+	}
+}
+
+func TestModelIgnoresCursorBlinkWhenInputInactive(t *testing.T) {
+	model := Model{
+		projects:      []project.Project{{Name: "api"}},
+		cursorBlinkID: 1,
+	}
+
+	updated, cmd := model.Update(inputCursorBlinkMsg{id: 1})
+	got := updated.(Model)
+	if got.cursorHidden {
+		t.Fatal("inactive cursor blink should not toggle cursor state")
+	}
+	if cmd != nil {
+		t.Fatal("inactive cursor blink should not schedule another blink")
+	}
+}
+
 func TestModelSearchEscBlursThenClearsSearch(t *testing.T) {
 	model := Model{
 		projects: []project.Project{
@@ -2176,7 +2209,7 @@ func TestModelNoteEditorEmptyClearsManualNote(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	for _, want := range []string{"empty clears note▌", "enter", "save"} {
+	for _, want := range []string{"empty clears note", "enter", "save"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("empty note modal missing %q:\n%s", want, view)
 		}
@@ -2203,7 +2236,7 @@ func TestModelNoteEditorUsesCurrentDisplayNoteAsPlaceholder(t *testing.T) {
 	}
 
 	view := stripANSI(model.View())
-	if !strings.Contains(view, "commit fallback note▌") {
+	if !strings.Contains(view, "commit fallback note") {
 		t.Fatalf("note modal should show current note as placeholder:\n%s", view)
 	}
 	if strings.Contains(view, "empty clears note") {
@@ -2304,7 +2337,7 @@ func TestModelStatusPickerSupportsCustomInput(t *testing.T) {
 	if !strings.Contains(view, "Custom status · app") {
 		t.Fatalf("custom status modal missing project name:\n%s", view)
 	}
-	if !strings.Contains(view, "empty clears status▌") {
+	if !strings.Contains(view, "empty clears status") {
 		t.Fatalf("empty custom status modal missing cursor placeholder:\n%s", view)
 	}
 	for _, value := range []string{"b", "l", "o", "c", "k", "e", "d"} {
@@ -2440,7 +2473,7 @@ func TestModelStatusPickerSelectsCurrentStatus(t *testing.T) {
 func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
 	got := stripANSI(statusInputView("", "", 0))
 
-	if !strings.Contains(got, "empty clears status▌") {
+	if !strings.Contains(got, "empty clears status") {
 		t.Fatalf("status input placeholder was truncated:\n%s", got)
 	}
 	if !strings.Contains(got, "enter save") {
@@ -2448,11 +2481,26 @@ func TestStatusInputPlaceholderKeepsCursorAfterRendering(t *testing.T) {
 	}
 }
 
-func TestModalInputCursorBlinks(t *testing.T) {
+func TestModalInputPlaceholderUsesBlockCursor(t *testing.T) {
 	got := noteView("", "", "", 0)
 
-	if !strings.Contains(got, "\x1b[5;38;5;252;48;5;236m▌\x1b[25;22;39;48;5;236m") {
-		t.Fatalf("modal cursor should use ANSI blink:\n%q", got)
+	if !strings.Contains(got, "\x1b[38;5;236;48;5;252me\x1b[22;39;48;5;236m") {
+		t.Fatalf("modal placeholder should draw a cursor block over the first character:\n%q", got)
+	}
+	if strings.Contains(got, "\x1b[5;") {
+		t.Fatalf("modal placeholder should not blink the first character itself:\n%q", got)
+	}
+}
+
+func TestModalInputPlaceholderCanHideCursorWithoutHidingText(t *testing.T) {
+	got := noteView("", "", "", 0, inputCursorState{Visible: false})
+	plain := stripANSI(got)
+
+	if !strings.Contains(plain, "empty clears note") {
+		t.Fatalf("modal placeholder should remain visible while cursor is hidden:\n%s", plain)
+	}
+	if strings.Contains(got, "48;5;252") {
+		t.Fatalf("modal placeholder should not draw cursor block while hidden:\n%q", got)
 	}
 }
 
@@ -2480,8 +2528,8 @@ func TestNotePlaceholderWrapsInsteadOfTruncating(t *testing.T) {
 	if !strings.Contains(got, strings.Repeat("p", 52)) {
 		t.Fatalf("note placeholder missing first wrapped line:\n%s", got)
 	}
-	if !strings.Contains(got, strings.Repeat("p", 28)+"▌") {
-		t.Fatalf("note placeholder missing second wrapped line with cursor:\n%s", got)
+	if !strings.Contains(got, strings.Repeat("p", 28)) {
+		t.Fatalf("note placeholder missing second wrapped line:\n%s", got)
 	}
 }
 
@@ -2644,7 +2692,7 @@ func TestModelAddProjectModalSavesPath(t *testing.T) {
 		t.Fatalf("screen = %v, want add", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Add project", "~/dev/my-project▌", "enter save", "esc"} {
+	for _, want := range []string{"Add project", "~/dev/my-project", "enter save", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("add modal missing %q:\n%s", want, view)
 		}

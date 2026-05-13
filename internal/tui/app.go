@@ -20,6 +20,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const inputCursorBlinkSpeed = 750 * time.Millisecond
+
 type overviewLoader func(app.Options) (app.OverviewResult, error)
 type configSetupLoader func(app.Options) (app.ConfigSetup, error)
 type configRootsCreator func([]string) (config.FilePaths, config.Config, error)
@@ -94,6 +96,8 @@ type Model struct {
 	commandInput    string
 	commandCursor   int
 	commandSelected int
+	cursorHidden    bool
+	cursorBlinkID   int
 	onboardOptions  []string
 	onboardChecked  map[string]bool
 	onboardSelected int
@@ -165,7 +169,14 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case inputCursorBlinkMsg:
+		if msg.id != m.cursorBlinkID || !m.cursorBlinkActive() {
+			return m, nil
+		}
+		m.cursorHidden = !m.cursorHidden
+		return m, inputCursorBlink(m.cursorBlinkID)
 	case tea.KeyMsg:
+		m.cursorHidden = false
 		if m.screen == screenOnboarding {
 			return m.updateOnboarding(msg)
 		}
@@ -246,7 +257,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isCommandKey(msg.String()) {
 			m.openCommandPalette()
-			return m, nil
+			return m, m.startInputCursorBlink()
 		}
 		if isDownKey(msg.String()) {
 			m.moveSelection(1)
@@ -260,14 +271,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = screenTable
 			m.searching = true
 			m.searchCursor = textCursor(m.search, m.searchCursor)
-			return m, nil
+			return m, m.startInputCursorBlink()
 		}
 		if isAddKey(msg.String()) && !m.loading {
 			m.screen = screenAdd
 			m.addInput = ""
 			m.addCursor = 0
 			m.addErr = ""
-			return m, nil
+			return m, m.startInputCursorBlink()
 		}
 		if isFilterKey(msg.String()) {
 			m.screen = screenFilter
@@ -288,7 +299,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = screenNote
 			m.noteInput = project.Note.Value
 			m.noteCursor = len([]rune(m.noteInput))
-			return m, nil
+			return m, m.startInputCursorBlink()
 		}
 		if isStatusKey(msg.String()) && m.canOpenDetail() {
 			project, _ := m.currentProject()
@@ -455,6 +466,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.screen = screenAdd
 		m.addErr = msg.err.Error()
+		return m, m.startInputCursorBlink()
 	case editorOpenedMsg:
 		m.message = msg.message
 	case editorFailedMsg:
@@ -686,7 +698,7 @@ func (m Model) updateOnboarding(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.onboardInput = ""
 			m.onboardCursor = 0
 			m.onboardErr = ""
-			return m, nil
+			return m, m.startInputCursorBlink()
 		}
 		m.loading = true
 		m.onboardErr = ""
@@ -812,6 +824,7 @@ func (m Model) updateStatusPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.screen = screenStatusInput
 			m.statusInput = project.Status.Value
 			m.statusCursor = len([]rune(m.statusInput))
+			return m, m.startInputCursorBlink()
 		case statusOptionClear:
 			m.screen = screenTable
 			m.loading = true
@@ -1086,6 +1099,10 @@ type projectEnrichedMsg struct {
 
 type enrichmentDoneMsg struct{}
 
+type inputCursorBlinkMsg struct {
+	id int
+}
+
 type overviewLoadFailedMsg struct {
 	err error
 }
@@ -1248,6 +1265,34 @@ func waitForEnrichment(updates <-chan enrichmentUpdate) tea.Cmd {
 		}
 		return projectEnrichedMsg{update: update, updates: updates}
 	}
+}
+
+func (m *Model) startInputCursorBlink() tea.Cmd {
+	m.cursorHidden = false
+	m.cursorBlinkID++
+	return inputCursorBlink(m.cursorBlinkID)
+}
+
+func (m Model) cursorBlinkActive() bool {
+	if m.searching {
+		return true
+	}
+	switch m.screen {
+	case screenAdd, screenNote, screenStatusInput, screenCommand, screenOnboardingInput:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m Model) inputCursorState() inputCursorState {
+	return inputCursorState{Visible: !m.cursorHidden}
+}
+
+func inputCursorBlink(id int) tea.Cmd {
+	return tea.Tick(inputCursorBlinkSpeed, func(time.Time) tea.Msg {
+		return inputCursorBlinkMsg{id: id}
+	})
 }
 
 func (m Model) createOnboardingConfigRoots(roots []string) tea.Cmd {
@@ -1506,7 +1551,7 @@ func renderShell(m Model) string {
 	case m.screen == screenOnboarding:
 		body = onboardingCheckedView(m.onboardOptions, m.onboardChecked, m.onboardSelected, m.onboardErr)
 	case m.screen == screenOnboardingInput:
-		body = onboardingInputView(m.onboardInput, m.onboardCursor, m.onboardErr)
+		body = onboardingInputView(m.onboardInput, m.onboardCursor, m.onboardErr, m.inputCursorState())
 	default:
 		visible := m.visibleProjects()
 		body = headerView(m)
@@ -1530,11 +1575,11 @@ func renderShell(m Model) string {
 				}
 				content = overlayModal(content, modal, m.contentWidth())
 			case screenAdd:
-				content = overlayModal(content, addProjectView(m.addInput, m.addCursor, m.addErr), m.contentWidth())
+				content = overlayModal(content, addProjectView(m.addInput, m.addCursor, m.addErr, m.inputCursorState()), m.contentWidth())
 			case screenHelp:
 				content = overlayModal(content, helpView(), m.contentWidth())
 			case screenCommand:
-				content = overlayModal(content, commandView(m.commandInput, m.commandCursor, m.filteredCommandActions(), m.commandSelected), m.contentWidth())
+				content = overlayModal(content, commandView(m.commandInput, m.commandCursor, m.filteredCommandActions(), m.commandSelected, m.inputCursorState()), m.contentWidth())
 			case screenFilter:
 				content = overlayModal(content, filterView(m.filterOptions(), m.filterSelected), m.contentWidth())
 			case screenSort:
@@ -1543,13 +1588,13 @@ func renderShell(m Model) string {
 				content = overlayModal(content, columnsView(m.columnOrder, m.columnChecked, m.columnSelected, m.columnErr), m.contentWidth())
 			case screenNote:
 				project, _ := m.currentProject()
-				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display, m.noteCursor), m.contentWidth())
+				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display, m.noteCursor, m.inputCursorState()), m.contentWidth())
 			case screenStatus:
 				project, _ := m.currentProject()
 				content = overlayModal(content, statusView(project.Name, m.statusOptions(), m.statusSelected), m.contentWidth())
 			case screenStatusInput:
 				project, _ := m.currentProject()
-				content = overlayModal(content, statusInputView(project.Name, m.statusInput, m.statusCursor), m.contentWidth())
+				content = overlayModal(content, statusInputView(project.Name, m.statusInput, m.statusCursor, m.inputCursorState()), m.contentWidth())
 			}
 			body += "\n\n" + content
 		}
@@ -1903,7 +1948,7 @@ func (m *Model) replaceProject(updated project.Project) {
 
 func (m Model) searchDisplay() string {
 	if m.searching {
-		return searchInputLine(m.search, "", m.searchCursor)
+		return searchInputLine(m.search, "", m.searchCursor, m.inputCursorState())
 	}
 	return m.search
 }

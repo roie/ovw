@@ -7,16 +7,31 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func noteView(projectName, value, placeholder string, cursor int) string {
+type inputCursorState struct {
+	Visible bool
+}
+
+func defaultInputCursorState() inputCursorState {
+	return inputCursorState{Visible: true}
+}
+
+func inputCursorVisible(states ...inputCursorState) bool {
+	if len(states) == 0 {
+		return defaultInputCursorState().Visible
+	}
+	return states[0].Visible
+}
+
+func noteView(projectName, value, placeholder string, cursor int, cursorState ...inputCursorState) string {
 	if placeholder == "" {
 		placeholder = "empty clears note"
 	}
-	return inputModalView(modalTitleWithProject("Note", projectName), value, placeholder, 56, cursor)
+	return inputModalView(modalTitleWithProject("Note", projectName), value, placeholder, 56, cursor, cursorState...)
 }
 
-func addProjectView(value string, cursor int, err string) string {
+func addProjectView(value string, cursor int, err string, cursorState ...inputCursorState) string {
 	inputWidth := 52
-	lines := inputModalLines(value, "~/dev/my-project", inputWidth, cursor)
+	lines := inputModalLines(value, "~/dev/my-project", inputWidth, cursor, cursorState...)
 	if err != "" {
 		lines = append(lines, "", errorStyle.Render(err))
 	}
@@ -69,9 +84,9 @@ func onboardingSetupView(rows []setupRow, selected int, err string) string {
 	return strings.Join(lines, "\n")
 }
 
-func onboardingInputView(value string, cursor int, err string) string {
+func onboardingInputView(value string, cursor int, err string, cursorState ...inputCursorState) string {
 	lines := onboardingHeaderLines("Enter a custom project folder")
-	lines = append(lines, inlineInputLines(value, "~/Projects", 52, cursor)...)
+	lines = append(lines, inlineInputLines(value, "~/Projects", 52, cursor, cursorState...)...)
 	if err != "" {
 		lines = append(lines, "", errorStyle.Render(err))
 	}
@@ -142,8 +157,8 @@ func statusView(projectName string, options []statusOption, selected int) string
 	return modalView(modalTitleWithProject("Status", projectName), lines, 42)
 }
 
-func statusInputView(projectName, value string, cursor int) string {
-	return inputModalView(modalTitleWithProject("Custom status", projectName), value, "empty clears status", 42, cursor)
+func statusInputView(projectName, value string, cursor int, cursorState ...inputCursorState) string {
+	return inputModalView(modalTitleWithProject("Custom status", projectName), value, "empty clears status", 42, cursor, cursorState...)
 }
 
 func modalTitleWithProject(title, projectName string) string {
@@ -153,28 +168,28 @@ func modalTitleWithProject(title, projectName string) string {
 	return title + " · " + projectName
 }
 
-func inputModalView(title, value, placeholder string, width int, cursor int) string {
+func inputModalView(title, value, placeholder string, width int, cursor int, cursorState ...inputCursorState) string {
 	inputWidth := width - 4
-	lines := inputModalLines(value, placeholder, inputWidth, cursor)
+	lines := inputModalLines(value, placeholder, inputWidth, cursor, cursorState...)
 	lines = append(lines, "", actionHint("enter", "save"))
 	return modalView(title, lines, width)
 }
 
-func searchInputLine(value, placeholder string, cursor int) string {
+func searchInputLine(value, placeholder string, cursor int, cursorState ...inputCursorState) string {
 	if value == "" {
-		return placeholder + activeCursor()
+		return activePlaceholderWithCursor(placeholder, inputCursorVisible(cursorState...))
 	}
 	return stringWithCursor(value, cursor, activeCursor())
 }
 
-func inputModalLines(value, placeholder string, width int, cursor int) []string {
+func inputModalLines(value, placeholder string, width int, cursor int, cursorState ...inputCursorState) []string {
 	if value == "" {
-		lines := wrapInputPlaceholderLines(placeholder, width)
-		for index := range lines {
-			lines[index] = modalMuted(lines[index])
+		rawLines := wrapInputPlaceholderLines(placeholder, width)
+		lines := make([]string, len(rawLines))
+		for index := range rawLines {
+			lines[index] = modalMuted(rawLines[index])
 		}
-		last := len(lines) - 1
-		lines[last] += modalCursor()
+		lines[0] = modalPlaceholderWithCursor(rawLines[0], inputCursorVisible(cursorState...))
 		return lines
 	}
 	if textCursor(value, cursor) == len([]rune(value)) {
@@ -357,6 +372,10 @@ func modalCursor() string {
 	return modalANSI("5;38;5;252", "▌")
 }
 
+func modalCursorText(value string) string {
+	return "\x1b[38;5;" + modalSurfaceColor + ";48;5;252m" + value + "\x1b[22;39;48;5;" + modalSurfaceColor + "m"
+}
+
 func activeCursor() string {
 	return "\x1b[5m▌\x1b[25m"
 }
@@ -475,14 +494,14 @@ func onboardingCustomPathLine(selected bool) string {
 	return "  " + mutedStyle.Render(label)
 }
 
-func inlineInputLines(value, placeholder string, width int, cursor int) []string {
+func inlineInputLines(value, placeholder string, width int, cursor int, cursorState ...inputCursorState) []string {
 	if value == "" {
-		lines := wrapInputPlaceholderLines(placeholder, width)
-		for index := range lines {
-			lines[index] = mutedStyle.Render(lines[index])
+		rawLines := wrapInputPlaceholderLines(placeholder, width)
+		lines := make([]string, len(rawLines))
+		for index := range rawLines {
+			lines[index] = mutedStyle.Render(rawLines[index])
 		}
-		last := len(lines) - 1
-		lines[last] += activeCursor()
+		lines[0] = inlinePlaceholderWithCursor(rawLines[0], inputCursorVisible(cursorState...))
 		return lines
 	}
 	if textCursor(value, cursor) == len([]rune(value)) {
@@ -492,6 +511,48 @@ func inlineInputLines(value, placeholder string, width int, cursor int) []string
 		return lines
 	}
 	return wrapInputLinesWithCursor(value, width, cursor, activeCursor())
+}
+
+func activePlaceholderWithCursor(value string, cursorVisible bool) string {
+	runes := []rune(value)
+	if len(runes) == 0 {
+		if cursorVisible {
+			return activeCursor()
+		}
+		return ""
+	}
+	if !cursorVisible {
+		return value
+	}
+	return "\x1b[7m" + string(runes[0]) + "\x1b[27m" + string(runes[1:])
+}
+
+func modalPlaceholderWithCursor(value string, cursorVisible bool) string {
+	runes := []rune(value)
+	if len(runes) == 0 {
+		if cursorVisible {
+			return modalCursor()
+		}
+		return ""
+	}
+	if !cursorVisible {
+		return modalMuted(value)
+	}
+	return modalCursorText(string(runes[0])) + modalMuted(string(runes[1:]))
+}
+
+func inlinePlaceholderWithCursor(value string, cursorVisible bool) string {
+	runes := []rune(value)
+	if len(runes) == 0 {
+		if cursorVisible {
+			return activeCursor()
+		}
+		return ""
+	}
+	if !cursorVisible {
+		return mutedStyle.Render(value)
+	}
+	return "\x1b[7m" + string(runes[0]) + "\x1b[27m" + mutedStyle.Render(string(runes[1:]))
 }
 
 func inlineActionHint(key, action string) string {
