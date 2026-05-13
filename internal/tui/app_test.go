@@ -391,6 +391,72 @@ func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
 	}
 }
 
+func TestSetupLoadsProjectCountsInBackground(t *testing.T) {
+	var counted []string
+	model := setupModel{
+		options:  []string{"~/dev", "~/Projects"},
+		checked:  map[string]bool{"~/dev": true},
+		expanded: map[string]bool{},
+		children: map[string][]string{},
+		counts:   map[string]int{},
+		counter: func(paths []string) map[string]int {
+			counted = append([]string{}, paths...)
+			return map[string]int{"~/dev": 5, "~/Projects": 0}
+		},
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "counting") || strings.Contains(view, " -") {
+		t.Fatalf("setup view should not show count placeholders:\n%s", view)
+	}
+	cmd := model.Init()
+	if cmd == nil {
+		t.Fatal("expected setup count command")
+	}
+	model = updateSetupMsg(t, model, cmd())
+	view = stripANSI(model.View())
+	for _, want := range []string{"~/dev       5", "~/Projects  0"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("setup view missing count %q:\n%s", want, view)
+		}
+	}
+	if !reflect.DeepEqual(counted, []string{"~/dev", "~/Projects"}) {
+		t.Fatalf("counted paths = %#v", counted)
+	}
+}
+
+func TestSetupCountsExpandedChildrenOnlyAfterExpand(t *testing.T) {
+	model := setupModel{
+		options:  []string{"~/dev"},
+		checked:  map[string]bool{"~/dev": true},
+		expanded: map[string]bool{},
+		children: map[string][]string{
+			"~/dev": {"~/dev/web", "~/dev/extensions"},
+		},
+		counts: map[string]int{"~/dev": 3},
+		counter: func(paths []string) map[string]int {
+			return map[string]int{"~/dev/web": 2, "~/dev/extensions": 1}
+		},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(setupModel)
+	if cmd == nil {
+		t.Fatal("expected child count command")
+	}
+	view := stripANSI(model.View())
+	if strings.Contains(view, "web  2") || strings.Contains(view, "extensions  1") {
+		t.Fatalf("child counts should not appear before count command completes:\n%s", view)
+	}
+	model = updateSetupMsg(t, model, cmd())
+	view = stripANSI(model.View())
+	for _, want := range []string{"web         2", "extensions  1"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expanded setup view missing child count %q:\n%s", want, view)
+		}
+	}
+}
+
 func TestSetupCustomPathSupportsCursorEditing(t *testing.T) {
 	model := setupModel{
 		options:   []string{"/tmp/dev"},

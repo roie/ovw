@@ -430,6 +430,20 @@ func CheckConfig(opts Options) (ConfigSetup, error) {
 	return ConfigSetup{Paths: paths, Candidates: candidates}, nil
 }
 
+func CountProjectRoots(roots []string) map[string]int {
+	counts := make(map[string]int, len(roots))
+	for _, root := range roots {
+		cfg := config.Default()
+		cfg.Roots = []string{root}
+		projects, err := scanner.ScanAll(cfg, metadata.New())
+		if err != nil {
+			continue
+		}
+		counts[root] = len(projects)
+	}
+	return counts
+}
+
 func CreateConfig(root string) (config.FilePaths, config.Config, error) {
 	return CreateConfigRoots([]string{root})
 }

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -54,6 +55,7 @@ type setupRow struct {
 	Partial    bool
 	Expandable bool
 	Expanded   bool
+	Count      *int
 }
 
 func onboardingSetupView(rows []setupRow, selected int, err string) string {
@@ -407,6 +409,9 @@ func inlineCheckboxLines(labels []string, checked map[string]bool, selected int)
 
 func inlineSetupRowLines(rows []setupRow, selected int) []string {
 	lines := make([]string, 0, len(rows))
+	rowTexts := make([]string, len(rows))
+	maxWidth := 0
+	maxCountWidth := 0
 	for index, row := range rows {
 		box := "[ ]"
 		if row.Checked {
@@ -424,9 +429,38 @@ func inlineSetupRowLines(rows []setupRow, selected int) []string {
 		}
 		indent := strings.Repeat("  ", row.Depth)
 		line := indent + prefix + box + " " + row.Label
+		rowTexts[index] = line
+		if width := lipglossWidth(line); width > maxWidth {
+			maxWidth = width
+		}
+		if row.Count != nil {
+			if width := lipglossWidth(strconv.Itoa(*row.Count)); width > maxCountWidth {
+				maxCountWidth = width
+			}
+		}
+	}
+	for index, row := range rows {
+		line := rowTexts[index]
+		count := ""
+		if row.Count != nil {
+			count = strconv.Itoa(*row.Count)
+			gap := maxWidth - lipglossWidth(line) + 2
+			if gap < 2 {
+				gap = 2
+			}
+			countGap := maxCountWidth - lipglossWidth(count)
+			line += strings.Repeat(" ", gap+countGap)
+		}
 		if index == selected {
-			lines = append(lines, titleStyle.Render("> "+line))
+			rendered := titleStyle.Render("> " + line)
+			if count != "" {
+				rendered += mutedStyle.Render(count)
+			}
+			lines = append(lines, rendered)
 			continue
+		}
+		if count != "" {
+			line += count
 		}
 		lines = append(lines, "  "+mutedStyle.Render(line))
 	}

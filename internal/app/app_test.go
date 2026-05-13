@@ -86,6 +86,17 @@ func TestDiscoverOverviewReturnsPlaceholderProjects(t *testing.T) {
 	}
 }
 
+func TestCountProjectRootsUsesDiscoveryOnly(t *testing.T) {
+	root := t.TempDir()
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	writePackage(t, filepath.Join(root, "node_modules", "ignored"), `{}`)
+
+	counts := CountProjectRoots([]string{root})
+	if counts[root] != 1 {
+		t.Fatalf("count = %d, want 1", counts[root])
+	}
+}
+
 func TestOverviewJSONTimingWritesOnlyToErr(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()

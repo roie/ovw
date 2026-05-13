@@ -20,6 +20,7 @@ type setupModel struct {
 	checked   map[string]bool
 	expanded  map[string]bool
 	children  map[string][]string
+	counts    map[string]int
 	selected  int
 	input     string
 	cursor    int
@@ -28,6 +29,13 @@ type setupModel struct {
 	done      bool
 	cancelled bool
 	creator   configRootsCreator
+	counter   setupCounter
+}
+
+type setupCounter func([]string) map[string]int
+
+type setupCountsMsg struct {
+	counts map[string]int
 }
 
 func RunSetupWithOptions(opts app.Options, candidates []string) error {
@@ -40,7 +48,9 @@ func RunSetupWithRoots(opts app.Options, candidates, roots []string) error {
 		checked:  checkedSetupRoots(candidates, roots),
 		expanded: map[string]bool{},
 		children: map[string][]string{},
+		counts:   map[string]int{},
 		creator:  app.CreateConfigRoots,
+		counter:  app.CountProjectRoots,
 	}
 	model.revealCheckedRoots()
 	programOptions := []tea.ProgramOption{}
@@ -76,7 +86,7 @@ func checkedSetupRoots(candidates, roots []string) map[string]bool {
 }
 
 func (m setupModel) Init() tea.Cmd {
-	return nil
+	return m.countSetupPaths(m.visibleSetupPaths())
 }
 
 func (m setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -92,6 +102,14 @@ func (m setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case setupFailedMsg:
 		m.err = msg.err
+		return m, nil
+	case setupCountsMsg:
+		if m.counts == nil {
+			m.counts = map[string]int{}
+		}
+		for path, count := range msg.counts {
+			m.counts[path] = count
+		}
 		return m, nil
 	}
 	return m, nil
@@ -128,7 +146,8 @@ func (m setupModel) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case isRightKey(value):
 		if m.selected < len(rows) {
-			m.expandSetupPath(rows[m.selected].Path)
+			children := m.expandSetupPath(rows[m.selected].Path)
+			return m, m.countSetupPaths(children)
 		}
 	case isLeftKey(value):
 		if m.selected < len(rows) {
@@ -215,6 +234,15 @@ func (m setupModel) visibleSetupRows() []setupRow {
 	return rows
 }
 
+func (m setupModel) visibleSetupPaths() []string {
+	rows := m.visibleSetupRows()
+	paths := make([]string, 0, len(rows))
+	for _, row := range rows {
+		paths = append(paths, row.Path)
+	}
+	return paths
+}
+
 func (m setupModel) visibleSetupRowsFor(path, parent string, depth int) []setupRow {
 	children, known := m.children[path]
 	expanded := m.expanded[path] && len(children) > 0
@@ -229,6 +257,7 @@ func (m setupModel) visibleSetupRowsFor(path, parent string, depth int) []setupR
 			Partial:    !checked && m.hasCheckedSetupDescendant(path),
 			Expandable: !known || len(children) > 0,
 			Expanded:   expanded,
+			Count:      m.setupPathCount(path),
 		},
 	}
 	if !expanded {
@@ -291,7 +320,7 @@ func (m setupModel) hasAllCheckedSetupChildren(path string) bool {
 	return true
 }
 
-func (m *setupModel) expandSetupPath(path string) {
+func (m *setupModel) expandSetupPath(path string) []string {
 	if m.expanded == nil {
 		m.expanded = map[string]bool{}
 	}
@@ -299,6 +328,7 @@ func (m *setupModel) expandSetupPath(path string) {
 	if len(m.children[path]) > 0 {
 		m.expanded[path] = true
 	}
+	return m.children[path]
 }
 
 func mergeCheckedSetupChildren(root string, children []string, checked map[string]bool) []string {
@@ -362,6 +392,42 @@ func (m *setupModel) ensureSetupChildren(path string) []string {
 	}
 	m.children[path] = children
 	return children
+}
+
+func (m setupModel) setupPathCount(path string) *int {
+	if m.counts == nil {
+		return nil
+	}
+	count, ok := m.counts[path]
+	if !ok {
+		return nil
+	}
+	return &count
+}
+
+func (m setupModel) countSetupPaths(paths []string) tea.Cmd {
+	missing := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		if m.counts != nil {
+			if _, ok := m.counts[path]; ok {
+				continue
+			}
+		}
+		missing = append(missing, path)
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	counter := m.counter
+	if counter == nil {
+		counter = app.CountProjectRoots
+	}
+	return func() tea.Msg {
+		return setupCountsMsg{counts: counter(missing)}
+	}
 }
 
 func setupDirectChildOnPath(parent, target string, children []string) string {
