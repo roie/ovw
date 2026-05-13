@@ -119,6 +119,7 @@ type Model struct {
 	configPaths     config.FilePaths
 	projects        []project.Project
 	scanElapsed     time.Duration
+	showScanElapsed bool
 	recentByPath    map[string][]ovwformat.RecentCommit
 	filesByPath     map[string][]ovwformat.RecentFile
 }
@@ -178,6 +179,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, inputCursorBlink(m.cursorBlinkID)
 	case tea.KeyMsg:
 		m.cursorHidden = false
+		m.showScanElapsed = false
 		if m.screen == screenOnboarding {
 			return m.updateOnboarding(msg)
 		}
@@ -341,6 +343,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
+		m.showScanElapsed = true
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.filesByPath = map[string][]ovwformat.RecentFile{}
@@ -365,6 +368,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
+		m.showScanElapsed = true
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.filesByPath = map[string][]ovwformat.RecentFile{}
@@ -422,6 +426,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
+		m.showScanElapsed = true
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.filesByPath = map[string][]ovwformat.RecentFile{}
@@ -435,6 +440,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
+		m.showScanElapsed = false
 		m.syncActiveSort()
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.filesByPath = map[string][]ovwformat.RecentFile{}
@@ -455,6 +461,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.configPaths = msg.result.Paths
 		m.projects = msg.result.Projects
 		m.scanElapsed = msg.result.Elapsed
+		m.showScanElapsed = false
 		m.recentByPath = map[string][]ovwformat.RecentCommit{}
 		m.filesByPath = map[string][]ovwformat.RecentFile{}
 		m.screen = screenTable
@@ -1761,7 +1768,7 @@ func headerView(m Model) string {
 		leftParts = append(leftParts, "search: "+m.searchDisplay())
 	} else if m.enriching && m.enrichTotal > 0 {
 		leftParts = append(leftParts, fmt.Sprintf("enriching %d/%d", m.enrichedCount, m.enrichTotal))
-	} else if elapsed := formatScanElapsed(m.scanElapsed); elapsed != "" {
+	} else if elapsed := formatScanElapsed(m.scanElapsed); m.showScanElapsed && elapsed != "" {
 		leftParts = append(leftParts, elapsed)
 	}
 	rightParts := []string{"filter: " + headerFilter(m.activeFilter)}

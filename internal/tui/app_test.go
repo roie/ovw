@@ -765,12 +765,13 @@ func TestModelHeaderShowsSortWhenSortColumnIsHidden(t *testing.T) {
 
 func TestModelHeaderShowsScanElapsedWhenWide(t *testing.T) {
 	model := Model{
-		width:         120,
-		activeFilter:  "all",
-		activeSort:    "activity",
-		activeSortDir: "desc",
-		scanElapsed:   200 * time.Millisecond,
-		projects:      []project.Project{{Name: "app"}},
+		width:           120,
+		activeFilter:    "all",
+		activeSort:      "activity",
+		activeSortDir:   "desc",
+		scanElapsed:     200 * time.Millisecond,
+		showScanElapsed: true,
+		projects:        []project.Project{{Name: "app"}},
 	}
 
 	header := strings.Split(stripANSI(model.View()), "\n")[0]
@@ -783,12 +784,13 @@ func TestModelHeaderShowsScanElapsedWhenWide(t *testing.T) {
 
 func TestModelHeaderDropsScanElapsedBeforeFilterSort(t *testing.T) {
 	model := Model{
-		width:         44,
-		activeFilter:  "all",
-		activeSort:    "activity",
-		activeSortDir: "desc",
-		scanElapsed:   200 * time.Millisecond,
-		projects:      []project.Project{{Name: "app"}},
+		width:           44,
+		activeFilter:    "all",
+		activeSort:      "activity",
+		activeSortDir:   "desc",
+		scanElapsed:     200 * time.Millisecond,
+		showScanElapsed: true,
+		projects:        []project.Project{{Name: "app"}},
 	}
 
 	header := strings.Split(stripANSI(model.View()), "\n")[0]
@@ -804,12 +806,13 @@ func TestModelHeaderDropsScanElapsedBeforeFilterSort(t *testing.T) {
 
 func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 	model := Model{
-		activeFilter:  "all",
-		activeSort:    "activity",
-		activeSortDir: "desc",
-		scanElapsed:   200 * time.Millisecond,
-		searching:     true,
-		projects:      []project.Project{{Name: "app"}},
+		activeFilter:    "all",
+		activeSort:      "activity",
+		activeSortDir:   "desc",
+		scanElapsed:     200 * time.Millisecond,
+		showScanElapsed: true,
+		searching:       true,
+		projects:        []project.Project{{Name: "app"}},
 	}
 
 	view := stripANSI(model.View())
@@ -821,6 +824,30 @@ func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 	}
 	if strings.Contains(view, "scanned in") {
 		t.Fatalf("search should replace scan time:\n%s", view)
+	}
+}
+
+func TestModelHeaderHidesScanElapsedAfterInteraction(t *testing.T) {
+	model := Model{
+		width:           120,
+		activeFilter:    "all",
+		activeSort:      "activity",
+		activeSortDir:   "desc",
+		scanElapsed:     200 * time.Millisecond,
+		showScanElapsed: true,
+		projects:        []project.Project{{Name: "app"}, {Name: "api"}},
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	next := updated.(Model)
+	header := strings.Split(stripANSI(next.View()), "\n")[0]
+	if strings.Contains(header, "scanned in") {
+		t.Fatalf("header should hide elapsed after user interaction:\n%s", header)
+	}
+	for _, want := range []string{"ovw  2 projects", "filter: all", "2/2"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("header missing %q:\n%s", want, header)
+		}
 	}
 }
 
