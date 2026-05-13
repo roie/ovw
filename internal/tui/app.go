@@ -364,17 +364,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.enriching = false
 		m.loadErr = msg.err
 	case projectEnrichedMsg:
-		selectedPath := m.selectedProjectPath()
+		selectedIndex := m.selected
 		m.enrichedCount = msg.update.done
 		m.enrichTotal = msg.update.total
 		m.scanElapsed = msg.update.elapsed
 		m.replaceProject(msg.update.project)
 		m.projects = filter.Sort(m.projects, filter.FormatSort(m.activeSort, m.activeSortDir), m.config)
-		if selectedPath != "" {
-			m.selectProjectPath(selectedPath)
-		} else {
-			m.clampSelection()
-		}
+		m.selected = selectedIndex
+		m.clampSelection()
 		return m, waitForEnrichment(msg.updates)
 	case enrichmentDoneMsg:
 		m.loading = false

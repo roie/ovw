@@ -181,6 +181,39 @@ func TestModelStartsFromDiscoveryBeforeFullLoad(t *testing.T) {
 	}
 }
 
+func TestModelKeepsSelectionIndexStableDuringEnrichment(t *testing.T) {
+	model := Model{
+		config:        config.Default(),
+		projects:      []project.Project{{Name: "old", Path: "/tmp/old"}, {Name: "new", Path: "/tmp/new"}},
+		activeSort:    "activity",
+		activeSortDir: "desc",
+		selected:      1,
+		enriching:     true,
+	}
+	update := enrichmentUpdate{
+		project: project.Project{
+			Name:     "new",
+			Path:     "/tmp/new",
+			Activity: ovwformat.ActivityInfo{LastCommitAt: time.Now(), Display: "1m"},
+		},
+		done:  1,
+		total: 2,
+	}
+
+	updated, _ := model.Update(projectEnrichedMsg{update: update})
+	got := updated.(Model)
+	if got.selected != 1 {
+		t.Fatalf("selected = %d, want cursor index to stay 1", got.selected)
+	}
+	if got.projects[0].Path != "/tmp/new" {
+		t.Fatalf("expected enriched project to sort first: %#v", got.projects)
+	}
+	selected, ok := got.currentProject()
+	if !ok || selected.Path != "/tmp/old" {
+		t.Fatalf("selected row should remain the same row after resort, got projects=%#v selected=%d", got.projects, got.selected)
+	}
+}
+
 func TestModelStartsOnboardingWhenConfigIsMissing(t *testing.T) {
 	model := NewWithOptions(app.Options{})
 	model.width = 100
