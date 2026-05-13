@@ -1582,12 +1582,12 @@ func TestModelSearchNoMatchesState(t *testing.T) {
 }
 
 func TestModelFilterPickerAppliesDirtyFilter(t *testing.T) {
-	var captured app.Options
+	calledLoader := false
 	model := Model{
-		width:  140,
+		width:  80,
 		height: 24,
 		loader: func(opts app.Options) (app.OverviewResult, error) {
-			captured = opts
+			calledLoader = true
 			return app.OverviewResult{
 				Config:   config.Default(),
 				Projects: []project.Project{{Name: "dirty-project"}},
@@ -1595,7 +1595,8 @@ func TestModelFilterPickerAppliesDirtyFilter(t *testing.T) {
 		},
 		config: config.Default(),
 		projects: []project.Project{
-			{Name: "dirty-project"},
+			{Name: "clean-project"},
+			{Name: "dirty-project", Activity: ovwformat.ActivityInfo{Dirty: true}},
 		},
 	}
 
@@ -1614,15 +1615,18 @@ func TestModelFilterPickerAppliesDirtyFilter(t *testing.T) {
 	model = updateKey(t, model, "j")
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	if cmd == nil {
-		t.Fatal("expected filter apply to reload data")
+	if cmd != nil {
+		model = updateMsg(t, model, cmd())
 	}
-	model = updateMsg(t, model, cmd())
-	if !captured.Dirty {
-		t.Fatalf("captured options = %#v, want dirty", captured)
+	if calledLoader {
+		t.Fatal("filter should not reload overview")
 	}
 	if model.activeFilter != "dirty" {
 		t.Fatalf("activeFilter = %q, want dirty", model.activeFilter)
+	}
+	visible := model.visibleProjects()
+	if len(visible) != 1 || visible[0].Name != "dirty-project" {
+		t.Fatalf("visible projects = %#v, want only dirty-project", visible)
 	}
 	if model.loading {
 		t.Fatal("model is still loading")
@@ -1640,6 +1644,28 @@ func TestModelFilterPickerIncludesConfiguredStatuses(t *testing.T) {
 		if !strings.Contains(view, want) {
 			t.Fatalf("filter view missing %q:\n%s", want, view)
 		}
+	}
+}
+
+func TestHeaderProjectCountUsesVisibleProjects(t *testing.T) {
+	model := Model{
+		width:        120,
+		height:       24,
+		config:       config.Default(),
+		activeFilter: "shipped",
+		request:      app.Options{Status: "shipped"},
+		projects: []project.Project{
+			{Name: "active", Status: ovwformat.StatusInfo{Value: "active", Display: "active"}},
+			{Name: "parked", Status: ovwformat.StatusInfo{Value: "parked", Display: "parked"}},
+		},
+	}
+
+	header := strings.Split(stripANSI(model.View()), "\n")[0]
+	if !strings.Contains(header, "0 projects") {
+		t.Fatalf("header should count visible projects:\n%s", header)
+	}
+	if strings.Contains(header, "2 projects") {
+		t.Fatalf("header should not count all projects while filtered:\n%s", header)
 	}
 }
 
@@ -1766,12 +1792,12 @@ func TestModalPickersUseCaretSelection(t *testing.T) {
 }
 
 func TestModelSortPickerAppliesNameSort(t *testing.T) {
-	var captured app.Options
+	calledLoader := false
 	model := Model{
-		width:  140,
+		width:  80,
 		height: 24,
 		loader: func(opts app.Options) (app.OverviewResult, error) {
-			captured = opts
+			calledLoader = true
 			return app.OverviewResult{
 				Config:   config.Default(),
 				Projects: []project.Project{{Name: "a"}, {Name: "b"}},
@@ -1779,7 +1805,8 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 		},
 		activeSort:    "activity",
 		activeSortDir: "desc",
-		projects:      []project.Project{{Name: "a"}, {Name: "b"}},
+		config:        config.Default(),
+		projects:      []project.Project{{Name: "b"}, {Name: "a"}},
 	}
 
 	model = updateKey(t, model, "s")
@@ -1806,18 +1833,23 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 	}
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	if cmd == nil {
-		t.Fatal("expected sort apply to reload data")
+	if cmd != nil {
+		model = updateMsg(t, model, cmd())
 	}
-	model = updateMsg(t, model, cmd())
-	if captured.Sort != "name:asc" {
-		t.Fatalf("captured sort = %q, want name:asc", captured.Sort)
+	if calledLoader {
+		t.Fatal("sort should not reload overview")
 	}
 	if model.activeSort != "name" {
 		t.Fatalf("activeSort = %q, want name", model.activeSort)
 	}
 	if model.activeSortDir != "asc" {
 		t.Fatalf("activeSortDir = %q, want asc", model.activeSortDir)
+	}
+	if model.request.Sort != "name:asc" {
+		t.Fatalf("request.Sort = %q, want name:asc", model.request.Sort)
+	}
+	if got := []string{model.projects[0].Name, model.projects[1].Name}; !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Fatalf("projects order = %#v, want a,b", got)
 	}
 	if model.loading {
 		t.Fatal("model is still loading")

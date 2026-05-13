@@ -592,9 +592,9 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.applyFilter(options[m.filterSelected])
 		m.screen = screenTable
-		m.loading = true
 		m.selected = 0
-		return m, m.loadOverview()
+		m.clampSelection()
+		return m, m.loadSelectedRecent()
 	}
 	return m, nil
 }
@@ -617,9 +617,10 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEnterKey(value):
 		m.applySort(options[m.sortSelected])
 		m.screen = screenTable
-		m.loading = true
+		m.projects = filter.Sort(m.projects, filter.FormatSort(m.activeSort, m.activeSortDir), m.config)
 		m.selected = 0
-		return m, m.loadOverview()
+		m.clampSelection()
+		return m, m.loadSelectedRecent()
 	}
 	return m, nil
 }
@@ -1569,7 +1570,8 @@ func pinFooter(body, footer string, height int) string {
 }
 
 func headerView(m Model) string {
-	leftParts := []string{formatProjectCount(len(m.projects))}
+	visible := m.visibleProjects()
+	leftParts := []string{formatProjectCount(len(visible))}
 	if scope := m.pathScope(); scope != "" {
 		leftParts = append(leftParts, shortPath(scope))
 	}
@@ -1584,7 +1586,7 @@ func headerView(m Model) string {
 	if m.activeSort != "" && !tableColumnVisible(tableColumns(m.config), m.activeSort) {
 		rightParts = append(rightParts, "sort: "+sortHeaderCompact(m.activeSort, m.activeSortDir))
 	}
-	rightParts = append(rightParts, selectedPosition(m.selected, len(m.visibleProjects())))
+	rightParts = append(rightParts, selectedPosition(m.selected, len(visible)))
 
 	fitHeaderParts(&leftParts, &rightParts, m.contentWidth())
 	left := titleStyle.Render("ovw") + "  " + mutedStyle.Render(strings.Join(leftParts, "  "))
@@ -1906,12 +1908,22 @@ func (m *Model) selectProjectPath(path string) {
 }
 
 func (m Model) visibleProjects() []project.Project {
+	projects, err := filter.Apply(m.projects, filter.Options{
+		Status:   m.request.Status,
+		Dirty:    m.request.Dirty,
+		Stale:    m.request.Stale,
+		Untagged: m.request.Untagged,
+		Hidden:   m.request.Hidden,
+	}, m.config, time.Now())
+	if err != nil {
+		projects = m.projects
+	}
 	query := strings.TrimSpace(strings.ToLower(m.search))
 	if query == "" {
-		return m.projects
+		return projects
 	}
-	visible := make([]project.Project, 0, len(m.projects))
-	for _, project := range m.projects {
+	visible := make([]project.Project, 0, len(projects))
+	for _, project := range projects {
 		if projectMatchesSearch(project, query) {
 			visible = append(visible, project)
 		}
