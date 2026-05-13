@@ -97,6 +97,19 @@ func TestCountProjectRootsUsesDiscoveryOnly(t *testing.T) {
 	}
 }
 
+func TestCountProjectRootsWithConfigUsesScanRules(t *testing.T) {
+	root := t.TempDir()
+	writePackage(t, filepath.Join(root, "app"), `{}`)
+	writePackage(t, filepath.Join(root, "nested", "app"), `{}`)
+
+	cfg := config.Default()
+	cfg.MaxDepth = 1
+	counts := CountProjectRootsWithConfig([]string{root}, cfg)
+	if counts[root] != 1 {
+		t.Fatalf("count = %d, want 1", counts[root])
+	}
+}
+
 func TestOverviewJSONTimingWritesOnlyToErr(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()

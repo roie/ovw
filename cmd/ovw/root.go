@@ -24,7 +24,7 @@ var (
 	interactiveTerminal = streamsAreTerminal
 	runTUI              = tui.RunWithOptions
 	runFirstRunSetup    = tui.RunSetupWithOptions
-	runConfigSetup      = tui.RunSetupWithRoots
+	runConfigSetup      = tui.RunSetupWithConfig
 )
 
 func NewRootCommand() *cobra.Command {
@@ -266,7 +266,7 @@ func newConfigCommand() *cobra.Command {
 				return err
 			}
 			candidates = mergeSetupCandidates(candidates, cfg.Roots)
-			if err := runConfigSetup(opts, candidates, cfg.Roots); err != nil {
+			if err := runConfigSetup(opts, candidates, cfg.Roots, cfg); err != nil {
 				if errors.Is(err, tui.ErrSetupCancelled) {
 					return nil
 				}

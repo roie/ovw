@@ -39,10 +39,14 @@ type setupCountsMsg struct {
 }
 
 func RunSetupWithOptions(opts app.Options, candidates []string) error {
-	return RunSetupWithRoots(opts, candidates, nil)
+	return RunSetupWithConfig(opts, candidates, nil, config.Default())
 }
 
 func RunSetupWithRoots(opts app.Options, candidates, roots []string) error {
+	return RunSetupWithConfig(opts, candidates, roots, config.Default())
+}
+
+func RunSetupWithConfig(opts app.Options, candidates, roots []string, cfg config.Config) error {
 	model := setupModel{
 		options:  candidates,
 		checked:  checkedSetupRoots(candidates, roots),
@@ -50,7 +54,9 @@ func RunSetupWithRoots(opts app.Options, candidates, roots []string) error {
 		children: map[string][]string{},
 		counts:   map[string]int{},
 		creator:  app.CreateConfigRoots,
-		counter:  app.CountProjectRoots,
+		counter: func(paths []string) map[string]int {
+			return app.CountProjectRootsWithConfig(paths, cfg)
+		},
 	}
 	model.revealCheckedRoots()
 	programOptions := []tea.ProgramOption{}

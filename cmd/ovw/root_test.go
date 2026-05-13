@@ -504,7 +504,7 @@ func TestConfigSetupRunsPickerWithCurrentRoots(t *testing.T) {
 	defer func() { runConfigSetup = previousSetup }()
 	var gotCandidates []string
 	var gotRoots []string
-	runConfigSetup = func(opts app.Options, candidates, roots []string) error {
+	runConfigSetup = func(opts app.Options, candidates, roots []string, cfg config.Config) error {
 		gotCandidates = append([]string{}, candidates...)
 		gotRoots = append([]string{}, roots...)
 		return nil
@@ -534,7 +534,7 @@ func TestConfigSetupDoesNotDuplicateNestedCurrentRoots(t *testing.T) {
 	previousSetup := runConfigSetup
 	defer func() { runConfigSetup = previousSetup }()
 	var gotCandidates []string
-	runConfigSetup = func(opts app.Options, candidates, roots []string) error {
+	runConfigSetup = func(opts app.Options, candidates, roots []string, cfg config.Config) error {
 		gotCandidates = append([]string{}, candidates...)
 		return nil
 	}

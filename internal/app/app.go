@@ -431,9 +431,13 @@ func CheckConfig(opts Options) (ConfigSetup, error) {
 }
 
 func CountProjectRoots(roots []string) map[string]int {
+	return CountProjectRootsWithConfig(roots, config.Default())
+}
+
+func CountProjectRootsWithConfig(roots []string, base config.Config) map[string]int {
 	counts := make(map[string]int, len(roots))
 	for _, root := range roots {
-		cfg := config.Default()
+		cfg := base
 		cfg.Roots = []string{root}
 		projects, err := scanner.ScanAll(cfg, metadata.New())
 		if err != nil {
