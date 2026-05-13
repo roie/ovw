@@ -46,6 +46,7 @@ const (
 	screenStatus
 	screenStatusInput
 	screenHelp
+	screenCommand
 	screenOnboarding
 	screenOnboardingInput
 	screenColumns
@@ -90,6 +91,9 @@ type Model struct {
 	statusSelected  int
 	statusInput     string
 	statusCursor    int
+	commandInput    string
+	commandCursor   int
+	commandSelected int
 	onboardOptions  []string
 	onboardChecked  map[string]bool
 	onboardSelected int
@@ -196,6 +200,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = screenTable
 			return m, nil
 		}
+		if m.screen == screenCommand {
+			return m.updateCommand(msg)
+		}
 		if isEscapeKey(msg.String()) && m.searching {
 			m.searching = false
 			return m, nil
@@ -235,6 +242,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isHelpKey(msg.String()) {
 			m.screen = screenHelp
+			return m, nil
+		}
+		if isCommandKey(msg.String()) {
+			m.openCommandPalette()
 			return m, nil
 		}
 		if isDownKey(msg.String()) {
@@ -1522,6 +1533,8 @@ func renderShell(m Model) string {
 				content = overlayModal(content, addProjectView(m.addInput, m.addCursor, m.addErr), m.contentWidth())
 			case screenHelp:
 				content = overlayModal(content, helpView(), m.contentWidth())
+			case screenCommand:
+				content = overlayModal(content, commandView(m.commandInput, m.commandCursor, m.filteredCommandActions(), m.commandSelected), m.contentWidth())
 			case screenFilter:
 				content = overlayModal(content, filterView(m.filterOptions(), m.filterSelected), m.contentWidth())
 			case screenSort:
@@ -1716,7 +1729,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenFilter, screenSort, screenColumns, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenFilter, screenSort, screenColumns, screenNote, screenStatus, screenStatusInput:
 		return true
 	default:
 		return false

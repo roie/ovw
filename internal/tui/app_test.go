@@ -827,7 +827,7 @@ func TestModelHeaderSpacesSearchLikeOtherSegments(t *testing.T) {
 
 func TestFooterShowsOnlyPrimaryActions(t *testing.T) {
 	got := stripANSI(footerView(0))
-	for _, want := range []string{"↑↓ move", "←→ scroll", "/ search", "f filter", "s sort", "enter details", "n note", "m status", "r reload", "o open", "t terminal", "esc back", "? help", "q quit"} {
+	for _, want := range []string{"↑↓ move", "←→ scroll", "/ search", ": command", "f filter", "s sort", "enter details", "n note", "m status", "r reload", "o open", "t terminal", "esc back", "? help", "q quit"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("footer missing %q:\n%s", want, got)
 		}
@@ -1443,6 +1443,98 @@ func TestModelSearchFiltersVisibleProjects(t *testing.T) {
 	view := stripANSI(model.View())
 	if !strings.Contains(view, "search: web▌") || !strings.Contains(view, "web") || strings.Contains(view, "api") {
 		t.Fatalf("search view = %s", view)
+	}
+}
+
+func TestModelCommandPaletteOpensFromColonAndCtrlP(t *testing.T) {
+	base := Model{
+		width:    100,
+		height:   24,
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		config:   config.Default(),
+	}
+
+	model := updateKey(t, base, ":")
+	if model.screen != screenCommand {
+		t.Fatalf("screen = %v, want command", model.screen)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"Command", "type a command", "Search projects", "Open in editor", "Set status", "Filter projects", "Choose columns", "Reload projects"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("command palette missing %q:\n%s", want, view)
+		}
+	}
+
+	model = updateSpecialKey(t, base, tea.KeyCtrlP)
+	if model.screen != screenCommand {
+		t.Fatalf("screen = %v, want command from ctrl+p", model.screen)
+	}
+}
+
+func TestModelCommandPaletteFiltersAndRunsAction(t *testing.T) {
+	model := Model{
+		width:    100,
+		height:   24,
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		config:   config.Default(),
+	}
+
+	model = updateKey(t, model, ":")
+	for _, value := range []string{"f", "i", "l", "t"} {
+		model = updateKey(t, model, value)
+	}
+	view := stripANSI(model.View())
+	actions := model.filteredCommandActions()
+	if len(actions) != 1 || actions[0].Label != "Filter projects" || !strings.Contains(view, "Filter projects") {
+		t.Fatalf("command palette should filter commands:\n%s", view)
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatalf("filter command should not return async command")
+	}
+	if model.screen != screenFilter {
+		t.Fatalf("screen = %v, want filter", model.screen)
+	}
+}
+
+func TestModelCommandPaletteShowsConditionalPinLabel(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{Name: "app", Path: "/tmp/app", Pinned: true}},
+		config:   config.Default(),
+	}
+
+	actions := model.commandActions()
+	if !hasCommandLabel(actions, "Unpin project") || hasCommandLabel(actions, "Pin project") {
+		t.Fatalf("pinned command labels = %#v", commandLabels(actions))
+	}
+}
+
+func TestModelCommandPaletteSupportsEditingAndEscape(t *testing.T) {
+	model := Model{
+		width:    100,
+		height:   24,
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		config:   config.Default(),
+	}
+
+	model = updateKey(t, model, ":")
+	for _, value := range []string{"s", "o", "r"} {
+		model = updateKey(t, model, value)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateKey(t, model, "t")
+	if model.commandInput != "sotr" {
+		t.Fatalf("commandInput = %q, want sotr", model.commandInput)
+	}
+	model = updateSpecialKey(t, model, tea.KeyBackspace)
+	if model.commandInput != "sor" {
+		t.Fatalf("commandInput after backspace = %q, want sor", model.commandInput)
+	}
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
 	}
 }
 
@@ -3035,6 +3127,23 @@ func updateMsg(t *testing.T, model Model, msg tea.Msg) Model {
 	t.Helper()
 	updated, _ := model.Update(msg)
 	return updated.(Model)
+}
+
+func hasCommandLabel(actions []commandAction, label string) bool {
+	for _, action := range actions {
+		if action.Label == label {
+			return true
+		}
+	}
+	return false
+}
+
+func commandLabels(actions []commandAction) []string {
+	labels := make([]string, 0, len(actions))
+	for _, action := range actions {
+		labels = append(labels, action.Label)
+	}
+	return labels
 }
 
 func updateSetupKey(t *testing.T, model setupModel, value string) setupModel {

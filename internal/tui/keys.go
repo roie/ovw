@@ -116,6 +116,10 @@ func isHelpKey(value string) bool {
 	return value == "?"
 }
 
+func isCommandKey(value string) bool {
+	return value == ":" || value == "ctrl+p"
+}
+
 func isBackspaceKey(value string) bool {
 	return value == "backspace" || value == "ctrl+h"
 }
@@ -146,8 +150,8 @@ func isDeletePreviousWordKey(value string) bool {
 
 func footerView(width int) string {
 	keys := defaultKeyMap()
-	left := "↑↓ move · ←→ scroll · / search · f filter · s sort · enter details · n note · m status · p pin · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
-	withColumns := "↑↓ move · ←→ scroll · / search · f filter · s sort · c columns · enter details · n note · m status · p pin · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
+	left := "↑↓ move · ←→ scroll · / search · : command · f filter · s sort · enter details · n note · m status · p pin · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
+	withColumns := "↑↓ move · ←→ scroll · / search · : command · f filter · s sort · c columns · enter details · n note · m status · p pin · r reload · o open · t terminal · esc back · " + keys.Help.Help().Key + " " + keys.Help.Help().Desc + " · " + keys.Quit.Help().Key + " " + keys.Quit.Help().Desc
 	right := "ovw " + buildinfo.Version
 	if width <= 0 {
 		return mutedStyle.Render(left)
@@ -156,8 +160,24 @@ func footerView(width int) string {
 		left = withColumns
 	}
 	if lipglossWidth(left)+lipglossWidth(right)+2 > width {
-		return mutedStyle.Render(left)
+		return mutedStyle.Render(fitFooterActions(left, width))
 	}
 	gap := width - lipglossWidth(left) - lipglossWidth(right)
 	return mutedStyle.Render(left + strings.Repeat(" ", gap) + right)
+}
+
+func fitFooterActions(value string, width int) string {
+	if width <= 0 || lipglossWidth(value) <= width {
+		return value
+	}
+	suffix := "? help · q quit"
+	if !strings.HasSuffix(value, suffix) || lipglossWidth(suffix)+5 > width {
+		return truncateText(value, width)
+	}
+	prefix := strings.TrimSuffix(value, " · "+suffix)
+	prefixWidth := width - lipglossWidth(suffix) - lipglossWidth(" · ")
+	if prefixWidth <= 0 {
+		return truncateText(value, width)
+	}
+	return truncateText(prefix, prefixWidth) + " · " + suffix
 }
