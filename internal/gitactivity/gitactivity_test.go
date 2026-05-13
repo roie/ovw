@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -234,6 +235,53 @@ func TestDetectorReusesGitInfoForNestedPathsInSameWorktree(t *testing.T) {
 	}
 	if calls != firstCalls {
 		t.Fatalf("second nested path called git again: first calls=%d total=%d", firstCalls, calls)
+	}
+}
+
+func TestDetectorReusesInFlightGitInfoForNestedPathsInSameWorktree(t *testing.T) {
+	var mu sync.Mutex
+	branchCalls := 0
+	detector := newDetectorWithRunner(func(path string, args ...string) (string, error) {
+		command := strings.Join(args, " ")
+		switch command {
+		case "rev-parse --show-toplevel":
+			if strings.HasPrefix(path, "/repo") {
+				return "/repo\n", nil
+			}
+			return "", errors.New("not a git repo")
+		case "rev-parse --abbrev-ref HEAD":
+			mu.Lock()
+			branchCalls++
+			mu.Unlock()
+			time.Sleep(10 * time.Millisecond)
+			return "main\n", nil
+		case "log -1 --format=%ct%x00%B":
+			return "1762000000\x00initial commit\n", nil
+		case "status --porcelain --untracked-files=no":
+			return "", nil
+		case "rev-list --count @{upstream}..HEAD":
+			return "0\n", nil
+		default:
+			t.Fatalf("unexpected git command for %s: %v", path, args)
+			return "", nil
+		}
+	}, time.Second)
+
+	var wg sync.WaitGroup
+	for _, path := range []string{"/repo/node_modules/a", "/repo/node_modules/b"} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			info := detector.Detect(path)
+			if !info.HasGit {
+				t.Errorf("git info not detected for %s: %#v", path, info)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if branchCalls != 1 {
+		t.Fatalf("branch calls = %d, want 1", branchCalls)
 	}
 }
 

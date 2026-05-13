@@ -30,9 +30,15 @@ type CommitInfo struct {
 type runner func(path string, args ...string) (string, error)
 
 type Detector struct {
-	run   runner
-	mu    sync.Mutex
-	cache map[string]Info
+	run      runner
+	mu       sync.Mutex
+	cache    map[string]Info
+	inflight map[string]*rootCall
+}
+
+type rootCall struct {
+	done chan struct{}
+	info Info
 }
 
 const defaultGitTimeout = 2 * time.Second
@@ -43,8 +49,9 @@ func NewDetector() *Detector {
 
 func newDetectorWithRunner(run runner, _ time.Duration) *Detector {
 	return &Detector{
-		run:   run,
-		cache: map[string]Info{},
+		run:      run,
+		cache:    map[string]Info{},
+		inflight: map[string]*rootCall{},
 	}
 }
 
@@ -64,6 +71,25 @@ func (detector *Detector) Detect(path string) Info {
 	if cached, ok := detector.cachedRoot(root); ok {
 		return cached
 	}
+	return detector.detectRoot(root)
+}
+
+func (detector *Detector) detectRoot(root string) Info {
+	detector.mu.Lock()
+	if info, ok := detector.cache[root]; ok {
+		detector.mu.Unlock()
+		return info
+	}
+	if call, ok := detector.inflight[root]; ok {
+		detector.mu.Unlock()
+		<-call.done
+		return call.info
+	}
+	call := &rootCall{done: make(chan struct{})}
+	detector.inflight[root] = call
+	detector.mu.Unlock()
+
+	info := Info{}
 	info.HasGit = true
 
 	if branch, err := detector.run(root, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
@@ -83,7 +109,13 @@ func (detector *Detector) Detect(path string) Info {
 			info.Unpushed = n
 		}
 	}
-	detector.store(root, info)
+
+	detector.mu.Lock()
+	detector.cache[root] = info
+	call.info = info
+	delete(detector.inflight, root)
+	close(call.done)
+	detector.mu.Unlock()
 	return info
 }
 
