@@ -86,6 +86,50 @@ func TestDiscoverOverviewReturnsPlaceholderProjects(t *testing.T) {
 	}
 }
 
+func TestSessionRootScansNestedProjectsWithoutConfig(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	writePackage(t, root, `{}`)
+	writePackage(t, filepath.Join(root, "services", "api"), `{}`)
+
+	result, err := LoadOverview(Options{SessionRoot: root, Plain: true, Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if len(result.Projects) != 2 {
+		t.Fatalf("projects = %#v, want root and nested service", result.Projects)
+	}
+	names := []string{result.Projects[0].Name, result.Projects[1].Name}
+	if !containsString(names, filepath.Base(root)) || !containsString(names, "api") {
+		t.Fatalf("project names = %#v, want root and api", names)
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(paths.Config); !os.IsNotExist(err) {
+		t.Fatalf("session root should not create config, stat err = %v", err)
+	}
+	if !result.Config.ScanNestedProjects {
+		t.Fatal("session root should enable nested project scanning")
+	}
+}
+
+func TestSessionRootSkipsFirstRunSetup(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+
+	setup, err := CheckConfig(Options{SessionRoot: root, Cwd: root})
+	if err != nil {
+		t.Fatalf("CheckConfig() error = %v", err)
+	}
+	if !setup.Exists {
+		t.Fatal("session root should behave like config exists")
+	}
+}
+
 func TestCountProjectRootsUsesDiscoveryOnly(t *testing.T) {
 	root := t.TempDir()
 	writePackage(t, filepath.Join(root, "app"), `{}`)
@@ -767,6 +811,15 @@ func writePackage(t *testing.T, dir, data string) {
 	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(data), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func withPortDetector(t *testing.T, detector func([]string) map[string][]int) {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,21 +32,22 @@ var detectPorts = ports.Detect
 const DefaultEnrichmentWorkers = 8
 
 type Options struct {
-	Plain    bool
-	JSON     bool
-	Open     bool
-	Status   string
-	Path     string
-	Dirty    bool
-	Stale    bool
-	Untagged bool
-	Hidden   bool
-	Sort     string
-	Timing   bool
-	Cwd      string
-	In       io.Reader
-	Out      io.Writer
-	Err      io.Writer
+	Plain       bool
+	JSON        bool
+	Open        bool
+	Status      string
+	Path        string
+	Dirty       bool
+	Stale       bool
+	Untagged    bool
+	Hidden      bool
+	Sort        string
+	Timing      bool
+	SessionRoot string
+	Cwd         string
+	In          io.Reader
+	Out         io.Writer
+	Err         io.Writer
 }
 
 type OverviewResult struct {
@@ -406,6 +408,10 @@ func EnsureConfig(opts Options) (config.FilePaths, config.Config, error) {
 	if err != nil {
 		return config.FilePaths{}, config.Config{}, err
 	}
+	if opts.SessionRoot != "" {
+		cfg, err := sessionConfig(paths.Config, opts)
+		return paths, cfg, err
+	}
 	cfg, _, err := config.Ensure(paths.Config, opts.Cwd, opts.In, firstRunWriter(opts))
 	if err != nil {
 		return config.FilePaths{}, config.Config{}, err
@@ -413,10 +419,64 @@ func EnsureConfig(opts Options) (config.FilePaths, config.Config, error) {
 	return paths, cfg, nil
 }
 
+func sessionConfig(configPath string, opts Options) (config.Config, error) {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return config.Config{}, err
+		}
+		cfg = config.Default()
+	}
+	root, err := resolveSessionRoot(opts.SessionRoot, opts.Cwd)
+	if err != nil {
+		return config.Config{}, err
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return config.Config{}, err
+	}
+	if !info.IsDir() {
+		return config.Config{}, &NotDirectoryError{Path: opts.SessionRoot}
+	}
+	canonical, err := metadata.CanonicalPath(root)
+	if err != nil {
+		return config.Config{}, err
+	}
+	cfg.Roots = []string{canonical}
+	cfg.ScanNestedProjects = true
+	if err := config.Validate(cfg); err != nil {
+		return config.Config{}, err
+	}
+	return cfg, nil
+}
+
+func resolveSessionRoot(value, cwd string) (string, error) {
+	if value == "" {
+		value = "."
+	}
+	if value == "~" || strings.HasPrefix(value, "~/") {
+		return config.ExpandPath(value)
+	}
+	if filepath.IsAbs(value) {
+		return filepath.Abs(value)
+	}
+	if cwd == "" {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			return "", err
+		}
+	}
+	return filepath.Abs(filepath.Join(cwd, value))
+}
+
 func CheckConfig(opts Options) (ConfigSetup, error) {
 	paths, err := config.Paths()
 	if err != nil {
 		return ConfigSetup{}, err
+	}
+	if opts.SessionRoot != "" {
+		return ConfigSetup{Paths: paths, Exists: true}, nil
 	}
 	if _, err := config.Load(paths.Config); err == nil {
 		return ConfigSetup{Paths: paths, Exists: true}, nil

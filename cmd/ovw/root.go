@@ -41,12 +41,6 @@ func NewRootCommand() *cobra.Command {
 			HiddenDefaultCmd: true,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
-				return runShow(cmd, args[0], opts.JSON, opts.Open)
-			}
-			if opts.Open {
-				return fmt.Errorf("pass a project name with --open")
-			}
 			cwd, err := os.Getwd()
 			if err != nil {
 				return err
@@ -55,20 +49,35 @@ func NewRootCommand() *cobra.Command {
 			opts.In = cmd.InOrStdin()
 			opts.Out = cmd.OutOrStdout()
 			opts.Err = cmd.ErrOrStderr()
+			if len(args) == 1 {
+				if isTemporarySessionArg(args[0]) && !opts.Open {
+					opts.SessionRoot = cwd
+					if !cmd.Flags().Changed("path") {
+						opts.Path = cwd
+					}
+				} else {
+					return runShow(cmd, args[0], opts.JSON, opts.Open)
+				}
+			}
+			if opts.Open {
+				return fmt.Errorf("pass a project name with --open")
+			}
 			if err := app.ValidateOptions(opts); err != nil {
 				return err
 			}
 			if !opts.Plain && !opts.JSON && interactiveTerminal(opts.In, opts.Out) {
-				setup, err := app.CheckConfig(opts)
-				if err != nil {
-					return err
-				}
-				if !setup.Exists {
-					if err := runFirstRunSetup(opts, setup.Candidates); err != nil {
-						if errors.Is(err, tui.ErrSetupCancelled) {
-							return nil
-						}
+				if opts.SessionRoot == "" {
+					setup, err := app.CheckConfig(opts)
+					if err != nil {
 						return err
+					}
+					if !setup.Exists {
+						if err := runFirstRunSetup(opts, setup.Candidates); err != nil {
+							if errors.Is(err, tui.ErrSetupCancelled) {
+								return nil
+							}
+							return err
+						}
 					}
 				}
 				return runTUI(opts)
@@ -101,6 +110,10 @@ func NewRootCommand() *cobra.Command {
 	return cmd
 }
 
+func isTemporarySessionArg(value string) bool {
+	return filepath.Clean(strings.TrimSpace(value)) == "."
+}
+
 func streamsAreTerminal(in io.Reader, out io.Writer) bool {
 	inFile, ok := in.(*os.File)
 	if !ok {
@@ -124,6 +137,7 @@ func isTerminalFile(file *os.File) bool {
 func rootUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}} [project] [flags]
+  {{.CommandPath}} .
   {{.CommandPath}} [command]
 
 Commands:

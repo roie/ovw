@@ -1011,6 +1011,59 @@ func TestRootArgShowsSingleProject(t *testing.T) {
 	}
 }
 
+func TestDotArgRunsTemporaryNestedSession(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Chdir(root)
+	writePackage(t, root, `{}`)
+	writePackage(t, filepath.Join(root, "services", "api"), `{}`)
+
+	out := runCommand(t, []string{"--plain", "."})
+	for _, want := range []string{filepath.Base(root), "api"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("temporary session output missing %q:\n%s", want, out)
+		}
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(paths.Config); !os.IsNotExist(err) {
+		t.Fatalf("temporary session should not create config, stat err = %v", err)
+	}
+}
+
+func TestDotArgRunsTUIWithoutConfig(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Chdir(root)
+	writePackage(t, filepath.Join(root, "services", "api"), `{}`)
+
+	var got app.Options
+	withTerminalRouting(t, true, func(opts app.Options) error {
+		got = opts
+		return nil
+	})
+	if _, err := executeCommand([]string{"."}); err != nil {
+		t.Fatalf("Execute(.) error = %v", err)
+	}
+	if got.SessionRoot != root {
+		t.Fatalf("SessionRoot = %q, want %q", got.SessionRoot, root)
+	}
+	if got.Path != root {
+		t.Fatalf("Path = %q, want %q", got.Path, root)
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(paths.Config); !os.IsNotExist(err) {
+		t.Fatalf("temporary TUI session should not create config, stat err = %v", err)
+	}
+}
+
 func TestRootArgShowsSingleProjectJSON(t *testing.T) {
 	home := t.TempDir()
 	root := filepath.Join(home, "dev")
