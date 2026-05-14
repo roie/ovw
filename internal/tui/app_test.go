@@ -3247,9 +3247,14 @@ func TestModelHelpOpensAndCloses(t *testing.T) {
 		t.Fatalf("screen = %v, want help", model.screen)
 	}
 	view := model.View()
-	for _, want := range []string{"Name", "app", "Help", "search", "filter", "sort", "reload", "quit", "esc"} {
+	for _, want := range []string{"Name", "app", "ovw", "1.1.1", "A terminal overview for your local projects.", "https://github.com/roie/ovw", "search", "add", "filter", "sort", "command", "open editor", "terminal", "note", "status", "pin", "reload", "quit", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("help view missing %q:\n%s", want, view)
+		}
+	}
+	for _, notWant := range []string{"Help", "Navigation", "Actions", "MIT"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("help view should not include %q:\n%s", notWant, view)
 		}
 	}
 	model = updateSpecialKey(t, model, tea.KeyEsc)
