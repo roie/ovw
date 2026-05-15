@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"ovw/internal/config"
+	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
 	"ovw/internal/projectview"
 )
@@ -29,7 +30,7 @@ func TableWithWidth(w io.Writer, projects []project.Project, cfg config.Config, 
 	if width <= 0 {
 		width = fallbackTableWidth
 	}
-	fmt.Fprintf(w, "ovw — %d projects · scanned in %.1fs\n\n", len(projects), elapsed.Seconds())
+	fmt.Fprintf(w, "ovw — %d projects · scanned in %s\n\n", len(projects), ovwformat.Elapsed(elapsed))
 	rows := tableRows(projects, cfg)
 	applyWidth(rows, cfg.Columns, width)
 	var table bytes.Buffer

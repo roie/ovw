@@ -536,10 +536,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.columnErr = msg.err.Error()
 			return m, nil
 		}
+		previousConfig := m.config
+		preservePath := m.selectedProjectPath()
 		m.screen = screenTable
 		m.config = msg.config
 		m.tableXOffset = 0
 		m.message = "Columns saved"
+		if !app.NeedsUpdated(previousConfig, "") && app.NeedsUpdated(m.config, "") {
+			m.loading = true
+			return m, m.reloadOverview(preservePath, "Columns saved")
+		}
 		if shouldDetectPortsForColumns(m.config.Columns) {
 			return m, m.detectProjectPorts()
 		}
@@ -1543,10 +1549,11 @@ func startEnrichment(scanned []scanner.Project, cfg config.Config, detect portDe
 		if len(scanned) < workers {
 			workers = len(scanned)
 		}
+		enrichOpts := app.EnrichOptions{DetectUpdated: app.NeedsUpdated(cfg, "")}
 		for i := 0; i < workers; i++ {
 			go func() {
 				for scannedProject := range jobs {
-					enriched := app.EnrichWithGit(scannedProject, cfg, now, detector.Detect(scannedProject.Path))
+					enriched := app.EnrichWithGitOptions(scannedProject, cfg, now, detector.Detect(scannedProject.Path), enrichOpts)
 					enriched.Ports = portsByPath[scannedProject.Path]
 					results <- enriched
 				}
@@ -2258,7 +2265,7 @@ func formatScanElapsed(elapsed time.Duration) string {
 	if elapsed <= 0 {
 		return ""
 	}
-	return fmt.Sprintf("scanned in %.1fs", elapsed.Seconds())
+	return fmt.Sprintf("scanned in %s", ovwformat.Elapsed(elapsed))
 }
 
 func selectedPosition(selected, total int) string {

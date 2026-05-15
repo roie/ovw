@@ -29,7 +29,7 @@ func TestTableContainsHeaderAndColumns(t *testing.T) {
 		t.Fatalf("Table() error = %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"ovw — 1 projects · scanned in 0.2s", "Name", "Stack", "Activity", "Status", "Note", "----", "eventca", "SvelteKit+CF", "2d ↑2", "dirty · stale · shipped"} {
+	for _, want := range []string{"ovw — 1 projects · scanned in 200ms", "Name", "Stack", "Activity", "Status", "Note", "----", "eventca", "SvelteKit+CF", "2d ↑2", "dirty · stale · shipped"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing %q:\n%s", want, got)
 		}

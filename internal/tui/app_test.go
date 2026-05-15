@@ -776,7 +776,7 @@ func TestModelHeaderShowsScanElapsedWhenWide(t *testing.T) {
 	}
 
 	header := strings.Split(stripANSI(model.View()), "\n")[0]
-	for _, want := range []string{"ovw  1 project", "scanned in 0.2s", "filter: all", "1/1"} {
+	for _, want := range []string{"ovw  1 project", "scanned in 200ms", "filter: all", "1/1"} {
 		if !strings.Contains(header, want) {
 			t.Fatalf("header missing %q:\n%s", want, header)
 		}
@@ -2208,6 +2208,50 @@ func TestModelColumnPickerDetectsPortsWhenEnabled(t *testing.T) {
 	}
 	if !reflect.DeepEqual(model.projects[0].Ports, []int{5173}) {
 		t.Fatalf("ports = %#v, want 5173", model.projects[0].Ports)
+	}
+}
+
+func TestModelColumnPickerReloadsWhenUpdatedEnabled(t *testing.T) {
+	before := config.Default()
+	before.Columns = []string{"name"}
+	after := before
+	after.Columns = []string{"name", "updated"}
+	appPath := "/tmp/app"
+	updatedAt := time.Date(2026, 5, 15, 12, 30, 0, 0, time.UTC)
+	reloaded := false
+	model := Model{
+		config:   before,
+		projects: []project.Project{{Name: "app", Path: appPath}},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			reloaded = true
+			return app.OverviewResult{
+				Config:   after,
+				Projects: []project.Project{{Name: "app", Path: appPath, UpdatedAt: updatedAt}},
+			}, nil
+		},
+	}
+
+	updated, cmd := model.Update(columnsSavedMsg{config: after})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected reload command")
+	}
+	if !model.loading {
+		t.Fatal("model should load while updated column is enriched")
+	}
+
+	model = updateMsg(t, model, cmd())
+	if !reloaded {
+		t.Fatal("expected overview reload")
+	}
+	if model.loading {
+		t.Fatal("model should stop loading after reload")
+	}
+	if got := model.projects[0].UpdatedAt; !got.Equal(updatedAt) {
+		t.Fatalf("updated at = %v, want %v", got, updatedAt)
+	}
+	if model.message != "Columns saved" {
+		t.Fatalf("message = %q, want Columns saved", model.message)
 	}
 }
 

@@ -78,6 +78,10 @@ type projectTiming struct {
 	Duration time.Duration
 }
 
+type EnrichOptions struct {
+	DetectUpdated bool
+}
+
 type ConfigSetup struct {
 	Paths      config.FilePaths
 	Exists     bool
@@ -159,7 +163,8 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 		return OverviewResult{}, err
 	}
 	timing.Config = time.Since(phaseStart)
-	if _, err := filter.ParseSort(opts.Sort, cfg); err != nil {
+	sortSpec, err := filter.ParseSort(opts.Sort, cfg)
+	if err != nil {
 		return OverviewResult{}, err
 	}
 	phaseStart = time.Now()
@@ -181,7 +186,7 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	timing.Discover = time.Since(phaseStart)
 	phaseStart = time.Now()
 	now := time.Now()
-	projects, slow := enrichProjects(scanned, cfg, now, DefaultEnrichmentWorkers)
+	projects, slow := enrichProjects(scanned, cfg, now, DefaultEnrichmentWorkers, EnrichOptions{DetectUpdated: NeedsUpdated(cfg, opts.Sort)})
 	timing.Slow = slow
 	timing.Enrich = time.Since(phaseStart)
 	if shouldDetectPorts(cfg, opts) {
@@ -202,7 +207,7 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	if err != nil {
 		return OverviewResult{}, err
 	}
-	filtered = filter.Sort(filtered, opts.Sort, cfg)
+	filtered = filter.Sort(filtered, filter.FormatSort(sortSpec.By, sortSpec.Dir), cfg)
 	timing.FilterSort = time.Since(phaseStart)
 	timing.Total = time.Since(start)
 	return OverviewResult{
@@ -215,7 +220,7 @@ func LoadOverview(opts Options) (OverviewResult, error) {
 	}, nil
 }
 
-func enrichProjects(scanned []scanner.Project, cfg config.Config, now time.Time, workers int) ([]project.Project, []projectTiming) {
+func enrichProjects(scanned []scanner.Project, cfg config.Config, now time.Time, workers int, enrichOpts EnrichOptions) ([]project.Project, []projectTiming) {
 	if len(scanned) == 0 {
 		return nil, nil
 	}
@@ -241,7 +246,7 @@ func enrichProjects(scanned []scanner.Project, cfg config.Config, now time.Time,
 			for index := range jobs {
 				scannedProject := scanned[index]
 				projectStart := time.Now()
-				enriched := EnrichWithGit(scannedProject, cfg, now, detector.Detect(scannedProject.Path))
+				enriched := EnrichWithGitOptions(scannedProject, cfg, now, detector.Detect(scannedProject.Path), enrichOpts)
 				results <- result{index: index, project: enriched, duration: time.Since(projectStart)}
 			}
 		}()
@@ -384,13 +389,7 @@ func slowProjects(items []projectTiming, limit int) []projectTiming {
 }
 
 func formatDuration(value time.Duration) string {
-	if value > 0 && value < time.Millisecond {
-		return "<1ms"
-	}
-	if value < time.Second {
-		return value.Round(time.Millisecond).String()
-	}
-	return value.Round(100 * time.Millisecond).String()
+	return ovwformat.Elapsed(value)
 }
 
 func ValidateOptions(opts Options) error {
@@ -629,6 +628,19 @@ func shouldDetectPorts(cfg config.Config, _ Options) bool {
 	return false
 }
 
+func NeedsUpdated(cfg config.Config, sortMode string) bool {
+	for _, column := range cfg.Columns {
+		if column == "updated" {
+			return true
+		}
+	}
+	spec, err := filter.ParseSort(sortMode, cfg)
+	if err != nil {
+		return cfg.SortBy == "updated"
+	}
+	return spec.By == "updated"
+}
+
 func projectPaths(projects []project.Project) []string {
 	paths := make([]string, 0, len(projects))
 	for _, project := range projects {
@@ -800,6 +812,10 @@ func Enrich(scanned scanner.Project, cfg config.Config, now time.Time) project.P
 }
 
 func EnrichWithGit(scanned scanner.Project, cfg config.Config, now time.Time, gitInfo gitactivity.Info) project.Project {
+	return EnrichWithGitOptions(scanned, cfg, now, gitInfo, EnrichOptions{DetectUpdated: true})
+}
+
+func EnrichWithGitOptions(scanned scanner.Project, cfg config.Config, now time.Time, gitInfo gitactivity.Info, enrichOpts EnrichOptions) project.Project {
 	stackResult, _ := stack.Detect(scanned.Path, cfg.Stack)
 	managers := manager.Detect(scanned.Path)
 	detectedScripts := scripts.Detect(scanned.Path)
@@ -808,7 +824,10 @@ func EnrichWithGit(scanned scanner.Project, cfg config.Config, now time.Time, gi
 	activity := ovwformat.Activity(gitInfo, cfg, now)
 	note := ovwformat.Note(scanned.Note, description, gitInfo, cfg)
 	status := ovwformat.Status(activity, scanned.Status, cfg, now)
-	updatedAt := detectProjectUpdatedAt(scanned.Path, cfg)
+	var updatedAt time.Time
+	if enrichOpts.DetectUpdated {
+		updatedAt = detectProjectUpdatedAt(scanned.Path, cfg)
+	}
 	return project.Project{
 		Name:          scanned.Name,
 		Path:          scanned.Path,

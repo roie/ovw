@@ -34,6 +34,16 @@ type RecentFile struct {
 	Age  string
 }
 
+func Elapsed(value time.Duration) string {
+	if value <= 0 {
+		return "0ms"
+	}
+	if value < time.Millisecond {
+		return "<1ms"
+	}
+	return fmt.Sprintf("%dms", value.Round(time.Millisecond)/time.Millisecond)
+}
+
 type NoteInfo struct {
 	Display string `json:"display"`
 	Value   string `json:"value"`

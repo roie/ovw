@@ -350,6 +350,105 @@ func TestEnrichSetsUpdatedAtFromRecentlyModifiedFiles(t *testing.T) {
 	}
 }
 
+func TestLoadOverviewSkipsUpdatedWhenColumnHidden(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	appPath := filepath.Join(root, "app")
+	writePackage(t, appPath, `{}`)
+	if err := os.WriteFile(filepath.Join(appPath, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	cfg.Columns = []string{"name", "activity"}
+	cfg.SortBy = "activity"
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := LoadOverview(Options{Plain: true, Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if len(result.Projects) != 1 {
+		t.Fatalf("projects = %#v", result.Projects)
+	}
+	if !result.Projects[0].UpdatedAt.IsZero() {
+		t.Fatalf("UpdatedAt = %s, want zero when updated is hidden", result.Projects[0].UpdatedAt)
+	}
+}
+
+func TestLoadOverviewDetectsUpdatedWhenColumnVisible(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	appPath := filepath.Join(root, "app")
+	writePackage(t, appPath, `{}`)
+	if err := os.WriteFile(filepath.Join(appPath, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	cfg.Columns = []string{"name", "updated"}
+	cfg.SortBy = "activity"
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := LoadOverview(Options{Plain: true, Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if len(result.Projects) != 1 {
+		t.Fatalf("projects = %#v", result.Projects)
+	}
+	if result.Projects[0].UpdatedAt.IsZero() {
+		t.Fatal("UpdatedAt is zero when updated column is visible")
+	}
+}
+
+func TestLoadOverviewDetectsUpdatedWhenSortedByUpdated(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	appPath := filepath.Join(root, "app")
+	writePackage(t, appPath, `{}`)
+	if err := os.WriteFile(filepath.Join(appPath, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{root}
+	cfg.Columns = []string{"name", "activity"}
+	cfg.SortBy = "activity"
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := LoadOverview(Options{Plain: true, Sort: "updated", Cwd: root, In: strings.NewReader("\n")})
+	if err != nil {
+		t.Fatalf("LoadOverview() error = %v", err)
+	}
+	if len(result.Projects) != 1 {
+		t.Fatalf("projects = %#v", result.Projects)
+	}
+	if result.Projects[0].UpdatedAt.IsZero() {
+		t.Fatal("UpdatedAt is zero when sorting by updated")
+	}
+}
+
 func TestRunRejectsConflictingOutputModes(t *testing.T) {
 	var out bytes.Buffer
 	err := Run(Options{Plain: true, JSON: true, Out: &out, In: strings.NewReader("\n")})
@@ -379,8 +478,11 @@ func TestFormatDurationShowsSubMillisecondValues(t *testing.T) {
 	if got := formatDuration(time.Nanosecond); got != "<1ms" {
 		t.Fatalf("formatDuration() = %q, want <1ms", got)
 	}
-	if got := formatDuration(0); got != "0s" {
-		t.Fatalf("formatDuration(0) = %q, want 0s", got)
+	if got := formatDuration(0); got != "0ms" {
+		t.Fatalf("formatDuration(0) = %q, want 0ms", got)
+	}
+	if got := formatDuration(1500 * time.Millisecond); got != "1500ms" {
+		t.Fatalf("formatDuration(1500ms) = %q, want 1500ms", got)
 	}
 }
 
