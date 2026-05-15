@@ -98,8 +98,8 @@ func TestSortModes(t *testing.T) {
 	cfg := config.Default()
 	cfg.SortDir = "asc"
 	projects := []project.Project{
-		{Name: "beta", Status: testStatus("parked"), Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -1), HasCommits: true}},
-		{Name: "alpha", Status: testStatus("active"), Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -3), HasCommits: true}},
+		{Name: "beta", Status: testStatus("parked"), UpdatedAt: now.AddDate(0, 0, -3), Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -1), HasCommits: true}},
+		{Name: "alpha", Status: testStatus("active"), UpdatedAt: now.AddDate(0, 0, -1), Activity: format.ActivityInfo{LastCommitAt: now.AddDate(0, 0, -3), HasCommits: true}},
 	}
 
 	got := Sort(projects, "name", cfg)
@@ -115,7 +115,7 @@ func TestSortModes(t *testing.T) {
 		t.Fatalf("activity sort = %#v", got)
 	}
 	got = Sort(projects, "updated", config.Default())
-	if got[0].Name != "beta" {
+	if got[0].Name != "alpha" {
 		t.Fatalf("updated sort = %#v", got)
 	}
 	got = Sort(projects, "name:desc", config.Default())

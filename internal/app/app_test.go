@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"ovw/internal/config"
+	"ovw/internal/gitactivity"
 	"ovw/internal/metadata"
+	"ovw/internal/scanner"
 )
 
 func TestOverviewJSONScansAndRendersProject(t *testing.T) {
@@ -310,6 +312,41 @@ func TestLoadOverviewDetectsPortsWhenColumnVisible(t *testing.T) {
 	}
 	if len(result.Projects) != 1 || len(result.Projects[0].Ports) != 1 || result.Projects[0].Ports[0] != 5173 {
 		t.Fatalf("ports = %#v", result.Projects)
+	}
+}
+
+func TestEnrichSetsUpdatedAtFromRecentlyModifiedFiles(t *testing.T) {
+	root := t.TempDir()
+	appPath := filepath.Join(root, "app")
+	writePackage(t, appPath, `{}`)
+	if err := os.MkdirAll(filepath.Join(appPath, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	newer := time.Date(2026, 5, 12, 9, 30, 0, 0, time.Local)
+	olderCommit := newer.Add(-48 * time.Hour)
+	sourcePath := filepath.Join(appPath, "src", "main.go")
+	if err := os.WriteFile(sourcePath, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filepath.Join(appPath, "package.json"), olderCommit, olderCommit); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(sourcePath, newer, newer); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+
+	got := EnrichWithGit(scanner.Project{Name: "app", Path: appPath}, cfg, newer, gitactivity.Info{
+		HasGit:       true,
+		HasCommits:   true,
+		LastCommitAt: olderCommit,
+	})
+
+	if !got.UpdatedAt.Equal(newer) {
+		t.Fatalf("UpdatedAt = %s, want %s", got.UpdatedAt, newer)
+	}
+	if !got.Activity.LastCommitAt.Equal(olderCommit) {
+		t.Fatalf("Activity.LastCommitAt = %s, want %s", got.Activity.LastCommitAt, olderCommit)
 	}
 }
 

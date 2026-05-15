@@ -16,6 +16,7 @@ type Project struct {
 	CustomScripts map[string]string   `json:"-"`
 	Version       string              `json:"version"`
 	Ports         []int               `json:"ports"`
+	UpdatedAt     time.Time           `json:"updated_at"`
 	Activity      format.ActivityInfo `json:"activity"`
 	Status        format.StatusInfo   `json:"status"`
 	Note          format.NoteInfo     `json:"note"`

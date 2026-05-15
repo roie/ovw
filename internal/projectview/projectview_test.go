@@ -20,12 +20,12 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 		Status:      format.StatusFromTags("parked", []string{"dirty", "parked"}),
 		Description: "Project description",
 		Note:        format.NoteInfo{Display: "user note"},
+		UpdatedAt:   time.Date(2026, 5, 7, 12, 30, 0, 0, time.UTC),
 		Activity: format.ActivityInfo{
-			Display:      "12m",
-			LastCommitAt: time.Date(2026, 5, 7, 12, 30, 0, 0, time.UTC),
-			Branch:       "main",
-			HasGit:       true,
-			HasCommits:   true,
+			Display:    "12m",
+			Branch:     "main",
+			HasGit:     true,
+			HasCommits: true,
 		},
 	}
 
@@ -104,9 +104,7 @@ func TestColumnValueShowsBranch(t *testing.T) {
 }
 
 func TestColumnValueShowsUpdatedTimestamp(t *testing.T) {
-	proj := project.Project{Activity: format.ActivityInfo{
-		LastCommitAt: time.Date(2026, 5, 12, 9, 30, 0, 0, time.UTC),
-	}}
+	proj := project.Project{UpdatedAt: time.Date(2026, 5, 12, 9, 30, 0, 0, time.UTC)}
 
 	if got := ColumnValue(proj, "updated", "app"); got != "2026-05-12 09:30" {
 		t.Fatalf("ColumnValue(updated) = %q, want 2026-05-12 09:30", got)

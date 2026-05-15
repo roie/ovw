@@ -87,7 +87,17 @@ func Sort(projects []project.Project, mode string, cfg config.Config) []project.
 				return out[i].Status.Value > out[j].Status.Value
 			}
 			return out[i].Status.Value < out[j].Status.Value
-		case "activity", "updated":
+		case "updated":
+			left := out[i].UpdatedAt
+			right := out[j].UpdatedAt
+			if left.Equal(right) {
+				return out[i].Name < out[j].Name
+			}
+			if desc {
+				return left.After(right)
+			}
+			return left.Before(right)
+		case "activity":
 			fallthrough
 		default:
 			left := out[i].Activity.LastCommitAt

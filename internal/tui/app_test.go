@@ -3986,6 +3986,7 @@ func detailTestProject(name string) project.Project {
 		Managers:     []string{"go modules"},
 		Scripts:      []string{"dev", "build", "check"},
 		Version:      "1.2.3",
+		UpdatedAt:    time.Date(2026, 5, 7, 12, 30, 0, 0, time.UTC),
 		Activity: ovwformat.ActivityInfo{
 			Display:           "12m ↑2",
 			LastCommitAge:     "12m",

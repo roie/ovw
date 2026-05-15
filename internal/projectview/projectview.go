@@ -14,9 +14,9 @@ type Field struct {
 }
 
 type Options struct {
-	Path                  func(string) string
-	Time                  func(time.Time) string
-	Activity              func(project.Project) string
+	Path                   func(string) string
+	Time                   func(time.Time) string
+	Activity               func(project.Project) string
 	HideEmptyDisplayFields bool
 }
 
@@ -54,10 +54,10 @@ func Fields(project project.Project, opts Options) []Field {
 	add("Ports", portsDisplay(project.Ports))
 	add("Branch", project.Activity.Branch)
 	add("Activity", activity)
-	if !project.Activity.LastCommitAt.IsZero() {
-		updated := project.Activity.LastCommitAt.Format("2006-01-02 15:04")
+	if !project.UpdatedAt.IsZero() {
+		updated := project.UpdatedAt.Format("2006-01-02 15:04")
 		if opts.Time != nil {
-			updated = opts.Time(project.Activity.LastCommitAt)
+			updated = opts.Time(project.UpdatedAt)
 		}
 		add("Updated", updated)
 	}

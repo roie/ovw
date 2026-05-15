@@ -102,13 +102,14 @@ func TestTableViewFollowsConfiguredColumns(t *testing.T) {
 	updated := time.Date(2026, 5, 12, 9, 30, 0, 0, time.Local)
 	got := tableView([]project.Project{
 		{
-			Name:     "eventca",
-			Path:     "/tmp/eventca",
-			Managers: []string{"pnpm"},
-			Scripts:  []string{"dev", "build"},
-			Version:  "1.2.3",
-			Activity: ovwformat.ActivityInfo{Branch: "feat/pins", LastCommitAt: updated},
-			Status:   ovwformat.StatusFromTags("", []string{"active"}),
+			Name:      "eventca",
+			Path:      "/tmp/eventca",
+			Managers:  []string{"pnpm"},
+			Scripts:   []string{"dev", "build"},
+			Version:   "1.2.3",
+			UpdatedAt: updated,
+			Activity:  ovwformat.ActivityInfo{Branch: "feat/pins"},
+			Status:    ovwformat.StatusFromTags("", []string{"active"}),
 		},
 	}, -1, 100, 0, 0, cfg, "name", "asc")
 
@@ -120,6 +121,31 @@ func TestTableViewFollowsConfiguredColumns(t *testing.T) {
 	for _, notWant := range []string{"Stack", "Activity", "Note"} {
 		if strings.Contains(got, notWant) {
 			t.Fatalf("table should not include unconfigured column %q:\n%s", notWant, got)
+		}
+	}
+}
+
+func TestTableViewKeepsGitActivityWhenUpdatedVisible(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "updated", "activity"}
+	updated := time.Date(2026, 5, 12, 9, 30, 0, 0, time.Local)
+	item := project.Project{
+		Name:      "ahead",
+		UpdatedAt: updated,
+		Activity: ovwformat.ActivityInfo{
+			Display:       "3d ↑4",
+			LastCommitAge: "3d",
+			Unpushed:      4,
+			HasGit:        true,
+			HasCommits:    true,
+		},
+	}
+
+	got := tableView([]project.Project{item}, -1, 120, 0, 0, cfg, "activity", "desc")
+
+	for _, want := range []string{"Updated", "Activity", "2026-05-12 09:30", "3d ↑4"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("table missing %q:\n%s", want, got)
 		}
 	}
 }
