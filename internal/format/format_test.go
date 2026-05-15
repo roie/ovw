@@ -6,7 +6,7 @@ import (
 
 	"ovw/internal/config"
 	"ovw/internal/gitactivity"
-	"ovw/internal/recentfiles"
+	"ovw/internal/projectfiles"
 )
 
 func TestActivityDisplayIncludesAgeAndUnpushed(t *testing.T) {
@@ -61,7 +61,7 @@ func TestActivityFormatsRecentCommits(t *testing.T) {
 
 func TestRecentFilesFormatsModifiedAge(t *testing.T) {
 	now := time.Date(2026, 5, 12, 12, 0, 0, 0, time.Local)
-	files := []recentfiles.File{
+	files := []projectfiles.File{
 		{Path: "internal/tui/app.go", ModifiedAt: now.Add(-4 * time.Minute)},
 	}
 

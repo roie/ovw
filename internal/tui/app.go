@@ -15,7 +15,7 @@ import (
 	"ovw/internal/gitactivity"
 	"ovw/internal/ports"
 	"ovw/internal/project"
-	"ovw/internal/recentfiles"
+	"ovw/internal/projectfiles"
 	"ovw/internal/scanner"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -1890,7 +1890,7 @@ func loadRecentCommits(path string, now time.Time) ([]ovwformat.RecentCommit, er
 }
 
 func loadRecentFiles(path string, ignoreDirs []string, now time.Time) ([]ovwformat.RecentFile, error) {
-	files, err := recentfiles.Detect(path, ignoreDirs, 5)
+	files, err := projectfiles.Recent(path, projectfiles.Options{IgnoreDirs: ignoreDirs}, 5)
 	if err != nil {
 		return nil, err
 	}

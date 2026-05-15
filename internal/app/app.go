@@ -20,8 +20,8 @@ import (
 	"ovw/internal/metadata"
 	"ovw/internal/ports"
 	"ovw/internal/project"
+	"ovw/internal/projectfiles"
 	projectversion "ovw/internal/projectversion"
-	"ovw/internal/recentfiles"
 	"ovw/internal/render"
 	"ovw/internal/scanner"
 	"ovw/internal/scripts"
@@ -829,11 +829,11 @@ func EnrichWithGit(scanned scanner.Project, cfg config.Config, now time.Time, gi
 }
 
 func detectProjectUpdatedAt(path string, cfg config.Config) time.Time {
-	files, err := recentfiles.Detect(path, cfg.IgnoreDirs, 1)
-	if err != nil || len(files) == 0 {
+	updatedAt, ok, err := projectfiles.NewestModified(path, projectfiles.Options{IgnoreDirs: cfg.IgnoreDirs})
+	if err != nil || !ok {
 		return time.Time{}
 	}
-	return files[0].ModifiedAt
+	return updatedAt
 }
 
 func firstRunWriter(opts Options) io.Writer {
