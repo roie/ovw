@@ -34,3 +34,17 @@ func runTerminal(path, name, configuredShell string) tea.Cmd {
 		return terminalOpenedMsg{message: "Opened terminal " + name}
 	})
 }
+
+func runScript(path, manager, script string) tea.Cmd {
+	if manager == "" {
+		manager = "npm"
+	}
+	cmd := exec.Command(manager, "run", script)
+	cmd.Dir = path
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		if err != nil {
+			return runnerFailedMsg{err: err}
+		}
+		return runnerFinishedMsg{message: "Ran script " + script}
+	})
+}

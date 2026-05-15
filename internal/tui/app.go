@@ -32,6 +32,7 @@ type visibilityUpdater func(string, bool) (app.MetadataUpdateResult, error)
 type projectAdder func(string) (app.AddProjectResult, error)
 type editorRunner func(string, string) error
 type terminalRunner func(string, string, string) tea.Cmd
+type scriptRunner func(string, string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
 type recentFilesLoader func(string, []string, time.Time) ([]ovwformat.RecentFile, error)
 type configWriter func(string, config.Config) error
@@ -52,6 +53,7 @@ const (
 	screenStatusInput
 	screenHelp
 	screenCommand
+	screenRunner
 	screenOnboarding
 	screenOnboardingInput
 	screenColumns
@@ -68,6 +70,7 @@ type Model struct {
 	adder        projectAdder
 	editor       editorRunner
 	terminal     terminalRunner
+	runner       scriptRunner
 	recent       recentLoader
 	recentFiles  recentFilesLoader
 	configWriter configWriter
@@ -97,6 +100,10 @@ type Model struct {
 	statusSelected  int
 	statusInput     string
 	statusCursor    int
+	runnerSelected  int
+	runnerInput     string
+	runnerCursor    int
+	runnerYOffset   int
 	commandInput    string
 	commandCursor   int
 	commandSelected int
@@ -146,6 +153,7 @@ func NewWithOptions(opts app.Options) Model {
 		adder:         app.AddProject,
 		editor:        OpenEditor,
 		terminal:      runTerminal,
+		runner:        runScript,
 		recent:        loadRecentCommits,
 		recentFiles:   loadRecentFiles,
 		configWriter:  config.Write,
@@ -207,6 +215,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenStatusInput {
 			return m.updateStatusInput(msg)
+		}
+		if m.screen == screenRunner {
+			return m.updateRunner(msg)
 		}
 		if m.screen == screenDetail {
 			return m.updateDetail(msg)
@@ -318,6 +329,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			return m, m.togglePin()
 		}
+		if isRunnerKey(msg.String()) && m.canOpenDetail() {
+			return m.openRunner()
+		}
 		if isReloadKey(msg.String()) {
 			path := m.selectedProjectPath()
 			m.screen = screenTable
@@ -335,6 +349,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.clampDetailOffset()
 		m.clampDetailModalOffset()
+		m.clampRunnerOffset()
 		return m, m.loadSelectedRecent()
 	case overviewLoadedMsg:
 		m.loading = false
@@ -487,6 +502,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.message = msg.message
 	case terminalFailedMsg:
 		m.message = "Terminal failed: " + msg.err.Error()
+	case runnerFinishedMsg:
+		m.message = msg.message
+	case runnerFailedMsg:
+		m.message = "Script failed: " + msg.err.Error()
 	case recentLoadedMsg:
 		if m.recentByPath == nil {
 			m.recentByPath = map[string][]ovwformat.RecentCommit{}
@@ -673,6 +692,80 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.loadSelectedRecent()
 	}
 	return m, nil
+}
+
+func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	project, ok := m.currentProject()
+	if !ok || len(project.Scripts) == 0 {
+		m.screen = screenTable
+		return m, nil
+	}
+	scripts := runnerScriptOptions(project, m.runnerInput)
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenTable
+		m.runnerInput = ""
+		m.runnerCursor = 0
+		m.runnerYOffset = 0
+	case isDownKey(value):
+		m.runnerSelected = wrapPickerSelection(m.runnerSelected, len(scripts), 1)
+		m.keepRunnerSelectionVisible()
+	case isUpKey(value):
+		m.runnerSelected = wrapPickerSelection(m.runnerSelected, len(scripts), -1)
+		m.keepRunnerSelectionVisible()
+	case isDetailScrollKey(value):
+		m.scrollRunner(value)
+	case isEnterKey(value):
+		if len(scripts) == 0 {
+			return m, nil
+		}
+		return m.runRunnerScript(project, scripts)
+	case value == "left":
+		m.runnerCursor = textMoveLeft(m.runnerInput, m.runnerCursor)
+	case value == "right":
+		m.runnerCursor = textMoveRight(m.runnerInput, m.runnerCursor)
+	case isMoveStartKey(value):
+		m.runnerCursor = textMoveStart(m.runnerInput, m.runnerCursor)
+	case isMoveEndKey(value):
+		m.runnerCursor = textMoveEnd(m.runnerInput, m.runnerCursor)
+	case isClearBeforeKey(value):
+		m.runnerInput, m.runnerCursor = textClearBefore(m.runnerInput, m.runnerCursor)
+		m.runnerSelected = 0
+		m.runnerYOffset = 0
+	case isClearAfterKey(value):
+		m.runnerInput, m.runnerCursor = textClearAfter(m.runnerInput, m.runnerCursor)
+		m.runnerSelected = 0
+		m.runnerYOffset = 0
+	case isDeletePreviousWordKey(value):
+		m.runnerInput, m.runnerCursor = textDeletePreviousWord(m.runnerInput, m.runnerCursor)
+		m.runnerSelected = 0
+		m.runnerYOffset = 0
+	case isBackspaceKey(value):
+		m.runnerInput, m.runnerCursor = textBackspace(m.runnerInput, m.runnerCursor)
+		m.runnerSelected = 0
+		m.runnerYOffset = 0
+	case isDeleteKey(value):
+		m.runnerInput, m.runnerCursor = textDelete(m.runnerInput, m.runnerCursor)
+		m.runnerSelected = 0
+		m.runnerYOffset = 0
+	default:
+		m.runnerInput, m.runnerCursor = textInsert(m.runnerInput, m.runnerCursor, inputText(msg))
+		m.runnerSelected = 0
+		m.runnerYOffset = 0
+	}
+	return m, nil
+}
+
+func (m Model) runRunnerScript(project project.Project, scripts []string) (Model, tea.Cmd) {
+	if m.runnerSelected >= len(scripts) {
+		m.runnerSelected = len(scripts) - 1
+	}
+	if m.runnerSelected < 0 {
+		m.runnerSelected = 0
+	}
+	script := scripts[m.runnerSelected]
+	m.screen = screenTable
+	return m, m.runSelectedScript(project, script)
 }
 
 func (m Model) updateColumns(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1040,6 +1133,56 @@ func (m *Model) scrollDetailModal(value string) {
 	}
 }
 
+func (m *Model) scrollRunner(value string) {
+	_, maxOffset := m.currentScrollableRunner()
+	if maxOffset <= 0 {
+		m.runnerYOffset = 0
+		return
+	}
+	page := m.tableHeight() - 6
+	if page < 1 {
+		page = 1
+	}
+	switch value {
+	case "pgup":
+		m.runnerYOffset -= page
+	case "pgdown":
+		m.runnerYOffset += page
+	case "home":
+		m.runnerYOffset = 0
+	case "end":
+		m.runnerYOffset = maxOffset
+	}
+	m.clampRunnerOffset()
+}
+
+func (m *Model) clampRunnerOffset() {
+	_, maxOffset := m.currentScrollableRunner()
+	if maxOffset <= 0 || m.runnerYOffset < 0 {
+		m.runnerYOffset = 0
+		return
+	}
+	if m.runnerYOffset > maxOffset {
+		m.runnerYOffset = maxOffset
+	}
+}
+
+func (m *Model) keepRunnerSelectionVisible() {
+	_, maxOffset := m.currentScrollableRunner()
+	if maxOffset <= 0 {
+		m.runnerYOffset = 0
+		return
+	}
+	visibleHeight := runnerVisibleOptionHeight(m.tableHeight())
+	if m.runnerSelected < m.runnerYOffset {
+		m.runnerYOffset = m.runnerSelected
+	}
+	if m.runnerSelected >= m.runnerYOffset+visibleHeight {
+		m.runnerYOffset = m.runnerSelected - visibleHeight + 1
+	}
+	m.clampRunnerOffset()
+}
+
 func (m *Model) clampDetailModalOffset() {
 	_, maxOffset := m.currentScrollableDetailModal()
 	if maxOffset <= 0 || m.detailModalY < 0 {
@@ -1078,6 +1221,17 @@ func (m Model) currentScrollableDetailModal() (string, int) {
 		return "", 0
 	}
 	return detailModalViewWithScroll(detail, true, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded)
+}
+
+func (m Model) currentScrollableRunner() (string, int) {
+	if m.screen != screenRunner {
+		return "", 0
+	}
+	project, ok := m.currentProject()
+	if !ok {
+		return "", 0
+	}
+	return runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.inputCursorState())
 }
 
 func Run() error {
@@ -1182,6 +1336,14 @@ type terminalOpenedMsg struct {
 }
 
 type terminalFailedMsg struct {
+	err error
+}
+
+type runnerFinishedMsg struct {
+	message string
+}
+
+type runnerFailedMsg struct {
 	err error
 }
 
@@ -1360,6 +1522,8 @@ func (m Model) cursorBlinkActive() bool {
 	}
 	switch m.screen {
 	case screenAdd, screenNote, screenStatusInput, screenCommand, screenOnboardingInput:
+		return true
+	case screenRunner:
 		return true
 	default:
 		return false
@@ -1550,6 +1714,38 @@ func (m Model) openSelectedTerminal() tea.Cmd {
 	return runner(project.Path, project.Name, m.config.Shell)
 }
 
+func (m Model) openRunner() (Model, tea.Cmd) {
+	project, ok := m.currentProject()
+	if !ok || len(project.Scripts) == 0 {
+		m.message = "No scripts found"
+		return m, nil
+	}
+	m.screen = screenRunner
+	m.runnerSelected = 0
+	m.runnerInput = ""
+	m.runnerCursor = 0
+	m.runnerYOffset = 0
+	return m, m.startInputCursorBlink()
+}
+
+func (m Model) runSelectedScript(project project.Project, script string) tea.Cmd {
+	runner := m.runner
+	if runner == nil {
+		runner = runScript
+	}
+	return runner(project.Path, scriptManager(project.Managers), script)
+}
+
+func scriptManager(managers []string) string {
+	for _, manager := range managers {
+		switch strings.ToLower(manager) {
+		case "pnpm", "bun", "yarn", "npm":
+			return strings.ToLower(manager)
+		}
+	}
+	return "npm"
+}
+
 func (m Model) loadSelectedRecent() tea.Cmd {
 	if !m.showInlineDetail() {
 		return nil
@@ -1661,6 +1857,14 @@ func renderShell(m Model) string {
 				content = overlayModal(content, helpView(), m.contentWidth())
 			case screenCommand:
 				content = overlayModal(content, commandView(m.commandInput, m.commandCursor, m.filteredCommandActions(), m.commandSelected, m.inputCursorState()), m.contentWidth())
+			case screenRunner:
+				project, _ := m.currentProject()
+				modal, maxOffset := runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.inputCursorState())
+				if m.runnerYOffset > maxOffset {
+					m.runnerYOffset = maxOffset
+					modal, _ = runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.inputCursorState())
+				}
+				content = overlayModal(content, modal, m.contentWidth())
 			case screenFilter:
 				content = overlayModal(content, filterView(m.filterOptions(), m.filterSelected), m.contentWidth())
 			case screenSort:
@@ -1978,7 +2182,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenFilter, screenSort, screenColumns, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenNote, screenStatus, screenStatusInput:
 		return true
 	default:
 		return false

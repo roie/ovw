@@ -25,7 +25,7 @@ func tableView(projects []project.Project, selected, width, height, xOffset int,
 			mutedStyle.Render("No projects found"),
 			"",
 			inlineActionHint("a", "add project"),
-			inlineActionHint("r", "reload"),
+			inlineActionHint("ctrl+r", "reload"),
 		}
 		return strings.Join(lines, "\n")
 	}

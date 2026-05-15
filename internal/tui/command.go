@@ -128,6 +128,9 @@ func (m Model) commandActions() []commandAction {
 		{Label: "Filter projects", Shortcut: "f", Aliases: []string{"filter"}, Run: commandFilterProjects},
 		{Label: "Sort projects", Shortcut: "s", Aliases: []string{"sort"}, Run: commandSortProjects},
 	}
+	if m.canRunSelectedScript() {
+		actions = append(actions, commandAction{Label: "Run script", Shortcut: "r", Aliases: []string{"runner", "script", "run"}, Run: commandOpenRunner})
+	}
 	actions = append(actions, commandAction{Label: "Choose columns", Shortcut: "c", Aliases: []string{"columns"}, Run: func(m Model) (Model, tea.Cmd) {
 		m.openColumns()
 		return m, nil
@@ -136,7 +139,7 @@ func (m Model) commandActions() []commandAction {
 		actions = append(actions, commandAction{Label: "Add project", Shortcut: "a", Aliases: []string{"add"}, Run: commandAddProject})
 	}
 	actions = append(actions,
-		commandAction{Label: "Reload projects", Shortcut: "r", Aliases: []string{"reload", "refresh"}, Run: commandReloadProjects},
+		commandAction{Label: "Reload projects", Shortcut: "ctrl+r or F5", Aliases: []string{"reload", "refresh"}, Run: commandReloadProjects},
 		commandAction{Label: "Show help", Shortcut: "?", Aliases: []string{"help"}, Run: func(m Model) (Model, tea.Cmd) {
 			m.screen = screenHelp
 			return m, nil
@@ -146,6 +149,11 @@ func (m Model) commandActions() []commandAction {
 		}},
 	)
 	return actions
+}
+
+func (m Model) canRunSelectedScript() bool {
+	project, ok := m.currentProject()
+	return ok && len(project.Scripts) > 0
 }
 
 func (m Model) pinCommandLabel() string {
@@ -182,6 +190,14 @@ func commandOpenSelectedTerminal(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, m.openSelectedTerminal()
+}
+
+func commandOpenRunner(m Model) (Model, tea.Cmd) {
+	if !m.canOpenDetail() {
+		m.screen = screenTable
+		return m, nil
+	}
+	return m.openRunner()
 }
 
 func commandShowDetails(m Model) (Model, tea.Cmd) {

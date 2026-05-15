@@ -1598,7 +1598,7 @@ func TestModelCommandPaletteOpensFromColonAndCtrlP(t *testing.T) {
 	base := Model{
 		width:    100,
 		height:   24,
-		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app", Scripts: []string{"dev"}}},
 		config:   config.Default(),
 	}
 
@@ -1621,6 +1621,32 @@ func TestModelCommandPaletteOpensFromColonAndCtrlP(t *testing.T) {
 	model = updateSpecialKey(t, base, tea.KeyCtrlP)
 	if model.screen != screenCommand {
 		t.Fatalf("screen = %v, want command from ctrl+p", model.screen)
+	}
+}
+
+func TestModelCommandPaletteHidesRunScriptWithoutScripts(t *testing.T) {
+	model := updateSpecialKey(t, Model{
+		width:    100,
+		height:   24,
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+		config:   config.Default(),
+	}, tea.KeyCtrlP)
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "Run script") {
+		t.Fatalf("command palette should hide Run script without scripts:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, Model{
+		width:    100,
+		height:   24,
+		projects: []project.Project{{Name: "app", Path: "/tmp/app", Scripts: []string{"dev"}}},
+		config:   config.Default(),
+	}, tea.KeyCtrlP)
+
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "Run script") {
+		t.Fatalf("command palette should show Run script when scripts exist:\n%s", view)
 	}
 }
 
@@ -3118,7 +3144,7 @@ func TestModelReloadPreservesSelectionByPath(t *testing.T) {
 		selected: 1,
 	}
 
-	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
 	model = updated.(Model)
 	if cmd == nil {
 		t.Fatal("expected reload command")
@@ -3138,6 +3164,184 @@ func TestModelReloadPreservesSelectionByPath(t *testing.T) {
 	}
 	if model.message != "Reloaded" {
 		t.Fatalf("message = %q, want Reloaded", model.message)
+	}
+}
+
+func TestModelReloadsWithF5(t *testing.T) {
+	reloaded := false
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			reloaded = true
+			return app.OverviewResult{Config: config.Default(), Projects: []project.Project{{Name: "app", Path: "/tmp/app"}}}, nil
+		},
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyF5})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected reload command")
+	}
+	model = updateMsg(t, model, cmd())
+	if !reloaded {
+		t.Fatal("loader was not called")
+	}
+	if model.message != "Reloaded" {
+		t.Fatalf("message = %q, want Reloaded", model.message)
+	}
+}
+
+func TestModelRunnerOpensWithScripts(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{Name: "web", Path: "/tmp/web", Managers: []string{"pnpm"}, Scripts: []string{"dev", "build"}}},
+	}
+
+	model = updateKey(t, model, "r")
+	if model.screen != screenRunner {
+		t.Fatalf("screen = %v, want runner", model.screen)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"Runner · web", "filter scripts", "> dev", "build", "enter run"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("runner view missing %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestModelRunnerPrioritizesCommonScripts(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{Name: "web", Path: "/tmp/web", Scripts: []string{"android:assemble", "build", "dev", "lint"}}},
+	}
+
+	model = updateKey(t, model, "r")
+	view := stripANSI(model.View())
+	mustAppearInOrder(t, view, []string{"> dev", "build", "lint", "android:assemble"})
+}
+
+func TestModelRunnerFiltersScripts(t *testing.T) {
+	var gotScript string
+	model := Model{
+		runner: func(path, manager, script string) tea.Cmd {
+			gotScript = script
+			return func() tea.Msg {
+				return runnerFinishedMsg{message: "Ran script " + script}
+			}
+		},
+		projects: []project.Project{{Name: "web", Path: "/tmp/web", Scripts: []string{"dev", "build", "build:docker", "lint"}}},
+	}
+
+	model = updateKey(t, model, "r")
+	for _, value := range []string{"d", "o", "c"} {
+		model = updateKey(t, model, value)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"doc", "> build:docker"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("runner filtered view missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "dev") || strings.Contains(view, "lint") {
+		t.Fatalf("runner filtered view should hide non-matches:\n%s", view)
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected runner command")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotScript != "build:docker" {
+		t.Fatalf("script = %q, want build:docker", gotScript)
+	}
+}
+
+func TestModelRunnerScrollsLongScriptList(t *testing.T) {
+	model := Model{
+		width:  100,
+		height: 12,
+		projects: []project.Project{{
+			Name: "web",
+			Path: "/tmp/web",
+			Scripts: []string{
+				"dev", "start", "build", "test", "check", "lint",
+				"android:assemble", "android:bundle:release", "android:format",
+				"android:install", "android:lint", "android:run",
+				"android:test", "build:docker", "canvas:a2ui:bundle",
+			},
+		}},
+	}
+
+	model = updateKey(t, model, "r")
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "↓ pgup/pgdn") {
+		t.Fatalf("long runner modal should show scroll hint:\n%s", view)
+	}
+	if strings.Contains(view, "canvas:a2ui:bundle") {
+		t.Fatalf("long runner modal should start clipped:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyPgDown)
+	view = stripANSI(model.View())
+	if model.runnerYOffset == 0 || strings.Contains(view, "> dev") {
+		t.Fatalf("runner modal should scroll down:\n%s", view)
+	}
+	if !strings.Contains(view, "↑ pgup/pgdn") && !strings.Contains(view, "↑↓ pgup/pgdn") {
+		t.Fatalf("scrolled runner modal should show upward scroll hint:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEnd)
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "canvas:a2ui:bundle") {
+		t.Fatalf("runner modal should jump to end:\n%s", view)
+	}
+}
+
+func TestModelRunnerShowsNoScriptsMessage(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{Name: "api", Path: "/tmp/api"}},
+	}
+
+	model = updateKey(t, model, "r")
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
+	}
+	if model.message != "No scripts found" {
+		t.Fatalf("message = %q, want No scripts found", model.message)
+	}
+}
+
+func TestModelRunnerRunsSelectedScript(t *testing.T) {
+	var gotPath string
+	var gotManager string
+	var gotScript string
+	model := Model{
+		runner: func(path, manager, script string) tea.Cmd {
+			gotPath = path
+			gotManager = manager
+			gotScript = script
+			return func() tea.Msg {
+				return runnerFinishedMsg{message: "Ran script build"}
+			}
+		},
+		projects:       []project.Project{{Name: "web", Path: "/tmp/web", Managers: []string{"pnpm"}, Scripts: []string{"dev", "build"}}},
+		screen:         screenRunner,
+		runnerSelected: 1,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected runner command")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotPath != "/tmp/web" || gotManager != "pnpm" || gotScript != "build" {
+		t.Fatalf("runner args = %q %q %q, want /tmp/web pnpm build", gotPath, gotManager, gotScript)
+	}
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
+	}
+	if model.message != "Ran script build" {
+		t.Fatalf("message = %q, want Ran script build", model.message)
 	}
 }
 

@@ -91,6 +91,10 @@ func isPinKey(value string) bool {
 }
 
 func isReloadKey(value string) bool {
+	return value == "ctrl+r" || value == "f5"
+}
+
+func isRunnerKey(value string) bool {
 	return value == "r"
 }
 

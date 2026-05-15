@@ -83,7 +83,8 @@ n                  note
 m                  status
 p                  pin
 a                  add
-r                  reload
+r                  runner
+ctrl+r or F5       reload
 o                  open
 t                  terminal
 ?                  help

@@ -21,9 +21,10 @@ func helpView() string {
 		{Key: "f, s", Action: "filter, sort"},
 		{Key: "c", Action: "columns"},
 		{Key: "o, t", Action: "open editor, terminal"},
+		{Key: "r", Action: "runner"},
 		{Key: "n, m", Action: "note, status"},
 		{Key: "p", Action: "pin"},
-		{Key: "r", Action: "reload"},
+		{Key: "ctrl+r or F5", Action: "reload"},
 	}
 	lines := helpEntryLines(entries)
 	return helpModal(lines, 56)
