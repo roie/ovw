@@ -257,10 +257,9 @@ func commandSortProjects(m Model) (Model, tea.Cmd) {
 }
 
 func commandReloadProjects(m Model) (Model, tea.Cmd) {
-	path := m.selectedProjectPath()
 	m.screen = screenTable
 	m.loading = true
-	return m, m.reloadOverview(path, "Reloaded")
+	return m, m.reloadOverview("", "Reloaded")
 }
 
 func commandView(input string, cursor int, actions []commandAction, selected int, cursorState ...inputCursorState) string {

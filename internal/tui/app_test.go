@@ -3163,7 +3163,7 @@ func TestModelAddProjectModalShowsErrorsInline(t *testing.T) {
 	}
 }
 
-func TestModelReloadPreservesSelectionByPath(t *testing.T) {
+func TestModelReloadPreservesSelectionIndex(t *testing.T) {
 	reloaded := false
 	model := Model{
 		loader: func(opts app.Options) (app.OverviewResult, error) {
@@ -3198,13 +3198,51 @@ func TestModelReloadPreservesSelectionByPath(t *testing.T) {
 		t.Fatal("loader was not called")
 	}
 	if model.selected != 1 {
-		t.Fatalf("selected = %d, want index of /tmp/b", model.selected)
+		t.Fatalf("selected = %d, want same index", model.selected)
 	}
 	if model.projects[model.selected].Path != "/tmp/b" {
-		t.Fatalf("selected project = %#v", model.projects[model.selected])
+		t.Fatalf("selected row should remain same row index after reload, got %#v", model.projects[model.selected])
+	}
+	if model.projects[0].Path != "/tmp/c" {
+		t.Fatalf("reloaded projects = %#v, want new order", model.projects)
 	}
 	if model.message != "Reloaded" {
 		t.Fatalf("message = %q, want Reloaded", model.message)
+	}
+}
+
+func TestModelReloadKeepsFirstRowSelected(t *testing.T) {
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config: config.Default(),
+				Projects: []project.Project{
+					{Name: "c", Path: "/tmp/c"},
+					{Name: "b", Path: "/tmp/b"},
+					{Name: "a", Path: "/tmp/a"},
+				},
+			}, nil
+		},
+		projects: []project.Project{
+			{Name: "a", Path: "/tmp/a"},
+			{Name: "b", Path: "/tmp/b"},
+			{Name: "c", Path: "/tmp/c"},
+		},
+		selected: 0,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected reload command")
+	}
+	model = updateMsg(t, model, cmd())
+
+	if model.selected != 0 {
+		t.Fatalf("selected = %d, want first row", model.selected)
+	}
+	if model.projects[model.selected].Path != "/tmp/c" {
+		t.Fatalf("selected row = %#v, want first reloaded row", model.projects[model.selected])
 	}
 }
 

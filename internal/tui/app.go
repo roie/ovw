@@ -336,10 +336,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.openRunner()
 		}
 		if isReloadKey(msg.String()) {
-			path := m.selectedProjectPath()
 			m.screen = screenTable
 			m.loading = true
-			return m, m.reloadOverview(path, "Reloaded")
+			return m, m.reloadOverview("", "Reloaded")
 		}
 		if isOpenKey(msg.String()) && m.canOpenDetail() {
 			return m, m.openSelectedProject()
@@ -374,6 +373,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.preservePath != "" {
 			m.selectProjectPath(msg.preservePath)
+		} else if msg.selected >= 0 {
+			m.selected = msg.selected
+			m.clampSelection()
 		} else if m.selected >= len(m.projects) {
 			m.selected = 0
 			m.detailYOffset = 0
@@ -399,6 +401,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.preservePath != "" {
 			m.selectProjectPath(msg.preservePath)
+		} else if msg.selected >= 0 {
+			m.selected = msg.selected
+			m.clampSelection()
 		} else if m.selected >= len(m.projects) {
 			m.selected = 0
 			m.detailYOffset = 0
@@ -1325,6 +1330,7 @@ func setTerminalTitle(w io.Writer, title string) {
 type overviewLoadedMsg struct {
 	result       app.OverviewResult
 	preservePath string
+	selected     int
 	message      string
 }
 
@@ -1332,6 +1338,7 @@ type overviewDiscoveredMsg struct {
 	result       app.OverviewResult
 	updates      <-chan enrichmentUpdate
 	preservePath string
+	selected     int
 	message      string
 }
 
@@ -1452,8 +1459,22 @@ func (m Model) startup() tea.Cmd {
 }
 
 func (m Model) reloadOverview(preservePath, message string) tea.Cmd {
+	selected := m.selected
 	return func() tea.Msg {
-		return m.loadOverviewMessage(preservePath, message)
+		msg := m.loadOverviewMessage(preservePath, message)
+		if preservePath != "" {
+			return msg
+		}
+		switch loaded := msg.(type) {
+		case overviewLoadedMsg:
+			loaded.selected = selected
+			return loaded
+		case overviewDiscoveredMsg:
+			loaded.selected = selected
+			return loaded
+		default:
+			return msg
+		}
 	}
 }
 
