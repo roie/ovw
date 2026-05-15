@@ -2087,6 +2087,12 @@ func TestModelColumnPickerTogglesAndSavesColumns(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("expected columns save command")
 	}
+	if model.screen != screenColumns {
+		t.Fatalf("screen while saving = %v, want columns", model.screen)
+	}
+	if !model.loading {
+		t.Fatal("model should stay loading until columns are saved")
+	}
 	model = updateMsg(t, model, cmd())
 
 	want := []string{"name", "stack", "activity", "status", "note", "path"}
@@ -2096,8 +2102,43 @@ func TestModelColumnPickerTogglesAndSavesColumns(t *testing.T) {
 	if !reflect.DeepEqual(model.config.Columns, want) {
 		t.Fatalf("model columns = %#v, want %#v", model.config.Columns, want)
 	}
+	if model.screen != screenTable {
+		t.Fatalf("screen after save = %v, want table", model.screen)
+	}
 	if model.message != "Columns saved" {
 		t.Fatalf("message = %q, want Columns saved", model.message)
+	}
+}
+
+func TestModelColumnPickerCannotQuitWhileSaving(t *testing.T) {
+	block := make(chan struct{})
+	model := Model{
+		config: config.Default(),
+		configWriter: func(path string, cfg config.Config) error {
+			<-block
+			return nil
+		},
+	}
+	model.openColumns()
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected columns save command")
+	}
+
+	updated, quitCmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	model = updated.(Model)
+	if quitCmd != nil {
+		t.Fatal("quit should be ignored while columns are saving")
+	}
+	if model.screen != screenColumns {
+		t.Fatalf("screen = %v, want columns while save is pending", model.screen)
+	}
+	close(block)
+	model = updateMsg(t, model, cmd())
+	if model.screen != screenTable {
+		t.Fatalf("screen after save = %v, want table", model.screen)
 	}
 }
 

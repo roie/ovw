@@ -526,8 +526,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		if msg.err != nil {
 			m.message = "Failed to write columns: " + msg.err.Error()
+			m.columnErr = msg.err.Error()
 			return m, nil
 		}
+		m.screen = screenTable
 		m.config = msg.config
 		m.tableXOffset = 0
 		m.message = "Columns saved"
@@ -833,12 +835,14 @@ func (m Model) runRunnerScript(project project.Project, scripts []runnerScript) 
 }
 
 func (m Model) updateColumns(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.loading {
+		return m, nil
+	}
 	switch value := msg.String(); {
 	case isEscapeKey(value):
 		m.screen = screenTable
 		m.columnErr = ""
 	case isEnterKey(value):
-		m.screen = screenTable
 		m.loading = true
 		m.columnErr = ""
 		return m, m.saveColumns()
