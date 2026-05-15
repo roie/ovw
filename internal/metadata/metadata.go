@@ -14,10 +14,11 @@ type Store struct {
 // Entry is user-owned project metadata. Generated project data such as stack,
 // managers, Git activity, descriptions, and recent commits must stay live-only.
 type Entry struct {
-	Status string `json:"status,omitempty"`
-	Note   string `json:"note,omitempty"`
-	Hidden bool   `json:"hidden,omitempty"`
-	Pinned bool   `json:"pinned,omitempty"`
+	Status  string            `json:"status,omitempty"`
+	Note    string            `json:"note,omitempty"`
+	Hidden  bool              `json:"hidden,omitempty"`
+	Pinned  bool              `json:"pinned,omitempty"`
+	Scripts map[string]string `json:"scripts,omitempty"`
 }
 
 func New() Store {
@@ -77,6 +78,14 @@ func (s *Store) Set(path string, entry Entry) (string, Entry, error) {
 	}
 	if entry.Pinned {
 		current.Pinned = true
+	}
+	if len(entry.Scripts) > 0 {
+		if current.Scripts == nil {
+			current.Scripts = map[string]string{}
+		}
+		for name, command := range entry.Scripts {
+			current.Scripts[name] = command
+		}
 	}
 	s.Projects[canonical] = current
 	return canonical, current, nil

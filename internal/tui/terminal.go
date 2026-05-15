@@ -35,7 +35,10 @@ func runTerminal(path, name, configuredShell string) tea.Cmd {
 	})
 }
 
-func runScript(path, manager, script string) tea.Cmd {
+func runScript(path, manager, script string, command string) tea.Cmd {
+	if command != "" {
+		return runShellCommand(path, script, command)
+	}
 	if manager == "" {
 		manager = "npm"
 	}
@@ -46,5 +49,31 @@ func runScript(path, manager, script string) tea.Cmd {
 			return runnerFailedMsg{err: err}
 		}
 		return runnerFinishedMsg{message: "Ran script " + script}
+	})
+}
+
+func runShellCommand(path, name, command string) tea.Cmd {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		shell := os.Getenv("COMSPEC")
+		if shell == "" {
+			return func() tea.Msg {
+				return runnerFailedMsg{err: errors.New("COMSPEC is not configured")}
+			}
+		}
+		cmd = exec.Command(shell, "/C", command)
+	} else {
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "/bin/sh"
+		}
+		cmd = exec.Command(shell, "-c", command)
+	}
+	cmd.Dir = path
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		if err != nil {
+			return runnerFailedMsg{err: err}
+		}
+		return runnerFinishedMsg{message: "Ran script " + name}
 	})
 }

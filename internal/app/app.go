@@ -90,9 +90,10 @@ type State struct {
 }
 
 type MetadataUpdate struct {
-	Status *string
-	Note   *string
-	Pinned *bool
+	Status  *string
+	Note    *string
+	Pinned  *bool
+	Scripts map[string]*string
 }
 
 type MetadataUpdateResult struct {
@@ -318,10 +319,11 @@ func placeholderProjects(scanned []scanner.Project) []project.Project {
 	projects := make([]project.Project, 0, len(scanned))
 	for _, scannedProject := range scanned {
 		projects = append(projects, project.Project{
-			Name:   scannedProject.Name,
-			Path:   scannedProject.Path,
-			Hidden: scannedProject.Hidden,
-			Pinned: scannedProject.Pinned,
+			Name:          scannedProject.Name,
+			Path:          scannedProject.Path,
+			Hidden:        scannedProject.Hidden,
+			Pinned:        scannedProject.Pinned,
+			CustomScripts: scannedProject.Scripts,
 		})
 	}
 	return projects
@@ -604,12 +606,13 @@ func (err *AmbiguousProjectError) Error() string {
 func ProjectFromPath(path string, cfg config.Config, store metadata.Store, now time.Time) project.Project {
 	entry := store.Projects[path]
 	enriched := Enrich(scanner.Project{
-		Name:   filepath.Base(path),
-		Path:   path,
-		Hidden: entry.Hidden,
-		Pinned: entry.Pinned,
-		Status: entry.Status,
-		Note:   entry.Note,
+		Name:    filepath.Base(path),
+		Path:    path,
+		Hidden:  entry.Hidden,
+		Pinned:  entry.Pinned,
+		Status:  entry.Status,
+		Note:    entry.Note,
+		Scripts: entry.Scripts,
 	}, cfg, now)
 	projects := []project.Project{enriched}
 	attachPorts(projects, detectPorts([]string{path}))
@@ -657,6 +660,19 @@ func UpdateProjectMetadata(target string, update MetadataUpdate) (MetadataUpdate
 	}
 	if update.Pinned != nil {
 		entry.Pinned = *update.Pinned
+	}
+	for name, command := range update.Scripts {
+		if entry.Scripts == nil {
+			entry.Scripts = map[string]string{}
+		}
+		if command == nil {
+			delete(entry.Scripts, name)
+			continue
+		}
+		entry.Scripts[name] = *command
+	}
+	if len(entry.Scripts) == 0 {
+		entry.Scripts = nil
 	}
 	state.Store.Projects[path] = entry
 	if err := metadata.Write(state.Paths.Metadata, state.Store); err != nil {
@@ -792,19 +808,20 @@ func EnrichWithGit(scanned scanner.Project, cfg config.Config, now time.Time, gi
 	note := ovwformat.Note(scanned.Note, description, gitInfo, cfg)
 	status := ovwformat.Status(activity, scanned.Status, cfg, now)
 	return project.Project{
-		Name:         scanned.Name,
-		Path:         scanned.Path,
-		Stack:        stackResult.Labels,
-		StackDisplay: stackResult.Display,
-		Managers:     managers,
-		Scripts:      detectedScripts,
-		Version:      version,
-		Activity:     activity,
-		Status:       status,
-		Note:         note,
-		Hidden:       scanned.Hidden,
-		Pinned:       scanned.Pinned,
-		Description:  description,
+		Name:          scanned.Name,
+		Path:          scanned.Path,
+		Stack:         stackResult.Labels,
+		StackDisplay:  stackResult.Display,
+		Managers:      managers,
+		Scripts:       detectedScripts,
+		CustomScripts: scanned.Scripts,
+		Version:       version,
+		Activity:      activity,
+		Status:        status,
+		Note:          note,
+		Hidden:        scanned.Hidden,
+		Pinned:        scanned.Pinned,
+		Description:   description,
 	}
 }
 

@@ -1,12 +1,18 @@
 package tui
 
 import (
+	"sort"
 	"strings"
 
 	"ovw/internal/project"
 )
 
 var runnerScriptPriority = []string{"dev", "start", "build", "test", "check", "lint"}
+
+type runnerScript struct {
+	Name    string
+	Command string
+}
 
 func runnerView(project project.Project, selected int, input string, cursor int, cursorState ...inputCursorState) string {
 	modal, _ := runnerViewWithScroll(project, selected, input, cursor, 0, 0, cursorState...)
@@ -24,11 +30,15 @@ func runnerViewWithScroll(project project.Project, selected int, input string, c
 	return modalView(modalTitleWithProject("Runner", project.Name), lines, 42), maxOffset
 }
 
-func runnerOptionLines(scripts []string, selected int) []string {
+func runnerOptionLines(scripts []runnerScript, selected int) []string {
 	if len(scripts) == 0 {
 		return []string{modalMuted("No matching scripts")}
 	}
-	return modalOptionLines(scripts, selected)
+	labels := make([]string, 0, len(scripts))
+	for _, script := range scripts {
+		labels = append(labels, script.Name)
+	}
+	return modalOptionLines(labels, selected)
 }
 
 func scrollRunnerOptionLines(lines []string, height int, offset int) ([]string, int) {
@@ -68,28 +78,38 @@ func runnerVisibleOptionHeight(height int) int {
 	return visibleHeight
 }
 
-func runnerScriptOptions(project project.Project, query string) []string {
-	ordered := prioritizedScripts(project.Scripts)
+func runnerScriptOptions(project project.Project, query string) []runnerScript {
+	ordered := prioritizedScripts(project)
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" {
 		return ordered
 	}
-	filtered := make([]string, 0, len(ordered))
+	filtered := make([]runnerScript, 0, len(ordered))
 	for _, script := range ordered {
-		if strings.Contains(strings.ToLower(script), query) {
+		if strings.Contains(strings.ToLower(script.Name), query) {
 			filtered = append(filtered, script)
 		}
 	}
 	return filtered
 }
 
-func prioritizedScripts(scripts []string) []string {
-	ordered := make([]string, 0, len(scripts))
-	seen := make(map[string]bool, len(scripts))
+func prioritizedScripts(project project.Project) []runnerScript {
+	scripts := project.Scripts
+	ordered := make([]runnerScript, 0, len(scripts)+len(project.CustomScripts))
+	seen := make(map[string]bool, len(scripts)+len(project.CustomScripts))
+	customNames := make([]string, 0, len(project.CustomScripts))
+	for name := range project.CustomScripts {
+		customNames = append(customNames, name)
+	}
+	sort.Strings(customNames)
+	for _, name := range customNames {
+		ordered = append(ordered, runnerScript{Name: name, Command: project.CustomScripts[name]})
+		seen[name] = true
+	}
 	add := func(want string) {
 		for _, script := range scripts {
 			if script == want && !seen[script] {
-				ordered = append(ordered, script)
+				ordered = append(ordered, runnerScript{Name: script})
 				seen[script] = true
 				return
 			}
@@ -100,7 +120,7 @@ func prioritizedScripts(scripts []string) []string {
 	}
 	for _, script := range scripts {
 		if !seen[script] {
-			ordered = append(ordered, script)
+			ordered = append(ordered, runnerScript{Name: script})
 			seen[script] = true
 		}
 	}

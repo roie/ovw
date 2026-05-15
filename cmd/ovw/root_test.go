@@ -12,6 +12,7 @@ import (
 	"ovw/internal/buildinfo"
 	"ovw/internal/config"
 	"ovw/internal/format"
+	"ovw/internal/metadata"
 	"ovw/internal/project"
 	"ovw/internal/tui"
 )
@@ -135,16 +136,19 @@ func TestSetHelpShowsStatusAndNoteUsage(t *testing.T) {
 		t.Fatalf("Execute(set --help) error = %v", err)
 	}
 	for _, want := range []string{
-		"Set project metadata: status, note, or pin.",
+		"Set project metadata: status, note, pin, or script.",
 		"ovw set <project> --status <status>",
 		"ovw set <project> --note <note>",
 		"ovw set <project> --pin",
+		"ovw set <project> --script <name=command>",
 		"ovw set myproject --status blocked",
 		"ovw set myproject --note \"currently working on it\"",
 		"ovw set myproject --pin",
+		"ovw set myproject --script run=\"go run .\"",
 		"--status string   set status",
 		"--note string     set note",
 		"--pin             pin project",
+		"--script string   set script as name=command",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("set help missing %q:\n%s", want, out)
@@ -161,16 +165,19 @@ func TestUnsetHelpShowsStatusAndNoteUsage(t *testing.T) {
 		t.Fatalf("Execute(unset --help) error = %v", err)
 	}
 	for _, want := range []string{
-		"Clear project metadata: status, note, or pin.",
+		"Clear project metadata: status, note, pin, or script.",
 		"ovw unset <project> --status",
 		"ovw unset <project> --note",
 		"ovw unset <project> --pin",
+		"ovw unset <project> --script <name>",
 		"ovw unset myproject --status",
 		"ovw unset myproject --note",
 		"ovw unset myproject --pin",
+		"ovw unset myproject --script run",
 		"--status   clear status",
 		"--note     clear note",
 		"--pin      unpin project",
+		"--script string   clear script by name",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("unset help missing %q:\n%s", want, out)
@@ -836,11 +843,56 @@ func TestSetRequiresStatusOrNote(t *testing.T) {
 	runCommand(t, []string{"add", project})
 
 	_, err := executeCommand([]string{"set", "custom"})
-	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, or --pin") {
+	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, --pin, or --script") {
 		t.Fatalf("set without fields error = %v", err)
 	}
 	if out, _ := executeCommand([]string{"set", "custom"}); strings.Contains(out, "Usage:") {
 		t.Fatalf("set without fields printed usage:\n%s", out)
+	}
+}
+
+func TestSetAndUnsetProjectScript(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "custom")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module custom"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	runCommand(t, []string{"add", project})
+
+	out := runCommand(t, []string{"set", "custom", "--script", "run=go run ."})
+	if !strings.Contains(out, "Script  run = go run .") {
+		t.Fatalf("set script output missing script:\n%s", out)
+	}
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := metadata.Load(paths.Metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := metadata.CanonicalPath(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := store.Projects[canonical].Scripts["run"]; got != "go run ." {
+		t.Fatalf("stored script = %q, want go run .", got)
+	}
+
+	out = runCommand(t, []string{"unset", "custom", "--script", "run"})
+	if !strings.Contains(out, "Script run cleared.") {
+		t.Fatalf("unset script output missing clear message:\n%s", out)
+	}
+	store, err = metadata.Load(paths.Metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.Projects[canonical].Scripts["run"]; ok {
+		t.Fatalf("script was not unset: %#v", store.Projects[canonical].Scripts)
 	}
 }
 
@@ -917,7 +969,7 @@ func TestUnsetRequiresStatusOrNote(t *testing.T) {
 	runCommand(t, []string{"add", project})
 
 	_, err := executeCommand([]string{"unset", "custom"})
-	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, or --pin") {
+	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, --pin, or --script") {
 		t.Fatalf("unset without fields error = %v", err)
 	}
 }

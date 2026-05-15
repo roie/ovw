@@ -153,7 +153,7 @@ func (m Model) commandActions() []commandAction {
 
 func (m Model) canRunSelectedScript() bool {
 	project, ok := m.currentProject()
-	return ok && len(project.Scripts) > 0
+	return ok && len(runnerScriptOptions(project, "")) > 0
 }
 
 func (m Model) pinCommandLabel() string {

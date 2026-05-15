@@ -32,7 +32,7 @@ type visibilityUpdater func(string, bool) (app.MetadataUpdateResult, error)
 type projectAdder func(string) (app.AddProjectResult, error)
 type editorRunner func(string, string) error
 type terminalRunner func(string, string, string) tea.Cmd
-type scriptRunner func(string, string, string) tea.Cmd
+type scriptRunner func(string, string, string, string) tea.Cmd
 type recentLoader func(string, time.Time) ([]ovwformat.RecentCommit, error)
 type recentFilesLoader func(string, []string, time.Time) ([]ovwformat.RecentFile, error)
 type configWriter func(string, config.Config) error
@@ -696,7 +696,7 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	project, ok := m.currentProject()
-	if !ok || len(project.Scripts) == 0 {
+	if !ok || len(runnerScriptOptions(project, "")) == 0 {
 		m.screen = screenTable
 		return m, nil
 	}
@@ -756,7 +756,7 @@ func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) runRunnerScript(project project.Project, scripts []string) (Model, tea.Cmd) {
+func (m Model) runRunnerScript(project project.Project, scripts []runnerScript) (Model, tea.Cmd) {
 	if m.runnerSelected >= len(scripts) {
 		m.runnerSelected = len(scripts) - 1
 	}
@@ -1716,7 +1716,7 @@ func (m Model) openSelectedTerminal() tea.Cmd {
 
 func (m Model) openRunner() (Model, tea.Cmd) {
 	project, ok := m.currentProject()
-	if !ok || len(project.Scripts) == 0 {
+	if !ok || len(runnerScriptOptions(project, "")) == 0 {
 		m.message = "No scripts found"
 		return m, nil
 	}
@@ -1728,12 +1728,16 @@ func (m Model) openRunner() (Model, tea.Cmd) {
 	return m, m.startInputCursorBlink()
 }
 
-func (m Model) runSelectedScript(project project.Project, script string) tea.Cmd {
+func (m Model) runSelectedScript(project project.Project, script runnerScript) tea.Cmd {
 	runner := m.runner
 	if runner == nil {
 		runner = runScript
 	}
-	return runner(project.Path, scriptManager(project.Managers), script)
+	manager := scriptManager(project.Managers)
+	if script.Command != "" {
+		manager = ""
+	}
+	return runner(project.Path, manager, script.Name, script.Command)
 }
 
 func scriptManager(managers []string) string {

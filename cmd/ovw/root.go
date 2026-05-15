@@ -446,14 +446,15 @@ func newSetCommand() *cobra.Command {
 	var status string
 	var note string
 	var pin bool
+	var scriptValues []string
 	cmd := &cobra.Command{
 		Use:   "set <project>",
 		Short: "Set project metadata",
-		Long:  "Set project metadata: status, note, or pin.",
+		Long:  "Set project metadata: status, note, pin, or script.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if status == "" && note == "" && !pin {
-				return fmt.Errorf("nothing to set; pass --status, --note, or --pin")
+			if status == "" && note == "" && !pin && len(scriptValues) == 0 {
+				return fmt.Errorf("nothing to set; pass --status, --note, --pin, or --script")
 			}
 			update := app.MetadataUpdate{}
 			if status != "" {
@@ -465,6 +466,13 @@ func newSetCommand() *cobra.Command {
 			if pin {
 				pinned := true
 				update.Pinned = &pinned
+			}
+			scripts, err := parseScriptAssignments(scriptValues)
+			if err != nil {
+				return err
+			}
+			if len(scripts) > 0 {
+				update.Scripts = scripts
 			}
 			result, err := app.UpdateProjectMetadata(args[0], update)
 			if err != nil {
@@ -480,12 +488,17 @@ func newSetCommand() *cobra.Command {
 			if pin {
 				fmt.Fprintln(cmd.OutOrStdout(), "Pinned  yes")
 			}
+			for _, script := range scriptValues {
+				name, command, _ := strings.Cut(script, "=")
+				fmt.Fprintf(cmd.OutOrStdout(), "Script  %s = %s\n", name, command)
+			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&status, "status", "", "set status")
 	cmd.Flags().StringVar(&note, "note", "", "set note")
 	cmd.Flags().BoolVar(&pin, "pin", false, "pin project")
+	cmd.Flags().StringArrayVar(&scriptValues, "script", nil, "set script as name=command")
 	cmd.SetUsageTemplate(setUsageTemplate())
 	return cmd
 }
@@ -494,14 +507,15 @@ func newUnsetCommand() *cobra.Command {
 	var clearStatus bool
 	var clearNote bool
 	var clearPin bool
+	var scriptNames []string
 	cmd := &cobra.Command{
 		Use:   "unset <project>",
 		Short: "Clear project metadata",
-		Long:  "Clear project metadata: status, note, or pin.",
+		Long:  "Clear project metadata: status, note, pin, or script.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !clearStatus && !clearNote && !clearPin {
-				return fmt.Errorf("nothing to unset; pass --status, --note, or --pin")
+			if !clearStatus && !clearNote && !clearPin && len(scriptNames) == 0 {
+				return fmt.Errorf("nothing to unset; pass --status, --note, --pin, or --script")
 			}
 			update := app.MetadataUpdate{}
 			if clearStatus {
@@ -515,6 +529,13 @@ func newUnsetCommand() *cobra.Command {
 			if clearPin {
 				pinned := false
 				update.Pinned = &pinned
+			}
+			scripts, err := parseScriptNames(scriptNames)
+			if err != nil {
+				return err
+			}
+			if len(scripts) > 0 {
+				update.Scripts = scripts
 			}
 			result, err := app.UpdateProjectMetadata(args[0], update)
 			if err != nil {
@@ -530,14 +551,45 @@ func newUnsetCommand() *cobra.Command {
 			if clearPin {
 				fmt.Fprintln(cmd.OutOrStdout(), "Pin cleared.")
 			}
+			for _, script := range scriptNames {
+				fmt.Fprintf(cmd.OutOrStdout(), "Script %s cleared.\n", script)
+			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&clearStatus, "status", false, "clear status")
 	cmd.Flags().BoolVar(&clearNote, "note", false, "clear note")
 	cmd.Flags().BoolVar(&clearPin, "pin", false, "unpin project")
+	cmd.Flags().StringArrayVar(&scriptNames, "script", nil, "clear script by name")
 	cmd.SetUsageTemplate(unsetUsageTemplate())
 	return cmd
+}
+
+func parseScriptAssignments(values []string) (map[string]*string, error) {
+	scripts := map[string]*string{}
+	for _, value := range values {
+		name, command, ok := strings.Cut(value, "=")
+		name = strings.TrimSpace(name)
+		command = strings.TrimSpace(command)
+		if !ok || name == "" || command == "" {
+			return nil, fmt.Errorf("invalid script %q: expected name=command", value)
+		}
+		scriptCommand := command
+		scripts[name] = &scriptCommand
+	}
+	return scripts, nil
+}
+
+func parseScriptNames(values []string) (map[string]*string, error) {
+	scripts := map[string]*string{}
+	for _, value := range values {
+		name := strings.TrimSpace(value)
+		if name == "" {
+			return nil, fmt.Errorf("invalid script name: cannot be empty")
+		}
+		scripts[name] = nil
+	}
+	return scripts, nil
 }
 
 func setUsageTemplate() string {
@@ -545,18 +597,21 @@ func setUsageTemplate() string {
   {{.CommandPath}} <project> --status <status>
   {{.CommandPath}} <project> --note <note>
   {{.CommandPath}} <project> --pin
+  {{.CommandPath}} <project> --script <name=command>
   {{.CommandPath}} <project> --status <status> --note <note>
 
 Examples:
   {{.CommandPath}} myproject --status blocked
   {{.CommandPath}} myproject --note "currently working on it"
   {{.CommandPath}} myproject --pin
+  {{.CommandPath}} myproject --script run="go run ."
   {{.CommandPath}} myproject --status shipped --note "released v1"
 
 Flags:
   --status string   set status
   --note string     set note
   --pin             pin project
+  --script string   set script as name=command
   -h, --help        help for set
 `
 }
@@ -566,17 +621,20 @@ func unsetUsageTemplate() string {
   {{.CommandPath}} <project> --status
   {{.CommandPath}} <project> --note
   {{.CommandPath}} <project> --pin
+  {{.CommandPath}} <project> --script <name>
   {{.CommandPath}} <project> --status --note
 
 Examples:
   {{.CommandPath}} myproject --status
   {{.CommandPath}} myproject --note
   {{.CommandPath}} myproject --pin
+  {{.CommandPath}} myproject --script run
 
 Flags:
   --status   clear status
   --note     clear note
   --pin      unpin project
+  --script string   clear script by name
   -h, --help  help for unset
 `
 }

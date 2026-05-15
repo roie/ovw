@@ -3221,7 +3221,7 @@ func TestModelRunnerPrioritizesCommonScripts(t *testing.T) {
 func TestModelRunnerFiltersScripts(t *testing.T) {
 	var gotScript string
 	model := Model{
-		runner: func(path, manager, script string) tea.Cmd {
+		runner: func(path, manager, script string, command string) tea.Cmd {
 			gotScript = script
 			return func() tea.Msg {
 				return runnerFinishedMsg{message: "Ran script " + script}
@@ -3315,7 +3315,7 @@ func TestModelRunnerRunsSelectedScript(t *testing.T) {
 	var gotManager string
 	var gotScript string
 	model := Model{
-		runner: func(path, manager, script string) tea.Cmd {
+		runner: func(path, manager, script string, command string) tea.Cmd {
 			gotPath = path
 			gotManager = manager
 			gotScript = script
@@ -3342,6 +3342,36 @@ func TestModelRunnerRunsSelectedScript(t *testing.T) {
 	}
 	if model.message != "Ran script build" {
 		t.Fatalf("message = %q, want Ran script build", model.message)
+	}
+}
+
+func TestModelRunnerRunsCustomScript(t *testing.T) {
+	var gotPath string
+	var gotManager string
+	var gotScript string
+	var gotCommand string
+	model := Model{
+		runner: func(path, manager, script string, command string) tea.Cmd {
+			gotPath = path
+			gotManager = manager
+			gotScript = script
+			gotCommand = command
+			return func() tea.Msg {
+				return runnerFinishedMsg{message: "Ran script run"}
+			}
+		},
+		projects: []project.Project{{Name: "api", Path: "/tmp/api", CustomScripts: map[string]string{"run": "go run ."}}},
+		screen:   screenRunner,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected runner command")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotPath != "/tmp/api" || gotManager != "" || gotScript != "run" || gotCommand != "go run ." {
+		t.Fatalf("runner args = %q %q %q %q, want /tmp/api empty run go run .", gotPath, gotManager, gotScript, gotCommand)
 	}
 }
 

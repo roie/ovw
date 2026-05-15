@@ -10,12 +10,13 @@ import (
 )
 
 type Project struct {
-	Name   string
-	Path   string
-	Hidden bool
-	Pinned bool
-	Status string
-	Note   string
+	Name    string
+	Path    string
+	Hidden  bool
+	Pinned  bool
+	Status  string
+	Note    string
+	Scripts map[string]string
 }
 
 func Scan(cfg config.Config, meta metadata.Store) ([]Project, error) {
@@ -112,12 +113,13 @@ func addProject(seen map[string]Project, path string, meta metadata.Store) {
 	}
 	entry := meta.Projects[canonical]
 	seen[canonical] = Project{
-		Name:   filepath.Base(canonical),
-		Path:   canonical,
-		Hidden: entry.Hidden,
-		Pinned: entry.Pinned,
-		Status: entry.Status,
-		Note:   entry.Note,
+		Name:    filepath.Base(canonical),
+		Path:    canonical,
+		Hidden:  entry.Hidden,
+		Pinned:  entry.Pinned,
+		Status:  entry.Status,
+		Note:    entry.Note,
+		Scripts: entry.Scripts,
 	}
 }
 
