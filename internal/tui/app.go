@@ -192,6 +192,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.cursorHidden = !m.cursorHidden
 		return m, inputCursorBlink(m.cursorBlinkID)
+	case tea.MouseMsg:
+		return m.updateMouse(msg)
 	case tea.KeyMsg:
 		m.cursorHidden = false
 		m.showScanElapsed = false
@@ -1126,6 +1128,25 @@ func (m *Model) moveSelection(delta int) {
 	}
 }
 
+func (m Model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.loading || m.screen != screenTable {
+		return m, nil
+	}
+	before := m.selected
+	switch msg.Button {
+	case tea.MouseButtonWheelDown:
+		m.moveSelection(1)
+	case tea.MouseButtonWheelUp:
+		m.moveSelection(-1)
+	default:
+		return m, nil
+	}
+	if m.selected == before {
+		return m, nil
+	}
+	return m, m.loadSelectedRecent()
+}
+
 func (m *Model) clampSelection() {
 	visible := m.visibleProjects()
 	if len(visible) == 0 || m.selected < 0 {
@@ -1315,7 +1336,7 @@ func Run() error {
 
 func RunWithOptions(opts app.Options) error {
 	setTerminalTitle(terminalTitleWriter, "ovw")
-	program := tea.NewProgram(NewWithOptions(opts), tea.WithAltScreen())
+	program := tea.NewProgram(NewWithOptions(opts), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := program.Run()
 	return err
 }

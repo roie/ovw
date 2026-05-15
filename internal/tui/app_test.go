@@ -1398,6 +1398,46 @@ func TestModelMovesSelectionWithArrowAndVimKeys(t *testing.T) {
 	}
 }
 
+func TestModelMouseWheelMovesSelectionOneRow(t *testing.T) {
+	model := Model{
+		screen: screenTable,
+		width:  140,
+		height: 24,
+		projects: []project.Project{
+			{Name: "one", Path: "/tmp/one"},
+			{Name: "two", Path: "/tmp/two"},
+			{Name: "three", Path: "/tmp/three"},
+		},
+	}
+
+	updated, cmd := model.Update(tea.MouseMsg{Button: tea.MouseButtonWheelDown})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected recent-load command after wheel down")
+	}
+	if model.selected != 1 {
+		t.Fatalf("selected after wheel down = %d, want 1", model.selected)
+	}
+
+	updated, cmd = model.Update(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected recent-load command after wheel up")
+	}
+	if model.selected != 0 {
+		t.Fatalf("selected after wheel up = %d, want 0", model.selected)
+	}
+
+	updated, cmd = model.Update(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("expected no command when selection stays at top")
+	}
+	if model.selected != 0 {
+		t.Fatalf("selected after top wheel up = %d, want 0", model.selected)
+	}
+}
+
 func TestModelNavigationHandlesEmptyProjects(t *testing.T) {
 	model := updateKey(t, Model{}, "j")
 	if model.selected != 0 {
