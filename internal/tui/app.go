@@ -691,7 +691,7 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	options := sortOptions()
+	options := sortOptions(m.config)
 	switch value := msg.String(); {
 	case isEscapeKey(value):
 		m.screen = screenTable
@@ -702,6 +702,10 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isLeftKey(value), isRightKey(value):
 		m.toggleSortDir()
 	case isEnterKey(value):
+		if len(options) == 0 {
+			m.screen = screenTable
+			return m, nil
+		}
 		m.applySort(options[m.sortSelected])
 		m.screen = screenTable
 		m.projects = filter.Sort(m.projects, filter.FormatSort(m.activeSort, m.activeSortDir), m.config)
@@ -2012,7 +2016,7 @@ func renderShell(m Model) string {
 			case screenFilter:
 				content = overlayModal(content, filterView(m.filterOptions(), m.filterSelected), m.contentWidth())
 			case screenSort:
-				content = overlayModal(content, sortView(sortOptions(), m.sortSelected, m.activeSortDir), m.contentWidth())
+				content = overlayModal(content, sortView(sortOptions(m.config), m.sortSelected, m.activeSortDir), m.contentWidth())
 			case screenColumns:
 				content = overlayModal(content, columnsView(m.columnOrder, m.columnChecked, m.columnSelected, m.columnErr), m.contentWidth())
 			case screenNote:

@@ -11,17 +11,32 @@ type sortOption struct {
 	Value string
 }
 
-func sortOptions() []sortOption {
-	return []sortOption{
+func sortOptions(cfg config.Config) []sortOption {
+	columns := cfg.Columns
+	if len(columns) == 0 {
+		columns = config.Default().Columns
+	}
+	visible := map[string]bool{}
+	for _, column := range columns {
+		visible[column] = true
+	}
+	all := []sortOption{
 		{Label: "activity", Value: "activity"},
 		{Label: "updated", Value: "updated"},
 		{Label: "name", Value: "name"},
 		{Label: "status", Value: "status"},
 	}
+	options := make([]sortOption, 0, len(all))
+	for _, option := range all {
+		if visible[option.Value] {
+			options = append(options, option)
+		}
+	}
+	return options
 }
 
 func (m Model) currentSortIndex() int {
-	options := sortOptions()
+	options := sortOptions(m.config)
 	for index, option := range options {
 		if option.Value == m.activeSort {
 			return index

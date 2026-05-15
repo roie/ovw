@@ -2389,7 +2389,7 @@ func TestModelPickerNavigationWraps(t *testing.T) {
 	}
 
 	sortModel := Model{screen: screenSort}
-	sortModel.sortSelected = len(sortOptions()) - 1
+	sortModel.sortSelected = len(sortOptions(sortModel.config)) - 1
 	sortModel = updateKey(t, sortModel, "j")
 	if sortModel.sortSelected != 0 {
 		t.Fatalf("sort selected = %d, want wrapped to 0", sortModel.sortSelected)
@@ -2469,12 +2469,14 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 		t.Fatalf("sort view missing name option:\n%s", model.View())
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Name", "Sort", "> activity   desc", "updated", "name", "enter apply", "<-> direction", "esc"} {
+	for _, want := range []string{"Name", "Sort", "> activity   desc", "name", "status", "enter apply", "<-> direction", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("sort modal view missing %q:\n%s", want, view)
 		}
 	}
-	model = updateKey(t, model, "j")
+	if strings.Contains(view, "updated") {
+		t.Fatalf("sort modal should not show hidden updated column:\n%s", view)
+	}
 	model = updateKey(t, model, "j")
 	if !strings.Contains(stripANSI(model.View()), "> name   desc") {
 		t.Fatalf("selected sort row should show direction:\n%s", stripANSI(model.View()))
@@ -2505,6 +2507,24 @@ func TestModelSortPickerAppliesNameSort(t *testing.T) {
 	}
 	if model.loading {
 		t.Fatal("model is still loading")
+	}
+}
+
+func TestModelSortPickerShowsUpdatedWhenColumnVisible(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "updated", "activity"}
+	model := Model{
+		width:         80,
+		height:        24,
+		config:        cfg,
+		activeSort:    "activity",
+		activeSortDir: "desc",
+	}
+
+	model = updateKey(t, model, "s")
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "updated") {
+		t.Fatalf("sort modal should show visible updated column:\n%s", view)
 	}
 }
 
