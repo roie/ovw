@@ -104,6 +104,9 @@ type Model struct {
 	runnerInput     string
 	runnerCursor    int
 	runnerYOffset   int
+	runnerAddName   string
+	runnerAdding    bool
+	runnerShowInfo  bool
 	commandInput    string
 	commandCursor   int
 	commandSelected int
@@ -696,9 +699,12 @@ func (m Model) updateSort(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	project, ok := m.currentProject()
-	if !ok || len(runnerScriptOptions(project, "")) == 0 {
+	if !ok {
 		m.screen = screenTable
 		return m, nil
+	}
+	if m.runnerAdding {
+		return m.updateRunnerCommand(msg)
 	}
 	scripts := runnerScriptOptions(project, m.runnerInput)
 	switch value := msg.String(); {
@@ -707,6 +713,9 @@ func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.runnerInput = ""
 		m.runnerCursor = 0
 		m.runnerYOffset = 0
+		m.runnerAddName = ""
+		m.runnerAdding = false
+		m.runnerShowInfo = false
 	case isDownKey(value):
 		m.runnerSelected = wrapPickerSelection(m.runnerSelected, len(scripts), 1)
 		m.keepRunnerSelectionVisible()
@@ -715,8 +724,18 @@ func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.keepRunnerSelectionVisible()
 	case isDetailScrollKey(value):
 		m.scrollRunner(value)
+	case isExpandKey(value):
+		m.runnerShowInfo = !m.runnerShowInfo
 	case isEnterKey(value):
 		if len(scripts) == 0 {
+			name := strings.TrimSpace(m.runnerInput)
+			if name != "" {
+				m.runnerAddName = name
+				m.runnerInput = ""
+				m.runnerCursor = 0
+				m.runnerAdding = true
+				return m, m.startInputCursorBlink()
+			}
 			return m, nil
 		}
 		return m.runRunnerScript(project, scripts)
@@ -732,26 +751,71 @@ func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.runnerInput, m.runnerCursor = textClearBefore(m.runnerInput, m.runnerCursor)
 		m.runnerSelected = 0
 		m.runnerYOffset = 0
+		m.runnerShowInfo = false
 	case isClearAfterKey(value):
 		m.runnerInput, m.runnerCursor = textClearAfter(m.runnerInput, m.runnerCursor)
 		m.runnerSelected = 0
 		m.runnerYOffset = 0
+		m.runnerShowInfo = false
 	case isDeletePreviousWordKey(value):
 		m.runnerInput, m.runnerCursor = textDeletePreviousWord(m.runnerInput, m.runnerCursor)
 		m.runnerSelected = 0
 		m.runnerYOffset = 0
+		m.runnerShowInfo = false
 	case isBackspaceKey(value):
 		m.runnerInput, m.runnerCursor = textBackspace(m.runnerInput, m.runnerCursor)
 		m.runnerSelected = 0
 		m.runnerYOffset = 0
+		m.runnerShowInfo = false
 	case isDeleteKey(value):
 		m.runnerInput, m.runnerCursor = textDelete(m.runnerInput, m.runnerCursor)
 		m.runnerSelected = 0
 		m.runnerYOffset = 0
+		m.runnerShowInfo = false
 	default:
 		m.runnerInput, m.runnerCursor = textInsert(m.runnerInput, m.runnerCursor, inputText(msg))
 		m.runnerSelected = 0
 		m.runnerYOffset = 0
+		m.runnerShowInfo = false
+	}
+	return m, nil
+}
+
+func (m Model) updateRunnerCommand(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.runnerAdding = false
+		m.runnerInput = m.runnerAddName
+		m.runnerCursor = len([]rune(m.runnerInput))
+		m.runnerAddName = ""
+	case isEnterKey(value):
+		command := strings.TrimSpace(m.runnerInput)
+		if command == "" {
+			return m, nil
+		}
+		m.screen = screenTable
+		m.runnerAdding = false
+		return m, m.saveRunnerScript(m.runnerAddName, command)
+	case value == "left":
+		m.runnerCursor = textMoveLeft(m.runnerInput, m.runnerCursor)
+	case value == "right":
+		m.runnerCursor = textMoveRight(m.runnerInput, m.runnerCursor)
+	case isMoveStartKey(value):
+		m.runnerCursor = textMoveStart(m.runnerInput, m.runnerCursor)
+	case isMoveEndKey(value):
+		m.runnerCursor = textMoveEnd(m.runnerInput, m.runnerCursor)
+	case isClearBeforeKey(value):
+		m.runnerInput, m.runnerCursor = textClearBefore(m.runnerInput, m.runnerCursor)
+	case isClearAfterKey(value):
+		m.runnerInput, m.runnerCursor = textClearAfter(m.runnerInput, m.runnerCursor)
+	case isDeletePreviousWordKey(value):
+		m.runnerInput, m.runnerCursor = textDeletePreviousWord(m.runnerInput, m.runnerCursor)
+	case isBackspaceKey(value):
+		m.runnerInput, m.runnerCursor = textBackspace(m.runnerInput, m.runnerCursor)
+	case isDeleteKey(value):
+		m.runnerInput, m.runnerCursor = textDelete(m.runnerInput, m.runnerCursor)
+	default:
+		m.runnerInput, m.runnerCursor = textInsert(m.runnerInput, m.runnerCursor, inputText(msg))
 	}
 	return m, nil
 }
@@ -1174,11 +1238,13 @@ func (m *Model) keepRunnerSelectionVisible() {
 		return
 	}
 	visibleHeight := runnerVisibleOptionHeight(m.tableHeight())
-	if m.runnerSelected < m.runnerYOffset {
-		m.runnerYOffset = m.runnerSelected
-	}
-	if m.runnerSelected >= m.runnerYOffset+visibleHeight {
-		m.runnerYOffset = m.runnerSelected - visibleHeight + 1
+	selectedStart, selectedEnd := runnerSelectedLineRange(m.runnerSelected, m.runnerShowInfo)
+	if selectedEnd-selectedStart+1 > visibleHeight {
+		m.runnerYOffset = selectedStart
+	} else if selectedStart < m.runnerYOffset {
+		m.runnerYOffset = selectedStart
+	} else if selectedEnd >= m.runnerYOffset+visibleHeight {
+		m.runnerYOffset = selectedEnd - visibleHeight + 1
 	}
 	m.clampRunnerOffset()
 }
@@ -1231,7 +1297,7 @@ func (m Model) currentScrollableRunner() (string, int) {
 	if !ok {
 		return "", 0
 	}
-	return runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.inputCursorState())
+	return runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.runnerAddName, m.runnerAdding, m.runnerShowInfo, m.inputCursorState())
 }
 
 func Run() error {
@@ -1604,6 +1670,24 @@ func (m Model) saveStatus(status, message string) tea.Cmd {
 	}
 }
 
+func (m Model) saveRunnerScript(name, command string) tea.Cmd {
+	project, ok := m.currentProject()
+	return func() tea.Msg {
+		if !ok {
+			return metadataFailedMsg{err: errNoProjectSelected{}}
+		}
+		scriptCommand := command
+		if _, err := m.updater(project.Path, app.MetadataUpdate{Scripts: map[string]*string{name: &scriptCommand}}); err != nil {
+			return metadataFailedMsg{err: err}
+		}
+		result, err := m.loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		return metadataSavedMsg{message: "Script saved", result: result, preservePath: project.Path}
+	}
+}
+
 func (m Model) togglePin() tea.Cmd {
 	project, ok := m.currentProject()
 	pinned := !project.Pinned
@@ -1715,8 +1799,8 @@ func (m Model) openSelectedTerminal() tea.Cmd {
 }
 
 func (m Model) openRunner() (Model, tea.Cmd) {
-	project, ok := m.currentProject()
-	if !ok || len(runnerScriptOptions(project, "")) == 0 {
+	_, ok := m.currentProject()
+	if !ok {
 		m.message = "No scripts found"
 		return m, nil
 	}
@@ -1725,6 +1809,9 @@ func (m Model) openRunner() (Model, tea.Cmd) {
 	m.runnerInput = ""
 	m.runnerCursor = 0
 	m.runnerYOffset = 0
+	m.runnerAddName = ""
+	m.runnerAdding = false
+	m.runnerShowInfo = false
 	return m, m.startInputCursorBlink()
 }
 
@@ -1863,10 +1950,10 @@ func renderShell(m Model) string {
 				content = overlayModal(content, commandView(m.commandInput, m.commandCursor, m.filteredCommandActions(), m.commandSelected, m.inputCursorState()), m.contentWidth())
 			case screenRunner:
 				project, _ := m.currentProject()
-				modal, maxOffset := runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.inputCursorState())
+				modal, maxOffset := runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.runnerAddName, m.runnerAdding, m.runnerShowInfo, m.inputCursorState())
 				if m.runnerYOffset > maxOffset {
 					m.runnerYOffset = maxOffset
-					modal, _ = runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.inputCursorState())
+					modal, _ = runnerViewWithScroll(project, m.runnerSelected, m.runnerInput, m.runnerCursor, m.tableHeight(), m.runnerYOffset, m.runnerAddName, m.runnerAdding, m.runnerShowInfo, m.inputCursorState())
 				}
 				content = overlayModal(content, modal, m.contentWidth())
 			case screenFilter:

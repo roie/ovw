@@ -15,30 +15,83 @@ type runnerScript struct {
 }
 
 func runnerView(project project.Project, selected int, input string, cursor int, cursorState ...inputCursorState) string {
-	modal, _ := runnerViewWithScroll(project, selected, input, cursor, 0, 0, cursorState...)
+	modal, _ := runnerViewWithScroll(project, selected, input, cursor, 0, 0, "", false, false, cursorState...)
 	return modal
 }
 
-func runnerViewWithScroll(project project.Project, selected int, input string, cursor int, height int, offset int, cursorState ...inputCursorState) (string, int) {
+func runnerViewWithScroll(project project.Project, selected int, input string, cursor int, height int, offset int, addName string, adding bool, showInfo bool, cursorState ...inputCursorState) (string, int) {
 	scripts := runnerScriptOptions(project, input)
-	lines := inputModalLines(input, "filter scripts...", 38, cursor, cursorState...)
+	placeholder := "filter or add scripts..."
+	if len(runnerScriptOptions(project, "")) == 0 {
+		placeholder = "add script..."
+	}
+	if adding {
+		placeholder = addName + " = command"
+	}
+	lines := inputModalLines(input, placeholder, 38, cursor, cursorState...)
+	if adding && addName != "" {
+		lines[0] = modalMuted(addName+" = ") + lines[0]
+	}
 	lines = append(lines, "")
-	optionLines := runnerOptionLines(scripts, selected)
+	optionLines := runnerOptionLines(project, scripts, selected, input, adding, showInfo)
 	optionLines, maxOffset := scrollRunnerOptionLines(optionLines, height, offset)
 	lines = append(lines, optionLines...)
-	lines = append(lines, "", actionHint("enter", "run"))
+	action := runnerActionHint(len(scripts), strings.TrimSpace(input), adding, showInfo)
+	if adding {
+		action = actionHint("enter", "save")
+	}
+	if action != "" {
+		lines = append(lines, "", action)
+	}
 	return modalView(modalTitleWithProject("Runner", project.Name), lines, 42), maxOffset
 }
 
-func runnerOptionLines(scripts []runnerScript, selected int) []string {
+func runnerOptionLines(project project.Project, scripts []runnerScript, selected int, input string, adding bool, showInfo bool) []string {
+	if adding {
+		return nil
+	}
 	if len(scripts) == 0 {
-		return []string{modalMuted("No matching scripts")}
+		if strings.TrimSpace(input) != "" {
+			return []string{modalAccent("+ add script")}
+		}
+		return []string{modalMuted("No scripts yet")}
 	}
-	labels := make([]string, 0, len(scripts))
-	for _, script := range scripts {
-		labels = append(labels, script.Name)
+	lines := make([]string, 0, len(scripts)*2)
+	for index, script := range scripts {
+		if index == selected {
+			lines = append(lines, modalAccent("> "+script.Name))
+		} else {
+			lines = append(lines, "  "+modalMuted(script.Name))
+		}
+		if showInfo {
+			lines = append(lines, "    "+modalMuted(runnerScriptDetail(script, project)))
+		}
 	}
-	return modalOptionLines(labels, selected)
+	return lines
+}
+
+func runnerActionHint(scriptCount int, input string, adding bool, showInfo bool) string {
+	if adding {
+		return actionHint("enter", "save")
+	}
+	if scriptCount == 0 && input == "" {
+		return ""
+	}
+	if scriptCount == 0 {
+		return actionHint("enter", "add")
+	}
+	action := actionHint("enter", "run")
+	if showInfo {
+		return action + " · " + actionHint("space", "collapse")
+	}
+	return action + " · " + actionHint("space", "details")
+}
+
+func runnerScriptDetail(script runnerScript, project project.Project) string {
+	if script.Command != "" {
+		return script.Command
+	}
+	return scriptManager(project.Managers) + " run " + script.Name
 }
 
 func scrollRunnerOptionLines(lines []string, height int, offset int) ([]string, int) {
@@ -76,6 +129,17 @@ func runnerVisibleOptionHeight(height int) int {
 		visibleHeight = 1
 	}
 	return visibleHeight
+}
+
+func runnerSelectedLineRange(selected int, showInfo bool) (int, int) {
+	if selected < 0 {
+		selected = 0
+	}
+	if showInfo {
+		start := selected * 2
+		return start, start + 1
+	}
+	return selected, selected
 }
 
 func runnerScriptOptions(project project.Project, query string) []runnerScript {

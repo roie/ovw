@@ -3201,7 +3201,7 @@ func TestModelRunnerOpensWithScripts(t *testing.T) {
 		t.Fatalf("screen = %v, want runner", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Runner · web", "filter scripts", "> dev", "build", "enter run"} {
+	for _, want := range []string{"Runner · web", "filter or add scripts", "> dev", "build", "enter run"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("runner view missing %q:\n%s", want, view)
 		}
@@ -3296,17 +3296,75 @@ func TestModelRunnerScrollsLongScriptList(t *testing.T) {
 	}
 }
 
-func TestModelRunnerShowsNoScriptsMessage(t *testing.T) {
+func TestModelRunnerExpandedScrollKeepsScriptWithDetails(t *testing.T) {
+	model := Model{
+		width:  100,
+		height: 12,
+		projects: []project.Project{{
+			Name:    "web",
+			Path:    "/tmp/web",
+			Scripts: []string{"dev", "start", "build", "test", "check", "lint", "dev:all", "dev:firefox"},
+		}},
+	}
+
+	model = updateKey(t, model, "r")
+	model = updateSpecialKey(t, model, tea.KeySpace)
+	model = updateSpecialKey(t, model, tea.KeyPgDown)
+	view := stripANSI(model.View())
+	lines := strings.Split(view, "\n")
+	for index, line := range lines {
+		if strings.Contains(line, "package script") {
+			if index == 0 || !strings.Contains(lines[index-1], "  ") {
+				t.Fatalf("expanded runner detail row should keep its script row:\n%s", view)
+			}
+		}
+	}
+}
+
+func TestModelRunnerExpandedArrowKeepsSelectedVisible(t *testing.T) {
+	model := Model{
+		width:  100,
+		height: 12,
+		projects: []project.Project{{
+			Name:    "web",
+			Path:    "/tmp/web",
+			Scripts: []string{"dev", "start", "build", "test", "check", "lint", "dev:all", "dev:firefox"},
+		}},
+	}
+
+	model = updateKey(t, model, "r")
+	model = updateSpecialKey(t, model, tea.KeySpace)
+	for i := 0; i < 6; i++ {
+		model = updateSpecialKey(t, model, tea.KeyDown)
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "> dev:all") {
+		t.Fatalf("expanded runner should keep selected script visible after arrow scroll:\n%s", view)
+	}
+}
+
+func TestModelRunnerOpensWithoutScriptsForCustomAdd(t *testing.T) {
 	model := Model{
 		projects: []project.Project{{Name: "api", Path: "/tmp/api"}},
 	}
 
 	model = updateKey(t, model, "r")
-	if model.screen != screenTable {
-		t.Fatalf("screen = %v, want table", model.screen)
+	if model.screen != screenRunner {
+		t.Fatalf("screen = %v, want runner", model.screen)
 	}
-	if model.message != "No scripts found" {
-		t.Fatalf("message = %q, want No scripts found", model.message)
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "add script") || !strings.Contains(view, "No scripts yet") {
+		t.Fatalf("runner without scripts should stay open for custom add:\n%s", view)
+	}
+	if strings.Contains(view, "filter or add scripts") {
+		t.Fatalf("runner without scripts should not mention filtering:\n%s", view)
+	}
+	if strings.Contains(view, "type a name to add") {
+		t.Fatalf("runner without scripts should not repeat add instruction in footer:\n%s", view)
+	}
+	if strings.Contains(view, "filter scripts") {
+		t.Fatalf("runner without scripts should not show filter placeholder:\n%s", view)
 	}
 }
 
@@ -3372,6 +3430,93 @@ func TestModelRunnerRunsCustomScript(t *testing.T) {
 	model = updateMsg(t, model, cmd())
 	if gotPath != "/tmp/api" || gotManager != "" || gotScript != "run" || gotCommand != "go run ." {
 		t.Fatalf("runner args = %q %q %q %q, want /tmp/api empty run go run .", gotPath, gotManager, gotScript, gotCommand)
+	}
+}
+
+func TestModelRunnerAddsCustomScriptInline(t *testing.T) {
+	var updatedPath string
+	var updatedScript string
+	var updatedCommand string
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config:   config.Default(),
+				Projects: []project.Project{{Name: "api", Path: "/tmp/api", CustomScripts: map[string]string{"run": "go run ."}}},
+			}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			updatedPath = path
+			for name, command := range update.Scripts {
+				updatedScript = name
+				if command != nil {
+					updatedCommand = *command
+				}
+			}
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "api", Path: "/tmp/api", Scripts: []string{"build"}}},
+	}
+
+	model = updateKey(t, model, "r")
+	for _, value := range []string{"r", "u", "n"} {
+		model = updateKey(t, model, value)
+	}
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "+ add script") {
+		t.Fatalf("runner should offer inline add for empty filter result:\n%s", view)
+	}
+	if !strings.Contains(view, "enter add") || strings.Contains(view, "enter run") {
+		t.Fatalf("runner add affordance should show enter add, not enter run:\n%s", view)
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if !model.runnerAdding {
+		t.Fatal("enter on add affordance should switch to command input")
+	}
+	_ = cmd
+	for _, value := range []string{"g", "o", " ", "r", "u", "n", " ", "."} {
+		model = updateKey(t, model, value)
+	}
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected save script command")
+	}
+	model = updateMsg(t, model, cmd())
+	if updatedPath != "/tmp/api" || updatedScript != "run" || updatedCommand != "go run ." {
+		t.Fatalf("script update = %q %q %q, want /tmp/api run go run .", updatedPath, updatedScript, updatedCommand)
+	}
+	if model.message != "Script saved" {
+		t.Fatalf("message = %q, want Script saved", model.message)
+	}
+}
+
+func TestModelRunnerSpaceExpandsScriptDetails(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{Name: "api", Path: "/tmp/api", Managers: []string{"pnpm"}, Scripts: []string{"build"}, CustomScripts: map[string]string{"run": "go run ."}}},
+	}
+
+	model = updateKey(t, model, "r")
+	model = updateSpecialKey(t, model, tea.KeySpace)
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "    go run .") {
+		t.Fatalf("runner should show custom script command after space:\n%s", view)
+	}
+	if !strings.Contains(view, "    pnpm run build") {
+		t.Fatalf("runner should show detected script detail after space:\n%s", view)
+	}
+	if strings.Contains(view, "package script") {
+		t.Fatalf("runner should not show placeholder package script detail:\n%s", view)
+	}
+	if !strings.Contains(view, "space collapse") {
+		t.Fatalf("runner should show collapse hint when details are expanded:\n%s", view)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeySpace)
+	view = stripANSI(model.View())
+	if strings.Contains(view, "go run .") || strings.Contains(view, "package script") {
+		t.Fatalf("runner should hide script details after second space:\n%s", view)
 	}
 }
 
