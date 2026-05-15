@@ -532,6 +532,24 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case isDetailScrollKey(value):
 		m.scrollDetailModal(value)
+	case isNoteKey(value):
+		project, ok := m.currentProject()
+		if ok {
+			m.screen = screenNote
+			m.noteInput = project.Note.Value
+			m.noteCursor = len([]rune(m.noteInput))
+			return m, m.startInputCursorBlink()
+		}
+	case isStatusKey(value):
+		project, ok := m.currentProject()
+		if ok {
+			m.screen = screenStatus
+			m.statusSelected = m.currentStatusIndex(project.Status.Value)
+		}
+	case isOpenKey(value):
+		return m, m.openSelectedProject()
+	case isTerminalKey(value):
+		return m, m.openSelectedTerminal()
 	case isVisibilityKey(value):
 		m.screen = screenTable
 		m.detailModalY = 0

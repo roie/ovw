@@ -1507,6 +1507,30 @@ func TestModelDetailEnterClosesWithoutTogglingVisibility(t *testing.T) {
 	}
 }
 
+func TestModelDetailNoteAndStatusKeysOpenEditors(t *testing.T) {
+	model := Model{
+		config:   config.Default(),
+		projects: []project.Project{{Name: "app", Path: "/tmp/app", Note: ovwformat.NoteInfo{Value: "ship ui"}, Status: ovwformat.StatusFromTags("active", []string{"active"})}},
+		screen:   screenDetail,
+	}
+
+	noteModel := updateKey(t, model, "n")
+	if noteModel.screen != screenNote {
+		t.Fatalf("screen after n = %v, want note", noteModel.screen)
+	}
+	if noteModel.noteInput != "ship ui" {
+		t.Fatalf("noteInput = %q, want ship ui", noteModel.noteInput)
+	}
+
+	statusModel := updateKey(t, model, "m")
+	if statusModel.screen != screenStatus {
+		t.Fatalf("screen after m = %v, want status", statusModel.screen)
+	}
+	if statusModel.statusSelected != statusModel.currentStatusIndex("active") {
+		t.Fatalf("statusSelected = %d, want active index", statusModel.statusSelected)
+	}
+}
+
 func TestModelDetailVisibilityKeyUnhidesProject(t *testing.T) {
 	var hiddenValue bool
 	model := Model{
@@ -3153,6 +3177,37 @@ func TestModelOpenEditorUsesSelectedProject(t *testing.T) {
 	}
 }
 
+func TestModelDetailOpenEditorUsesSelectedProject(t *testing.T) {
+	cfg := config.Default()
+	cfg.Editor = "code --reuse-window"
+	var gotPath string
+	model := Model{
+		config: cfg,
+		editor: func(editor, path string) error {
+			gotPath = path
+			return nil
+		},
+		projects: []project.Project{{Name: "one", Path: "/tmp/one"}},
+		screen:   screenDetail,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected editor command")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotPath != "/tmp/one" {
+		t.Fatalf("path = %q, want /tmp/one", gotPath)
+	}
+	if model.screen != screenDetail {
+		t.Fatalf("screen = %v, want detail", model.screen)
+	}
+	if model.message != "Opened one" {
+		t.Fatalf("message = %q, want Opened one", model.message)
+	}
+}
+
 func TestModelOpenEditorShowsError(t *testing.T) {
 	model := Model{
 		config: config.Default(),
@@ -3213,6 +3268,36 @@ func TestModelOpenTerminalUsesSelectedProject(t *testing.T) {
 	}
 	if model.message != "Opened terminal two" {
 		t.Fatalf("message = %q, want Opened terminal two", model.message)
+	}
+}
+
+func TestModelDetailOpenTerminalUsesSelectedProject(t *testing.T) {
+	var gotPath string
+	model := Model{
+		terminal: func(path, name, shell string) tea.Cmd {
+			gotPath = path
+			return func() tea.Msg {
+				return terminalOpenedMsg{message: "Opened terminal one"}
+			}
+		},
+		projects: []project.Project{{Name: "one", Path: "/tmp/one"}},
+		screen:   screenDetail,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected terminal command")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotPath != "/tmp/one" {
+		t.Fatalf("path = %q, want /tmp/one", gotPath)
+	}
+	if model.screen != screenDetail {
+		t.Fatalf("screen = %v, want detail", model.screen)
+	}
+	if model.message != "Opened terminal one" {
+		t.Fatalf("message = %q, want Opened terminal one", model.message)
 	}
 }
 

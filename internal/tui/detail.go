@@ -81,15 +81,21 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int, expa
 			lines = append(lines, detailLine("", line))
 		}
 	}
-	actions := []string{actionHint("x", visibilityAction(project)), actionHint("p", pinAction(project))}
+	primaryActions := []string{
+		actionHint("o", "open"),
+		actionHint("t", "terminal"),
+		actionHint("n", "note"),
+		actionHint("m", "status"),
+	}
+	secondaryActions := []string{actionHint("x", visibilityAction(project)), actionHint("p", pinAction(project))}
 	if hasCompactContent {
 		if expanded {
-			actions = append(actions, actionHint("space", "collapse"))
+			secondaryActions = append(secondaryActions, actionHint("space", "collapse"))
 		} else {
-			actions = append(actions, actionHint("space", "expand"))
+			secondaryActions = append(secondaryActions, actionHint("space", "expand"))
 		}
 	}
-	lines = append(lines, "", strings.Join(actions, " · "))
+	lines = append(lines, "", strings.Join(primaryActions, " · "), strings.Join(secondaryActions, " · "))
 	return lines
 }
 
@@ -104,8 +110,8 @@ func detailFields(project project.Project, activity func(project.Project) string
 
 func detailOptions(path func(string) string, activity func(project.Project) string) projectview.Options {
 	return projectview.Options{
-		Path:                  path,
-		Activity:              activity,
+		Path:                   path,
+		Activity:               activity,
 		HideEmptyDisplayFields: true,
 	}
 }
