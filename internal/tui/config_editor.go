@@ -53,6 +53,11 @@ type configRow struct {
 	Value string
 }
 
+type configSortPreset struct {
+	By  string
+	Dir string
+}
+
 type configNoteRow struct {
 	Label   string
 	Checked bool
@@ -204,8 +209,6 @@ func (m Model) editConfigRow() (tea.Model, tea.Cmd) {
 		return m.openConfigInput(configInputEditor, m.configDraft.Editor), m.startInputCursorBlink()
 	case 7:
 		return m.openConfigInput(configInputShell, m.configDraft.Shell), m.startInputCursorBlink()
-	case 8:
-		m.configDraft.SortBy = nextSortBy(m.configDraft.SortBy)
 	case 9:
 		m.loading = true
 		return m, m.openConfigFile()
@@ -236,11 +239,7 @@ func (m *Model) changeConfigRow() {
 	case 5:
 		m.openConfigNote()
 	case 8:
-		if m.configDraft.SortDir == "asc" {
-			m.configDraft.SortDir = "desc"
-		} else {
-			m.configDraft.SortDir = "asc"
-		}
+		m.cycleConfigSort(-1)
 	}
 	m.configErr = ""
 }
@@ -257,6 +256,9 @@ func (m *Model) incrementConfigRow() {
 		m.configDraft.StaleDays++
 	case 5:
 		m.openConfigNote()
+		return
+	case 8:
+		m.cycleConfigSort(1)
 		return
 	default:
 		m.changeConfigRow()
@@ -314,14 +316,37 @@ func (m Model) openConfigInput(kind configInputKind, value string) Model {
 	return m
 }
 
-func nextSortBy(value string) string {
-	options := []string{"activity", "updated", "name", "status"}
-	for index, option := range options {
-		if value == option {
-			return options[(index+1)%len(options)]
+func configSortPresets() []configSortPreset {
+	return configSortPresetsFor(config.Default())
+}
+
+func configSortPresetsFor(cfg config.Config) []configSortPreset {
+	options := sortOptions(cfg)
+	presets := make([]configSortPreset, 0, len(options)*2)
+	for _, option := range options {
+		presets = append(presets,
+			configSortPreset{By: option.Value, Dir: "desc"},
+			configSortPreset{By: option.Value, Dir: "asc"},
+		)
+	}
+	return presets
+}
+
+func (m *Model) cycleConfigSort(delta int) {
+	presets := configSortPresetsFor(m.configDraft)
+	if len(presets) == 0 {
+		return
+	}
+	selected := 0
+	for index, preset := range presets {
+		if m.configDraft.SortBy == preset.By && m.configDraft.SortDir == preset.Dir {
+			selected = index
+			break
 		}
 	}
-	return options[0]
+	next := wrapPickerSelection(selected, len(presets), delta)
+	m.configDraft.SortBy = presets[next].By
+	m.configDraft.SortDir = presets[next].Dir
 }
 
 func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

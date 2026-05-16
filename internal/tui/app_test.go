@@ -2570,16 +2570,49 @@ func TestModelConfigCyclesSortInSingleRow(t *testing.T) {
 		model = updateKey(t, model, "j")
 	}
 	model = updateSpecialKey(t, model, tea.KeyRight)
-	if model.configDraft.SortDir != "asc" {
-		t.Fatalf("sort dir = %q, want asc", model.configDraft.SortDir)
+	if model.configDraft.SortBy != "activity" || model.configDraft.SortDir != "asc" {
+		t.Fatalf("sort = %s %s, want activity asc", model.configDraft.SortBy, model.configDraft.SortDir)
 	}
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	if model.configDraft.SortBy != "updated" {
-		t.Fatalf("sort by = %q, want updated", model.configDraft.SortBy)
+	if model.configDraft.SortBy != "activity" || model.configDraft.SortDir != "asc" {
+		t.Fatalf("enter should not change sort, got %s %s", model.configDraft.SortBy, model.configDraft.SortDir)
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if model.configDraft.SortBy != "name" || model.configDraft.SortDir != "desc" {
+		t.Fatalf("sort = %s %s, want name desc", model.configDraft.SortBy, model.configDraft.SortDir)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	if model.configDraft.SortBy != "activity" || model.configDraft.SortDir != "asc" {
+		t.Fatalf("sort = %s %s, want activity asc", model.configDraft.SortBy, model.configDraft.SortDir)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	if model.configDraft.SortBy != "activity" || model.configDraft.SortDir != "desc" {
+		t.Fatalf("sort = %s %s, want activity desc", model.configDraft.SortBy, model.configDraft.SortDir)
 	}
 	if strings.Contains(stripANSI(model.View()), "Sort direction") {
 		t.Fatalf("settings should use one sort row:\n%s", stripANSI(model.View()))
+	}
+}
+
+func TestModelConfigSortPresetsOnlyUseVisibleColumns(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "activity", "status"}
+	cfg.SortBy = "activity"
+	cfg.SortDir = "asc"
+	model := Model{config: cfg}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Default sort") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if model.configDraft.SortBy != "name" || model.configDraft.SortDir != "desc" {
+		t.Fatalf("sort = %s %s, want name desc", model.configDraft.SortBy, model.configDraft.SortDir)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	if model.configDraft.SortBy != "activity" || model.configDraft.SortDir != "asc" {
+		t.Fatalf("sort = %s %s, want activity asc", model.configDraft.SortBy, model.configDraft.SortDir)
 	}
 }
 
