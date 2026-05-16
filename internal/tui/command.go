@@ -140,6 +140,10 @@ func (m Model) commandActions() []commandAction {
 	}
 	actions = append(actions,
 		commandAction{Label: "Reload projects", Shortcut: "ctrl+r or F5", Aliases: []string{"reload", "refresh"}, Run: commandReloadProjects},
+		commandAction{Label: "Settings", Aliases: []string{"config", "configure", "settings", "preferences"}, Run: func(m Model) (Model, tea.Cmd) {
+			m.openConfig()
+			return m, nil
+		}},
 		commandAction{Label: "Show help", Shortcut: "?", Aliases: []string{"help"}, Run: func(m Model) (Model, tea.Cmd) {
 			m.screen = screenHelp
 			return m, nil
@@ -268,7 +272,6 @@ func commandView(input string, cursor int, actions []commandAction, selected int
 		lines = append(lines, "", modalMuted("No commands"))
 		return modalView("Commands", lines, 56)
 	}
-	lines = append(lines, "")
 	lines = append(lines, commandOptionLines(actions, selected, 50)...)
 	return modalView("Commands", lines, 56)
 }

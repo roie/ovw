@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"errors"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -2255,6 +2256,328 @@ func TestModelColumnPickerReloadsWhenUpdatedEnabled(t *testing.T) {
 	}
 }
 
+func TestModelCommandPaletteOpensConfigEditor(t *testing.T) {
+	model := Model{config: config.Default()}
+	actions := model.commandActions()
+	if !hasCommandLabel(actions, "Settings") {
+		t.Fatalf("command palette missing Settings: %#v", commandLabels(actions))
+	}
+
+	for _, action := range actions {
+		if action.Label == "Settings" {
+			updated, _ := action.Run(model)
+			model = updated
+			break
+		}
+	}
+	if model.screen != screenConfig {
+		t.Fatalf("screen = %v, want config", model.screen)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"Settings", "Project folders", "Ignored folders", "Show unpushed commits", "Open settings file", "←→ change", "s save"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("config view missing %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestModelCommandPaletteOrdersSettingsBeforeHelpAndQuit(t *testing.T) {
+	labels := commandLabels(Model{config: config.Default()}.commandActions())
+	add := indexOfLabel(labels, "Add project")
+	settings := indexOfLabel(labels, "Settings")
+	help := indexOfLabel(labels, "Show help")
+	quit := indexOfLabel(labels, "Quit")
+	if add < 0 || settings < 0 || help < 0 || quit < 0 {
+		t.Fatalf("labels = %#v, want add/settings/help/quit", labels)
+	}
+	if add > settings {
+		t.Fatalf("Add project should be before Settings: %#v", labels)
+	}
+	if settings > help || settings > quit {
+		t.Fatalf("Settings should be before Help and Quit: %#v", labels)
+	}
+}
+
+func TestModelConfigTogglesAndSaves(t *testing.T) {
+	cfg := config.Default()
+	cfg.ShowUnpushed = true
+	var saved config.Config
+	model := Model{
+		config: cfg,
+		configWriter: func(path string, cfg config.Config) error {
+			saved = cfg
+			return nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: saved}, nil
+		},
+	}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Show unpushed commits") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected config save command")
+	}
+	model = updateMsg(t, model, cmd())
+
+	if saved.ShowUnpushed {
+		t.Fatal("ShowUnpushed should be saved as false")
+	}
+	if model.message != "Config saved" {
+		t.Fatalf("message = %q, want Config saved", model.message)
+	}
+}
+
+func TestModelConfigAddsRootWithSetupPicker(t *testing.T) {
+	cfg := config.Default()
+	cfg.Roots = []string{"~/dev"}
+	var saved config.Config
+	model := Model{
+		config: cfg,
+		configWriter: func(path string, cfg config.Config) error {
+			saved = cfg
+			return nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: saved}, nil
+		},
+	}
+	model.openConfig()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigRoots {
+		t.Fatalf("screen = %v, want config roots", model.screen)
+	}
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "custom path") || !strings.Contains(view, "space toggle") {
+		t.Fatalf("roots picker should use setup-style controls:\n%s", view)
+	}
+	model.configRootSelected = len(model.visibleConfigRootRows())
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigRootsInput {
+		t.Fatalf("screen = %v, want config roots input", model.screen)
+	}
+	for _, ch := range "~/Projects" {
+		model = updateKey(t, model, string(ch))
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigRoots {
+		t.Fatalf("screen after input = %v, want config roots", model.screen)
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected config save command")
+	}
+	model = updateMsg(t, model, cmd())
+
+	want := []string{"~/dev", "~/Projects"}
+	if !reflect.DeepEqual(saved.Roots, want) {
+		t.Fatalf("roots = %#v, want %#v", saved.Roots, want)
+	}
+}
+
+func TestModelConfigRootsUsesSetupCheckedSemantics(t *testing.T) {
+	cfg := config.Default()
+	cfg.Roots = []string{"~/dev"}
+	model := Model{config: cfg}
+	model.openConfig()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model.configRootChildren = map[string][]string{"~/dev": []string{"~/dev/app"}}
+	model.configRootExpanded = map[string]bool{"~/dev": true}
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "[x] ~/dev") {
+		t.Fatalf("root should be checked:\n%s", view)
+	}
+	if !strings.Contains(view, "[x] app") {
+		t.Fatalf("child should inherit checked display from parent root like setup picker:\n%s", view)
+	}
+}
+
+func TestModelConfigRootsDoesNotDuplicateCheckedDescendants(t *testing.T) {
+	cfg := config.Default()
+	cfg.Roots = []string{"~/dev/bots", "~/dev/extensions"}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigRoots()
+	model.applyConfigRootCandidates([]string{"~/dev"})
+
+	if got := strings.Count(strings.Join(model.configRootOptions, "\n"), "~/dev/bots"); got != 0 {
+		t.Fatalf("descendant root should not be added as top-level option: %#v", model.configRootOptions)
+	}
+
+	rows := model.visibleConfigRootRows()
+	seen := map[string]int{}
+	for _, row := range rows {
+		seen[row.Path]++
+	}
+	for _, path := range []string{"~/dev/bots", "~/dev/extensions"} {
+		if seen[path] != 1 {
+			t.Fatalf("%s visible count = %d, want 1; rows=%#v options=%#v", path, seen[path], rows, model.configRootOptions)
+		}
+	}
+}
+
+func TestModelConfigStaleDaysUsesArrowStepper(t *testing.T) {
+	cfg := config.Default()
+	cfg.StaleDays = 30
+	model := Model{config: cfg}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Mark stale after") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if model.configDraft.StaleDays != 31 {
+		t.Fatalf("stale days = %d, want 31", model.configDraft.StaleDays)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	if model.configDraft.StaleDays != 29 {
+		t.Fatalf("stale days = %d, want 29", model.configDraft.StaleDays)
+	}
+}
+
+func TestModelConfigStaleDaysUsesDayLabel(t *testing.T) {
+	cfg := config.Default()
+	cfg.StaleDays = 1
+	model := Model{config: cfg}
+	model.openConfig()
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Mark stale after") || !strings.Contains(view, "1 day") {
+		t.Fatalf("settings should render singular stale day:\n%s", view)
+	}
+	if strings.Contains(view, "1 days") {
+		t.Fatalf("settings should not render plural stale day:\n%s", view)
+	}
+}
+
+func TestModelConfigResetsToDefaultFromRow(t *testing.T) {
+	cfg := config.Default()
+	cfg.Roots = []string{"~/custom"}
+	cfg.ShowUnpushed = false
+	model := Model{config: cfg}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Reset settings") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if !reflect.DeepEqual(model.configDraft.Roots, cfg.Roots) {
+		t.Fatalf("roots = %#v, want preserved roots %#v", model.configDraft.Roots, cfg.Roots)
+	}
+	if model.configDraft.ShowUnpushed != config.Default().ShowUnpushed {
+		t.Fatalf("show unpushed = %v, want default", model.configDraft.ShowUnpushed)
+	}
+}
+
+func TestModelConfigTerminalShowsDefaultWhenEmpty(t *testing.T) {
+	cfg := config.Default()
+	cfg.Shell = ""
+	model := Model{config: cfg}
+	model.openConfig()
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "Terminal  default") {
+		t.Fatalf("terminal row should show default when unset:\n%s", view)
+	}
+}
+
+func TestModelConfigCyclesSortInSingleRow(t *testing.T) {
+	cfg := config.Default()
+	cfg.SortBy = "activity"
+	cfg.SortDir = "desc"
+	model := Model{config: cfg}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Default sort") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if model.configDraft.SortDir != "asc" {
+		t.Fatalf("sort dir = %q, want asc", model.configDraft.SortDir)
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.configDraft.SortBy != "updated" {
+		t.Fatalf("sort by = %q, want updated", model.configDraft.SortBy)
+	}
+	if strings.Contains(stripANSI(model.View()), "Sort direction") {
+		t.Fatalf("settings should use one sort row:\n%s", stripANSI(model.View()))
+	}
+}
+
+func TestModelConfigArrowsOpenListEditors(t *testing.T) {
+	model := Model{config: config.Default()}
+	model.openConfig()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(Model)
+	if model.screen != screenConfigRoots {
+		t.Fatalf("screen = %v, want roots editor", model.screen)
+	}
+
+	model.openConfig()
+	for !strings.Contains(stripANSI(model.View()), "> Ignored folders") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	model = updated.(Model)
+	if model.screen != screenConfigList {
+		t.Fatalf("screen = %v, want ignore dirs editor", model.screen)
+	}
+}
+
+func TestModelConfigOpensRawFile(t *testing.T) {
+	cfg := config.Default()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	opened := ""
+	model := Model{
+		config:      cfg,
+		configPaths: config.FilePaths{Config: path},
+		editor: func(editor, target string) error {
+			opened = target
+			return nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Config: cfg, Paths: config.FilePaths{Config: path}}, nil
+		},
+	}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Open settings file") {
+		model = updateKey(t, model, "j")
+	}
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected editor command")
+	}
+	model = updateMsg(t, model, cmd())
+
+	if opened != path {
+		t.Fatalf("opened = %q, want %q", opened, path)
+	}
+	if model.message != "Config opened" {
+		t.Fatalf("message = %q, want Config opened", model.message)
+	}
+}
+
 func TestStartEnrichmentDetectsPortsWhenColumnVisible(t *testing.T) {
 	cfg := config.Default()
 	cfg.Columns = []string{"name", "ports"}
@@ -4140,6 +4463,15 @@ func commandLabels(actions []commandAction) []string {
 		labels = append(labels, action.Label)
 	}
 	return labels
+}
+
+func indexOfLabel(labels []string, label string) int {
+	for index, value := range labels {
+		if value == label {
+			return index
+		}
+	}
+	return -1
 }
 
 func updateSetupKey(t *testing.T, model setupModel, value string) setupModel {

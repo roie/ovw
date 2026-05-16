@@ -57,6 +57,11 @@ const (
 	screenOnboarding
 	screenOnboardingInput
 	screenColumns
+	screenConfig
+	screenConfigList
+	screenConfigInput
+	screenConfigRoots
+	screenConfigRootsInput
 )
 
 type Model struct {
@@ -76,65 +81,84 @@ type Model struct {
 	configWriter configWriter
 	portDetector portDetector
 
-	width           int
-	height          int
-	selected        int
-	tableXOffset    int
-	detailYOffset   int
-	detailModalY    int
-	detailsExpanded bool
-	screen          screenMode
-	search          string
-	searchCursor    int
-	searching       bool
-	filterSelected  int
-	activeFilter    string
-	sortSelected    int
-	activeSort      string
-	activeSortDir   string
-	noteInput       string
-	noteCursor      int
-	addInput        string
-	addCursor       int
-	addErr          string
-	statusSelected  int
-	statusInput     string
-	statusCursor    int
-	runnerSelected  int
-	runnerInput     string
-	runnerCursor    int
-	runnerYOffset   int
-	runnerAddName   string
-	runnerAdding    bool
-	runnerShowInfo  bool
-	commandInput    string
-	commandCursor   int
-	commandSelected int
-	cursorHidden    bool
-	cursorBlinkID   int
-	onboardOptions  []string
-	onboardChecked  map[string]bool
-	onboardSelected int
-	onboardInput    string
-	onboardCursor   int
-	onboardErr      string
-	columnSelected  int
-	columnOrder     []string
-	columnChecked   map[string]bool
-	columnErr       string
-	message         string
-	loading         bool
-	loadErr         error
-	enriching       bool
-	enrichedCount   int
-	enrichTotal     int
-	config          config.Config
-	configPaths     config.FilePaths
-	projects        []project.Project
-	scanElapsed     time.Duration
-	showScanElapsed bool
-	recentByPath    map[string][]ovwformat.RecentCommit
-	filesByPath     map[string][]ovwformat.RecentFile
+	width              int
+	height             int
+	selected           int
+	tableXOffset       int
+	detailYOffset      int
+	detailModalY       int
+	detailsExpanded    bool
+	screen             screenMode
+	search             string
+	searchCursor       int
+	searching          bool
+	filterSelected     int
+	activeFilter       string
+	sortSelected       int
+	activeSort         string
+	activeSortDir      string
+	noteInput          string
+	noteCursor         int
+	addInput           string
+	addCursor          int
+	addErr             string
+	statusSelected     int
+	statusInput        string
+	statusCursor       int
+	runnerSelected     int
+	runnerInput        string
+	runnerCursor       int
+	runnerYOffset      int
+	runnerAddName      string
+	runnerAdding       bool
+	runnerShowInfo     bool
+	commandInput       string
+	commandCursor      int
+	commandSelected    int
+	cursorHidden       bool
+	cursorBlinkID      int
+	onboardOptions     []string
+	onboardChecked     map[string]bool
+	onboardSelected    int
+	onboardInput       string
+	onboardCursor      int
+	onboardErr         string
+	columnSelected     int
+	columnOrder        []string
+	columnChecked      map[string]bool
+	columnErr          string
+	configSelected     int
+	configDraft        config.Config
+	configErr          string
+	configListField    configListField
+	configListSel      int
+	configListInput    string
+	configListCursor   int
+	configListEditing  bool
+	configInputKind    configInputKind
+	configInput        string
+	configCursor       int
+	configRootOptions  []string
+	configRootChecked  map[string]bool
+	configRootExpanded map[string]bool
+	configRootChildren map[string][]string
+	configRootCounts   map[string]int
+	configRootSelected int
+	configRootInput    string
+	configRootCursor   int
+	message            string
+	loading            bool
+	loadErr            error
+	enriching          bool
+	enrichedCount      int
+	enrichTotal        int
+	config             config.Config
+	configPaths        config.FilePaths
+	projects           []project.Project
+	scanElapsed        time.Duration
+	showScanElapsed    bool
+	recentByPath       map[string][]ovwformat.RecentCommit
+	filesByPath        map[string][]ovwformat.RecentFile
 }
 
 func New() Model {
@@ -211,6 +235,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenColumns {
 			return m.updateColumns(msg)
+		}
+		if m.screen == screenConfig {
+			return m.updateConfig(msg)
+		}
+		if m.screen == screenConfigList {
+			return m.updateConfigList(msg)
+		}
+		if m.screen == screenConfigInput {
+			return m.updateConfigInput(msg)
+		}
+		if m.screen == screenConfigRoots {
+			return m.updateConfigRoots(msg)
+		}
+		if m.screen == screenConfigRootsInput {
+			return m.updateConfigRootsInput(msg)
 		}
 		if m.screen == screenNote {
 			return m.updateNote(msg)
@@ -551,6 +590,59 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case portsDetectedMsg:
 		m.attachPorts(msg.portsByPath)
+	case configRootCandidatesMsg:
+		m.applyConfigRootCandidates(msg.candidates)
+		return m, m.countConfigRootPaths(m.visibleConfigRootPaths())
+	case configRootCountsMsg:
+		if m.configRootCounts == nil {
+			m.configRootCounts = map[string]int{}
+		}
+		for path, count := range msg.counts {
+			m.configRootCounts[path] = count
+		}
+	case configSavedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.screen = screenConfig
+			m.message = "Failed to write config: " + msg.err.Error()
+			m.configErr = msg.err.Error()
+			return m, nil
+		}
+		m.screen = screenTable
+		m.config = msg.result.Config
+		m.configPaths = msg.result.Paths
+		m.projects = msg.result.Projects
+		m.scanElapsed = msg.result.Elapsed
+		m.showScanElapsed = false
+		m.syncActiveSort()
+		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.filesByPath = map[string][]ovwformat.RecentFile{}
+		m.message = "Config saved"
+		if msg.preservePath != "" {
+			m.selectProjectPath(msg.preservePath)
+		} else {
+			m.clampSelection()
+		}
+		return m, m.loadSelectedRecent()
+	case configOpenedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.screen = screenConfig
+			m.message = "Failed to open config: " + msg.err.Error()
+			m.configErr = msg.err.Error()
+			return m, nil
+		}
+		m.screen = screenTable
+		m.config = msg.result.Config
+		m.configPaths = msg.result.Paths
+		m.projects = msg.result.Projects
+		m.scanElapsed = msg.result.Elapsed
+		m.showScanElapsed = false
+		m.syncActiveSort()
+		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.filesByPath = map[string][]ovwformat.RecentFile{}
+		m.message = "Config opened"
+		return m, m.loadSelectedRecent()
 	}
 	return m, nil
 }
@@ -1644,9 +1736,11 @@ func (m Model) cursorBlinkActive() bool {
 		return true
 	}
 	switch m.screen {
-	case screenAdd, screenNote, screenStatusInput, screenCommand, screenOnboardingInput:
+	case screenAdd, screenNote, screenStatusInput, screenCommand, screenOnboardingInput, screenConfigInput, screenConfigRootsInput:
 		return true
 	case screenRunner:
+		return true
+	case screenConfigList:
 		return true
 	default:
 		return false
@@ -2019,6 +2113,16 @@ func renderShell(m Model) string {
 				content = overlayModal(content, sortView(sortOptions(m.config), m.sortSelected, m.activeSortDir), m.contentWidth())
 			case screenColumns:
 				content = overlayModal(content, columnsView(m.columnOrder, m.columnChecked, m.columnSelected, m.columnErr), m.contentWidth())
+			case screenConfig:
+				content = overlayModal(content, configView(m.configRows(), m.configSelected, m.configErr), m.contentWidth())
+			case screenConfigList:
+				content = overlayModal(content, configListView(m.configListTitle(), m.configListValues(), m.configListSelected(), m.configListInput, m.configListCursor, m.configListEditing, m.configErr, m.inputCursorState()), m.contentWidth())
+			case screenConfigInput:
+				content = overlayModal(content, configInputView(m.configInputTitle(), m.configInput, m.configInputPlaceholder(), m.configCursor, m.configErr, m.inputCursorState()), m.contentWidth())
+			case screenConfigRoots:
+				content = overlayModal(content, configRootsView(m.visibleConfigRootRows(), m.configRootSelected, m.configErr), m.contentWidth())
+			case screenConfigRootsInput:
+				content = overlayModal(content, configRootInputView(m.configRootInput, m.configRootCursor, m.configErr, m.inputCursorState()), m.contentWidth())
 			case screenNote:
 				project, _ := m.currentProject()
 				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display, m.noteCursor, m.inputCursorState()), m.contentWidth())
@@ -2330,7 +2434,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenNote, screenStatus, screenStatusInput:
 		return true
 	default:
 		return false
