@@ -10,14 +10,20 @@ import (
 func (m *Model) openColumns() {
 	m.screen = screenColumns
 	m.columnSelected = 0
-	m.columnOrder = orderedColumnIDs(m.config.Columns)
+	m.columnOrder = orderedColumnIDs(m.config.Columns, m.config.ColumnOrder)
 	m.columnChecked = checkedColumns(m.config.Columns)
 	m.columnErr = ""
 }
 
-func orderedColumnIDs(configured []string) []string {
+func orderedColumnIDs(configured, configuredOrder []string) []string {
 	seen := map[string]bool{}
 	order := []string{}
+	for _, column := range configuredOrder {
+		if columnmeta.Valid(column) && !seen[column] {
+			order = append(order, column)
+			seen[column] = true
+		}
+	}
 	for _, column := range configured {
 		if columnmeta.Valid(column) && !seen[column] {
 			order = append(order, column)
@@ -96,6 +102,7 @@ func (m Model) selectedColumns() []string {
 func (m Model) saveColumns() tea.Cmd {
 	cfg := m.config
 	cfg.Columns = m.selectedColumns()
+	cfg.ColumnOrder = append([]string(nil), m.columnOrder...)
 	path := m.configPaths.Config
 	writer := m.configWriter
 	if writer == nil {

@@ -31,6 +31,7 @@ type Config struct {
 	DefaultBranches         []string    `toml:"default_branches"`
 	Statuses                []string    `toml:"statuses"`
 	Columns                 []string    `toml:"columns"`
+	ColumnOrder             []string    `toml:"column_order,omitempty"`
 	SortBy                  string      `toml:"sort_by"`
 	SortDir                 string      `toml:"sort_dir"`
 	Stack                   StackConfig `toml:"stack"`
@@ -147,6 +148,11 @@ func Validate(cfg Config) error {
 	for _, column := range cfg.Columns {
 		if !columns.Valid(column) {
 			return fmt.Errorf("invalid column %q: expected %s", column, columns.OptionsString())
+		}
+	}
+	for _, column := range cfg.ColumnOrder {
+		if !columns.Valid(column) {
+			return fmt.Errorf("invalid column_order %q: expected %s", column, columns.OptionsString())
 		}
 	}
 	if !validSortBy(cfg.SortBy) {
@@ -444,6 +450,10 @@ statuses = ["active", "parked", "shipped", "idea"]
 # Columns to show and their order.
 # Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note
 columns = ["name", "stack", "activity", "status", "note"]
+
+# Full column picker order, including hidden columns.
+# Leave empty to follow the default picker order.
+column_order = []
 
 # Default sort column. Options: activity, updated, name, status
 sort_by = "activity"

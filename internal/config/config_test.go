@@ -63,6 +63,7 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	cfg := Default()
 	cfg.Roots = []string{"~/dev"}
 	cfg.StaleDays = 7
+	cfg.ColumnOrder = []string{"name", "path", "stack"}
 	cfg.Stack.Aliases["Cloudflare Workers"] = "Workers"
 
 	if err := Write(path, cfg); err != nil {
@@ -79,6 +80,9 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 	if loaded.StaleDays != 7 {
 		t.Fatalf("StaleDays = %d", loaded.StaleDays)
+	}
+	if !reflect.DeepEqual(loaded.ColumnOrder, cfg.ColumnOrder) {
+		t.Fatalf("ColumnOrder = %#v", loaded.ColumnOrder)
 	}
 	if loaded.Stack.Aliases["Cloudflare Workers"] != "Workers" {
 		t.Fatalf("Alias = %q", loaded.Stack.Aliases["Cloudflare Workers"])
@@ -109,6 +113,14 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				return cfg
 			},
 			want: `invalid column "url": expected name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, or note`,
+		},
+		{
+			name: "unknown column order",
+			edit: func(cfg Config) Config {
+				cfg.ColumnOrder = []string{"name", "url"}
+				return cfg
+			},
+			want: `invalid column_order "url": expected name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, or note`,
 		},
 		{
 			name: "unknown sort",

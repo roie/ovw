@@ -2156,6 +2156,10 @@ func TestModelColumnPickerTogglesAndSavesColumns(t *testing.T) {
 	if !reflect.DeepEqual(saved.Columns, want) {
 		t.Fatalf("saved columns = %#v, want %#v", saved.Columns, want)
 	}
+	wantOrder := []string{"name", "stack", "activity", "status", "note", "path", "manager", "scripts", "version", "ports", "branch", "updated"}
+	if !reflect.DeepEqual(saved.ColumnOrder, wantOrder) {
+		t.Fatalf("saved column order = %#v, want %#v", saved.ColumnOrder, wantOrder)
+	}
 	if !reflect.DeepEqual(model.config.Columns, want) {
 		t.Fatalf("model columns = %#v, want %#v", model.config.Columns, want)
 	}
@@ -2164,6 +2168,83 @@ func TestModelColumnPickerTogglesAndSavesColumns(t *testing.T) {
 	}
 	if model.message != "Columns saved" {
 		t.Fatalf("message = %q, want Columns saved", model.message)
+	}
+}
+
+func TestModelColumnPickerReorderPersistsAfterSave(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "stack", "activity", "status", "note"}
+	var saved config.Config
+	model := Model{
+		config: cfg,
+		configWriter: func(path string, cfg config.Config) error {
+			saved = cfg
+			return nil
+		},
+	}
+	model.openColumns()
+
+	for !strings.Contains(stripANSI(model.View()), "> [x] stack") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected columns save command")
+	}
+	model = updateMsg(t, model, cmd())
+
+	want := []string{"name", "activity", "stack", "status", "note"}
+	if !reflect.DeepEqual(saved.Columns, want) {
+		t.Fatalf("saved columns = %#v, want %#v", saved.Columns, want)
+	}
+	wantOrder := []string{"name", "activity", "stack", "status", "note", "path", "manager", "scripts", "version", "ports", "branch", "updated"}
+	if !reflect.DeepEqual(saved.ColumnOrder, wantOrder) {
+		t.Fatalf("saved column order = %#v, want %#v", saved.ColumnOrder, wantOrder)
+	}
+	if !reflect.DeepEqual(model.config.Columns, want) {
+		t.Fatalf("model columns = %#v, want %#v", model.config.Columns, want)
+	}
+	model.openColumns()
+	if got := model.columnOrder[:len(want)]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("reopened column order = %#v, want %#v", got, want)
+	}
+}
+
+func TestModelColumnPickerPreservesHiddenColumnOrder(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "stack"}
+	model := Model{
+		config: cfg,
+		configWriter: func(path string, cfg config.Config) error {
+			return nil
+		},
+	}
+
+	model.openColumns()
+	for !strings.Contains(stripANSI(model.View()), "> [ ] path") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model = updateMsg(t, model, cmd())
+
+	if got, want := model.config.Columns, []string{"name", "stack"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("visible columns = %#v, want %#v", got, want)
+	}
+	if got, want := model.config.ColumnOrder[:3], []string{"name", "path", "stack"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("column order prefix = %#v, want %#v", got, want)
+	}
+
+	model.openColumns()
+	for !strings.Contains(stripANSI(model.View()), "> [ ] path") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateKey(t, model, " ")
+	if got, want := model.selectedColumns(), []string{"name", "path", "stack"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("selected columns after toggling path = %#v, want %#v", got, want)
 	}
 }
 
