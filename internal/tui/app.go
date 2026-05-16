@@ -62,6 +62,7 @@ const (
 	screenConfigInput
 	screenConfigRoots
 	screenConfigRootsInput
+	screenConfigNote
 )
 
 type Model struct {
@@ -141,6 +142,7 @@ type Model struct {
 	configRootPicker  rootPicker
 	configRootInput   string
 	configRootCursor  int
+	configNoteSel     int
 	message           string
 	loading           bool
 	loadErr           error
@@ -245,6 +247,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenConfigRootsInput {
 			return m.updateConfigRootsInput(msg)
+		}
+		if m.screen == screenConfigNote {
+			return m.updateConfigNote(msg)
 		}
 		if m.screen == screenNote {
 			return m.updateNote(msg)
@@ -2118,6 +2123,8 @@ func renderShell(m Model) string {
 				content = overlayModal(content, configRootsView(m.configRootPicker.visibleRows(), m.configRootPicker.selected, m.configErr), m.contentWidth())
 			case screenConfigRootsInput:
 				content = overlayModal(content, configRootInputView(m.configRootInput, m.configRootCursor, m.configErr, m.inputCursorState()), m.contentWidth())
+			case screenConfigNote:
+				content = overlayModal(content, configNoteView(m.configNoteRows(), m.configNoteSel, m.configErr), m.contentWidth())
 			case screenNote:
 				project, _ := m.currentProject()
 				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display, m.noteCursor, m.inputCursorState()), m.contentWidth())
@@ -2429,7 +2436,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigNote, screenNote, screenStatus, screenStatusInput:
 		return true
 	default:
 		return false

@@ -53,6 +53,11 @@ type configRow struct {
 	Value string
 }
 
+type configNoteRow struct {
+	Label   string
+	Checked bool
+}
+
 func (m *Model) openConfig() {
 	m.screen = screenConfig
 	m.configDraft = m.config
@@ -69,6 +74,7 @@ func (m *Model) openConfig() {
 	m.configRootPicker = rootPicker{}
 	m.configRootInput = ""
 	m.configRootCursor = 0
+	m.configNoteSel = 0
 }
 
 func (m Model) configRows() []configRow {
@@ -79,9 +85,7 @@ func (m Model) configRows() []configRow {
 		{Label: "Include nested projects", Value: boolSummary(cfg.ScanNestedProjects)},
 		{Label: "Show unpushed commits", Value: boolSummary(cfg.ShowUnpushed)},
 		{Label: "Mark stale after", Value: daysSummary(cfg.StaleDays)},
-		{Label: "Note fallback commit", Value: boolSummary(cfg.NoteFallbackCommit)},
-		{Label: "Note fallback description", Value: boolSummary(cfg.NoteFallbackDescription)},
-		{Label: "Note show branch", Value: boolSummary(cfg.NoteShowBranch)},
+		{Label: "Note display", Value: noteDisplaySummary(cfg)},
 		{Label: "Editor", Value: emptySummary(cfg.Editor)},
 		{Label: "Terminal", Value: terminalSummary(cfg.Shell)},
 		{Label: "Default sort", Value: cfg.SortBy + " " + cfg.SortDir},
@@ -112,6 +116,29 @@ func daysSummary(days int) string {
 		return "1 day"
 	}
 	return fmt.Sprintf("%d days", days)
+}
+
+func noteDisplaySummary(cfg config.Config) string {
+	switch {
+	case cfg.NoteShowBranch && cfg.NoteFallbackCommit && cfg.NoteFallbackDescription:
+		return "branch + smart fallback"
+	case !cfg.NoteShowBranch && cfg.NoteFallbackCommit && cfg.NoteFallbackDescription:
+		return "smart fallback"
+	case cfg.NoteShowBranch && !cfg.NoteFallbackCommit && !cfg.NoteFallbackDescription:
+		return "branch only"
+	case !cfg.NoteShowBranch && !cfg.NoteFallbackCommit && !cfg.NoteFallbackDescription:
+		return "manual only"
+	case cfg.NoteShowBranch && !cfg.NoteFallbackCommit && cfg.NoteFallbackDescription:
+		return "branch + description fallback"
+	case !cfg.NoteShowBranch && !cfg.NoteFallbackCommit && cfg.NoteFallbackDescription:
+		return "description fallback"
+	case cfg.NoteShowBranch && cfg.NoteFallbackCommit && !cfg.NoteFallbackDescription:
+		return "branch + commit fallback"
+	case !cfg.NoteShowBranch && cfg.NoteFallbackCommit && !cfg.NoteFallbackDescription:
+		return "commit fallback"
+	default:
+		return "custom"
+	}
 }
 
 func emptySummary(value string) string {
@@ -171,16 +198,18 @@ func (m Model) editConfigRow() (tea.Model, tea.Cmd) {
 		m.openConfigList(configListIgnoreDirs)
 	case 4:
 		return m.openConfigInput(configInputStaleDays, strconv.Itoa(m.configDraft.StaleDays)), m.startInputCursorBlink()
-	case 8:
+	case 5:
+		m.openConfigNote()
+	case 6:
 		return m.openConfigInput(configInputEditor, m.configDraft.Editor), m.startInputCursorBlink()
-	case 9:
+	case 7:
 		return m.openConfigInput(configInputShell, m.configDraft.Shell), m.startInputCursorBlink()
-	case 10:
+	case 8:
 		m.configDraft.SortBy = nextSortBy(m.configDraft.SortBy)
-	case 11:
+	case 9:
 		m.loading = true
 		return m, m.openConfigFile()
-	case 12:
+	case 10:
 		roots := append([]string{}, m.configDraft.Roots...)
 		m.configDraft = config.Default()
 		m.configDraft.Roots = roots
@@ -205,12 +234,8 @@ func (m *Model) changeConfigRow() {
 	case 3:
 		m.configDraft.ShowUnpushed = !m.configDraft.ShowUnpushed
 	case 5:
-		m.configDraft.NoteFallbackCommit = !m.configDraft.NoteFallbackCommit
-	case 6:
-		m.configDraft.NoteFallbackDescription = !m.configDraft.NoteFallbackDescription
-	case 7:
-		m.configDraft.NoteShowBranch = !m.configDraft.NoteShowBranch
-	case 10:
+		m.openConfigNote()
+	case 8:
 		if m.configDraft.SortDir == "asc" {
 			m.configDraft.SortDir = "desc"
 		} else {
@@ -230,9 +255,18 @@ func (m *Model) incrementConfigRow() {
 		return
 	case 4:
 		m.configDraft.StaleDays++
+	case 5:
+		m.openConfigNote()
+		return
 	default:
 		m.changeConfigRow()
 	}
+}
+
+func (m *Model) openConfigNote() {
+	m.screen = screenConfigNote
+	m.configNoteSel = 0
+	m.configErr = ""
 }
 
 func (m *Model) openConfigList(field configListField) {
@@ -398,6 +432,37 @@ func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.configInput, m.configCursor = textDelete(m.configInput, m.configCursor)
 	default:
 		m.configInput, m.configCursor = textInsert(m.configInput, m.configCursor, inputText(msg))
+	}
+	return m, nil
+}
+
+func (m Model) configNoteRows() []configNoteRow {
+	return []configNoteRow{
+		{Label: "Show branch", Checked: m.configDraft.NoteShowBranch},
+		{Label: "Use latest commit when note is empty", Checked: m.configDraft.NoteFallbackCommit},
+		{Label: "Use project description when note and commit are empty", Checked: m.configDraft.NoteFallbackDescription},
+	}
+}
+
+func (m Model) updateConfigNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	rows := m.configNoteRows()
+	switch value := msg.String(); {
+	case isEscapeKey(value), isEnterKey(value), value == "s":
+		m.screen = screenConfig
+		m.configErr = ""
+	case isDownKey(value):
+		m.configNoteSel = wrapPickerSelection(m.configNoteSel, len(rows), 1)
+	case isUpKey(value):
+		m.configNoteSel = wrapPickerSelection(m.configNoteSel, len(rows), -1)
+	case value == " ", isLeftKey(value), isRightKey(value):
+		switch clampIndex(m.configNoteSel, len(rows)) {
+		case 0:
+			m.configDraft.NoteShowBranch = !m.configDraft.NoteShowBranch
+		case 1:
+			m.configDraft.NoteFallbackCommit = !m.configDraft.NoteFallbackCommit
+		case 2:
+			m.configDraft.NoteFallbackDescription = !m.configDraft.NoteFallbackDescription
+		}
 	}
 	return m, nil
 }
@@ -756,6 +821,23 @@ func configInputView(title, value, placeholder string, cursor int, errText strin
 	}
 	lines = append(lines, "", actionHint("enter", "save"))
 	return modalView(title, lines, 60)
+}
+
+func configNoteView(rows []configNoteRow, selected int, errText string) string {
+	labels := make([]string, 0, len(rows))
+	for _, row := range rows {
+		box := "[ ]"
+		if row.Checked {
+			box = "[x]"
+		}
+		labels = append(labels, box+" "+row.Label)
+	}
+	lines := modalOptionLines(labels, selected)
+	if errText != "" {
+		lines = append(lines, "", errorStyle.Render(errText))
+	}
+	lines = append(lines, "", actionHint("space", "toggle")+" · "+actionHint("enter", "done"))
+	return modalView("Note display", lines, 72)
 }
 
 func configRootsView(rows []setupRow, selected int, errText string) string {

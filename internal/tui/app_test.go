@@ -2290,9 +2290,14 @@ func TestModelCommandPaletteOpensConfigEditor(t *testing.T) {
 		t.Fatalf("screen = %v, want config", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Settings", "Project folders", "Ignored folders", "Show unpushed commits", "Open settings file", "←→ change", "s save"} {
+	for _, want := range []string{"Settings", "Project folders", "Ignored folders", "Show unpushed commits", "Note display", "Open settings file", "←→ change", "s save"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("config view missing %q:\n%s", want, view)
+		}
+	}
+	for _, notWant := range []string{"Note fallback commit", "Note fallback description", "Note show branch"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("config view should not show separate note setting %q:\n%s", notWant, view)
 		}
 	}
 }
@@ -2511,6 +2516,46 @@ func TestModelConfigTerminalShowsDefaultWhenEmpty(t *testing.T) {
 	view := stripANSI(model.View())
 	if !strings.Contains(view, "Terminal  default") {
 		t.Fatalf("terminal row should show default when unset:\n%s", view)
+	}
+}
+
+func TestModelConfigNoteDisplayUsesNestedCheckboxes(t *testing.T) {
+	cfg := config.Default()
+	model := Model{config: cfg}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Note display") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigNote {
+		t.Fatalf("screen = %v, want config note", model.screen)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"Note display", "[x] Show branch", "[x] Use latest commit when note is empty", "[x] Use project description when note and commit are empty", "space toggle", "enter done"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("note display view missing %q:\n%s", want, view)
+		}
+	}
+
+	model = updateKey(t, model, " ")
+	if model.configDraft.NoteShowBranch {
+		t.Fatal("space should toggle Show branch off")
+	}
+	model = updateSpecialKey(t, model, tea.KeyDown)
+	model = updateKey(t, model, " ")
+	if model.configDraft.NoteFallbackCommit {
+		t.Fatal("space should toggle commit fallback off")
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfig {
+		t.Fatalf("screen after enter = %v, want config", model.screen)
+	}
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "Note display") || !strings.Contains(view, "description fallback") {
+		t.Fatalf("settings row should summarize note display:\n%s", view)
 	}
 }
 
