@@ -196,6 +196,23 @@ func (p *rootPicker) expandPath(path string) []string {
 	return p.children[path]
 }
 
+func (p *rootPicker) collapseOrSelectParent(row setupRow) {
+	if p.expanded == nil {
+		p.expanded = map[string]bool{}
+	}
+	if row.Expanded {
+		p.expanded[row.Path] = false
+		return
+	}
+	if row.Depth > 0 {
+		p.selectPath(row.Parent)
+		return
+	}
+	if row.Expandable {
+		p.expanded[row.Path] = false
+	}
+}
+
 func (p *rootPicker) revealChecked() {
 	roots := make([]string, 0, len(p.checked))
 	for root, checked := range p.checked {

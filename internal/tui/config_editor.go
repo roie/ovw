@@ -510,14 +510,7 @@ func (m Model) updateConfigRoots(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case isLeftKey(value):
 		if m.configRootPicker.selected < len(rows) {
-			row := rows[m.configRootPicker.selected]
-			if row.Depth > 0 {
-				m.configRootPicker.selectPath(row.Parent)
-				break
-			}
-			if row.Expandable || row.Expanded {
-				m.configRootPicker.expanded[row.Path] = false
-			}
+			m.configRootPicker.collapseOrSelectParent(rows[m.configRootPicker.selected])
 		}
 	case value == " ":
 		if m.configRootPicker.selected < len(rows) {

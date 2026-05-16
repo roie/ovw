@@ -129,14 +129,7 @@ func (m setupModel) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case isLeftKey(value):
 		if m.selected < len(rows) {
-			row := rows[m.selected]
-			if row.Depth > 0 {
-				m.selectPath(row.Parent)
-				break
-			}
-			if row.Expandable || row.Expanded {
-				m.expanded[row.Path] = false
-			}
+			m.collapseOrSelectParent(rows[m.selected])
 		}
 	case value == " ":
 		if m.selected < len(rows) {

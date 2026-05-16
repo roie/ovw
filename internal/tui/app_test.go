@@ -2532,6 +2532,33 @@ func TestModelConfigRootsDoesNotDuplicateCheckedDescendants(t *testing.T) {
 	}
 }
 
+func TestModelConfigRootsLeftCollapsesExpandedNestedRow(t *testing.T) {
+	cfg := config.Default()
+	cfg.Roots = []string{"~/dev"}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigRoots()
+	model.configRootPicker.children = map[string][]string{
+		"~/dev":     {"~/dev/web"},
+		"~/dev/web": {"~/dev/web/app"},
+	}
+	model.configRootPicker.expanded = map[string]bool{"~/dev": true, "~/dev/web": true}
+	model.configRootPicker.selected = 1
+
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+
+	if model.configRootPicker.expanded["~/dev/web"] {
+		t.Fatal("expected nested row to collapse")
+	}
+	if model.configRootPicker.selected != 1 {
+		t.Fatalf("selected = %d, want nested row to stay selected while collapsing", model.configRootPicker.selected)
+	}
+	rows := model.configRootPicker.visibleRows()
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("visible rows = %d, want %d after collapse: %#v", got, want, rows)
+	}
+}
+
 func TestModelConfigStaleDaysUsesArrowStepper(t *testing.T) {
 	cfg := config.Default()
 	cfg.StaleDays = 30

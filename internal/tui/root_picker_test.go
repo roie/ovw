@@ -47,3 +47,37 @@ func TestRootPickerSelectedRootsExcludesUncheckedChild(t *testing.T) {
 		t.Fatalf("selected roots = %#v, want %#v", got, want)
 	}
 }
+
+func TestRootPickerLeftCollapsesExpandedNestedRowBeforeSelectingParent(t *testing.T) {
+	picker := rootPicker{
+		options: []string{"~/dev"},
+		expanded: map[string]bool{
+			"~/dev":     true,
+			"~/dev/web": true,
+		},
+		children: map[string][]string{
+			"~/dev":     {"~/dev/web"},
+			"~/dev/web": {"~/dev/web/app"},
+		},
+		selected: 1,
+	}
+
+	rows := picker.visibleRows()
+	picker.collapseOrSelectParent(rows[picker.selected])
+
+	if picker.expanded["~/dev/web"] {
+		t.Fatal("expected expanded nested row to collapse")
+	}
+	if picker.selected != 1 {
+		t.Fatalf("selected = %d, want row to stay selected while collapsing", picker.selected)
+	}
+	rows = picker.visibleRows()
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("visible rows = %d, want %d after collapse: %#v", got, want, rows)
+	}
+
+	picker.collapseOrSelectParent(rows[picker.selected])
+	if picker.selected != 0 {
+		t.Fatalf("selected = %d, want parent selected after second left", picker.selected)
+	}
+}
