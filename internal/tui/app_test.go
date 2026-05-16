@@ -341,11 +341,13 @@ func TestModelOnboardingCustomPathSupportsCursorEditing(t *testing.T) {
 func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
 	var created []string
 	model := setupModel{
-		options:  []string{"~/dev"},
-		checked:  map[string]bool{"~/dev": true},
-		expanded: map[string]bool{},
-		children: map[string][]string{
-			"~/dev": {"~/dev/web", "~/dev/extensions"},
+		rootPicker: rootPicker{
+			options:  []string{"~/dev"},
+			checked:  map[string]bool{"~/dev": true},
+			expanded: map[string]bool{},
+			children: map[string][]string{
+				"~/dev": {"~/dev/web", "~/dev/extensions"},
+			},
 		},
 		creator: func(roots []string) (config.FilePaths, config.Config, error) {
 			created = append([]string{}, roots...)
@@ -395,11 +397,13 @@ func TestSetupExpandsRootAndSelectsChildFolder(t *testing.T) {
 func TestSetupLoadsProjectCountsInBackground(t *testing.T) {
 	var counted []string
 	model := setupModel{
-		options:  []string{"~/dev", "~/Projects"},
-		checked:  map[string]bool{"~/dev": true},
-		expanded: map[string]bool{},
-		children: map[string][]string{},
-		counts:   map[string]int{},
+		rootPicker: rootPicker{
+			options:  []string{"~/dev", "~/Projects"},
+			checked:  map[string]bool{"~/dev": true},
+			expanded: map[string]bool{},
+			children: map[string][]string{},
+			counts:   map[string]int{},
+		},
 		counter: func(paths []string) map[string]int {
 			counted = append([]string{}, paths...)
 			return map[string]int{"~/dev": 5, "~/Projects": 0}
@@ -428,13 +432,15 @@ func TestSetupLoadsProjectCountsInBackground(t *testing.T) {
 
 func TestSetupCountsExpandedChildrenOnlyAfterExpand(t *testing.T) {
 	model := setupModel{
-		options:  []string{"~/dev"},
-		checked:  map[string]bool{"~/dev": true},
-		expanded: map[string]bool{},
-		children: map[string][]string{
-			"~/dev": {"~/dev/web", "~/dev/extensions"},
+		rootPicker: rootPicker{
+			options:  []string{"~/dev"},
+			checked:  map[string]bool{"~/dev": true},
+			expanded: map[string]bool{},
+			children: map[string][]string{
+				"~/dev": {"~/dev/web", "~/dev/extensions"},
+			},
+			counts: map[string]int{"~/dev": 3},
 		},
-		counts: map[string]int{"~/dev": 3},
 		counter: func(paths []string) map[string]int {
 			return map[string]int{"~/dev/web": 2, "~/dev/extensions": 1}
 		},
@@ -460,11 +466,13 @@ func TestSetupCountsExpandedChildrenOnlyAfterExpand(t *testing.T) {
 
 func TestSetupCustomPathSupportsCursorEditing(t *testing.T) {
 	model := setupModel{
-		options:   []string{"/tmp/dev"},
-		checked:   map[string]bool{},
-		expanded:  map[string]bool{},
-		children:  map[string][]string{},
-		selected:  1,
+		rootPicker: rootPicker{
+			options:  []string{"/tmp/dev"},
+			checked:  map[string]bool{},
+			expanded: map[string]bool{},
+			children: map[string][]string{},
+			selected: 1,
+		},
 		inputting: true,
 	}
 	for _, value := range []string{"/", "t", "m", "p", "/", "a", "p"} {
@@ -499,12 +507,14 @@ func TestInputCursorRendersOnceAtWrapBoundary(t *testing.T) {
 func TestSetupExpandsNestedFoldersLazily(t *testing.T) {
 	var created []string
 	model := setupModel{
-		options:  []string{"~/dev"},
-		checked:  map[string]bool{"~/dev": true},
-		expanded: map[string]bool{},
-		children: map[string][]string{
-			"~/dev":     {"~/dev/web", "~/dev/extensions"},
-			"~/dev/web": {"~/dev/web/eventca", "~/dev/web/other"},
+		rootPicker: rootPicker{
+			options:  []string{"~/dev"},
+			checked:  map[string]bool{"~/dev": true},
+			expanded: map[string]bool{},
+			children: map[string][]string{
+				"~/dev":     {"~/dev/web", "~/dev/extensions"},
+				"~/dev/web": {"~/dev/web/eventca", "~/dev/web/other"},
+			},
 		},
 		creator: func(roots []string) (config.FilePaths, config.Config, error) {
 			created = append([]string{}, roots...)
@@ -561,10 +571,12 @@ func TestSetupExpandsNestedFoldersLazily(t *testing.T) {
 
 func TestSetupNestsCheckedRootsUnderAncestorCandidate(t *testing.T) {
 	model := setupModel{
-		options:  []string{"~/dev"},
-		checked:  map[string]bool{"~/dev/extensions": true},
-		expanded: map[string]bool{},
-		children: map[string][]string{},
+		rootPicker: rootPicker{
+			options:  []string{"~/dev"},
+			checked:  map[string]bool{"~/dev/extensions": true},
+			expanded: map[string]bool{},
+			children: map[string][]string{},
+		},
 	}
 
 	view := stripANSI(model.View())
@@ -584,22 +596,24 @@ func TestSetupNestsCheckedRootsUnderAncestorCandidate(t *testing.T) {
 
 func TestSetupShowsParentCheckedWhenEveryChildIsChecked(t *testing.T) {
 	model := setupModel{
-		options: []string{"~/dev"},
-		checked: map[string]bool{
-			"~/dev/extensions":     true,
-			"~/dev/fork":           true,
-			"~/dev/ovw-screenshot": true,
-			"~/dev/playground":     true,
-			"~/dev/web":            true,
-		},
-		expanded: map[string]bool{"~/dev": true},
-		children: map[string][]string{
-			"~/dev": {
-				"~/dev/extensions",
-				"~/dev/fork",
-				"~/dev/ovw-screenshot",
-				"~/dev/playground",
-				"~/dev/web",
+		rootPicker: rootPicker{
+			options: []string{"~/dev"},
+			checked: map[string]bool{
+				"~/dev/extensions":     true,
+				"~/dev/fork":           true,
+				"~/dev/ovw-screenshot": true,
+				"~/dev/playground":     true,
+				"~/dev/web":            true,
+			},
+			expanded: map[string]bool{"~/dev": true},
+			children: map[string][]string{
+				"~/dev": {
+					"~/dev/extensions",
+					"~/dev/fork",
+					"~/dev/ovw-screenshot",
+					"~/dev/playground",
+					"~/dev/web",
+				},
 			},
 		},
 	}
@@ -622,12 +636,14 @@ func TestSetupShowsParentCheckedWhenEveryChildIsChecked(t *testing.T) {
 
 func TestSetupRevealsCheckedNestedRoots(t *testing.T) {
 	model := setupModel{
-		options:  []string{"~/dev"},
-		checked:  map[string]bool{"~/dev/web/eventca": true},
-		expanded: map[string]bool{},
-		children: map[string][]string{},
+		rootPicker: rootPicker{
+			options:  []string{"~/dev"},
+			checked:  map[string]bool{"~/dev/web/eventca": true},
+			expanded: map[string]bool{},
+			children: map[string][]string{},
+		},
 	}
-	model.revealCheckedRoots()
+	model.revealChecked()
 
 	view := stripANSI(model.View())
 	for _, want := range []string{"▾ [-] ~/dev", "▾ [-] web", "[x] eventca"} {
@@ -2358,7 +2374,7 @@ func TestModelConfigAddsRootWithSetupPicker(t *testing.T) {
 	if !strings.Contains(view, "custom path") || !strings.Contains(view, "space toggle") {
 		t.Fatalf("roots picker should use setup-style controls:\n%s", view)
 	}
-	model.configRootSelected = len(model.visibleConfigRootRows())
+	model.configRootPicker.selected = len(model.configRootPicker.visibleRows())
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	if model.screen != screenConfigRootsInput {
@@ -2395,8 +2411,8 @@ func TestModelConfigRootsUsesSetupCheckedSemantics(t *testing.T) {
 
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	model.configRootChildren = map[string][]string{"~/dev": []string{"~/dev/app"}}
-	model.configRootExpanded = map[string]bool{"~/dev": true}
+	model.configRootPicker.children = map[string][]string{"~/dev": []string{"~/dev/app"}}
+	model.configRootPicker.expanded = map[string]bool{"~/dev": true}
 	view := stripANSI(model.View())
 	if !strings.Contains(view, "[x] ~/dev") {
 		t.Fatalf("root should be checked:\n%s", view)
@@ -2414,18 +2430,18 @@ func TestModelConfigRootsDoesNotDuplicateCheckedDescendants(t *testing.T) {
 	model.openConfigRoots()
 	model.applyConfigRootCandidates([]string{"~/dev"})
 
-	if got := strings.Count(strings.Join(model.configRootOptions, "\n"), "~/dev/bots"); got != 0 {
-		t.Fatalf("descendant root should not be added as top-level option: %#v", model.configRootOptions)
+	if got := strings.Count(strings.Join(model.configRootPicker.options, "\n"), "~/dev/bots"); got != 0 {
+		t.Fatalf("descendant root should not be added as top-level option: %#v", model.configRootPicker.options)
 	}
 
-	rows := model.visibleConfigRootRows()
+	rows := model.configRootPicker.visibleRows()
 	seen := map[string]int{}
 	for _, row := range rows {
 		seen[row.Path]++
 	}
 	for _, path := range []string{"~/dev/bots", "~/dev/extensions"} {
 		if seen[path] != 1 {
-			t.Fatalf("%s visible count = %d, want 1; rows=%#v options=%#v", path, seen[path], rows, model.configRootOptions)
+			t.Fatalf("%s visible count = %d, want 1; rows=%#v options=%#v", path, seen[path], rows, model.configRootPicker.options)
 		}
 	}
 }
@@ -2752,12 +2768,14 @@ func TestModelPickerNavigationWraps(t *testing.T) {
 	}
 
 	setupPicker := setupModel{
-		options:  []string{"/tmp/a", "/tmp/b"},
-		checked:  map[string]bool{},
-		expanded: map[string]bool{},
-		children: map[string][]string{},
-		counts:   map[string]int{},
-		selected: 2,
+		rootPicker: rootPicker{
+			options:  []string{"/tmp/a", "/tmp/b"},
+			checked:  map[string]bool{},
+			expanded: map[string]bool{},
+			children: map[string][]string{},
+			counts:   map[string]int{},
+			selected: 2,
+		},
 	}
 	updated, _ := setupPicker.updatePicker(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	setupPicker = updated.(setupModel)

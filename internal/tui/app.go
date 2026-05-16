@@ -81,84 +81,79 @@ type Model struct {
 	configWriter configWriter
 	portDetector portDetector
 
-	width              int
-	height             int
-	selected           int
-	tableXOffset       int
-	detailYOffset      int
-	detailModalY       int
-	detailsExpanded    bool
-	screen             screenMode
-	search             string
-	searchCursor       int
-	searching          bool
-	filterSelected     int
-	activeFilter       string
-	sortSelected       int
-	activeSort         string
-	activeSortDir      string
-	noteInput          string
-	noteCursor         int
-	addInput           string
-	addCursor          int
-	addErr             string
-	statusSelected     int
-	statusInput        string
-	statusCursor       int
-	runnerSelected     int
-	runnerInput        string
-	runnerCursor       int
-	runnerYOffset      int
-	runnerAddName      string
-	runnerAdding       bool
-	runnerShowInfo     bool
-	commandInput       string
-	commandCursor      int
-	commandSelected    int
-	cursorHidden       bool
-	cursorBlinkID      int
-	onboardOptions     []string
-	onboardChecked     map[string]bool
-	onboardSelected    int
-	onboardInput       string
-	onboardCursor      int
-	onboardErr         string
-	columnSelected     int
-	columnOrder        []string
-	columnChecked      map[string]bool
-	columnErr          string
-	configSelected     int
-	configDraft        config.Config
-	configErr          string
-	configListField    configListField
-	configListSel      int
-	configListInput    string
-	configListCursor   int
-	configListEditing  bool
-	configInputKind    configInputKind
-	configInput        string
-	configCursor       int
-	configRootOptions  []string
-	configRootChecked  map[string]bool
-	configRootExpanded map[string]bool
-	configRootChildren map[string][]string
-	configRootCounts   map[string]int
-	configRootSelected int
-	configRootInput    string
-	configRootCursor   int
-	message            string
-	loading            bool
-	loadErr            error
-	enriching          bool
-	enrichedCount      int
-	enrichTotal        int
-	config             config.Config
-	configPaths        config.FilePaths
-	projects           []project.Project
-	scanElapsed        time.Duration
-	showScanElapsed    bool
-	recentByPath       map[string][]ovwformat.RecentCommit
-	filesByPath        map[string][]ovwformat.RecentFile
+	width             int
+	height            int
+	selected          int
+	tableXOffset      int
+	detailYOffset     int
+	detailModalY      int
+	detailsExpanded   bool
+	screen            screenMode
+	search            string
+	searchCursor      int
+	searching         bool
+	filterSelected    int
+	activeFilter      string
+	sortSelected      int
+	activeSort        string
+	activeSortDir     string
+	noteInput         string
+	noteCursor        int
+	addInput          string
+	addCursor         int
+	addErr            string
+	statusSelected    int
+	statusInput       string
+	statusCursor      int
+	runnerSelected    int
+	runnerInput       string
+	runnerCursor      int
+	runnerYOffset     int
+	runnerAddName     string
+	runnerAdding      bool
+	runnerShowInfo    bool
+	commandInput      string
+	commandCursor     int
+	commandSelected   int
+	cursorHidden      bool
+	cursorBlinkID     int
+	onboardOptions    []string
+	onboardChecked    map[string]bool
+	onboardSelected   int
+	onboardInput      string
+	onboardCursor     int
+	onboardErr        string
+	columnSelected    int
+	columnOrder       []string
+	columnChecked     map[string]bool
+	columnErr         string
+	configSelected    int
+	configDraft       config.Config
+	configErr         string
+	configListField   configListField
+	configListSel     int
+	configListInput   string
+	configListCursor  int
+	configListEditing bool
+	configInputKind   configInputKind
+	configInput       string
+	configCursor      int
+	configRootPicker  rootPicker
+	configRootInput   string
+	configRootCursor  int
+	message           string
+	loading           bool
+	loadErr           error
+	enriching         bool
+	enrichedCount     int
+	enrichTotal       int
+	config            config.Config
+	configPaths       config.FilePaths
+	projects          []project.Project
+	scanElapsed       time.Duration
+	showScanElapsed   bool
+	recentByPath      map[string][]ovwformat.RecentCommit
+	filesByPath       map[string][]ovwformat.RecentFile
 }
 
 func New() Model {
@@ -592,13 +587,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.attachPorts(msg.portsByPath)
 	case configRootCandidatesMsg:
 		m.applyConfigRootCandidates(msg.candidates)
-		return m, m.countConfigRootPaths(m.visibleConfigRootPaths())
+		return m, m.countConfigRootPaths(m.configRootPicker.visiblePaths())
 	case configRootCountsMsg:
-		if m.configRootCounts == nil {
-			m.configRootCounts = map[string]int{}
+		if m.configRootPicker.counts == nil {
+			m.configRootPicker.counts = map[string]int{}
 		}
 		for path, count := range msg.counts {
-			m.configRootCounts[path] = count
+			m.configRootPicker.counts[path] = count
 		}
 	case configSavedMsg:
 		m.loading = false
@@ -2120,7 +2115,7 @@ func renderShell(m Model) string {
 			case screenConfigInput:
 				content = overlayModal(content, configInputView(m.configInputTitle(), m.configInput, m.configInputPlaceholder(), m.configCursor, m.configErr, m.inputCursorState()), m.contentWidth())
 			case screenConfigRoots:
-				content = overlayModal(content, configRootsView(m.visibleConfigRootRows(), m.configRootSelected, m.configErr), m.contentWidth())
+				content = overlayModal(content, configRootsView(m.configRootPicker.visibleRows(), m.configRootPicker.selected, m.configErr), m.contentWidth())
 			case screenConfigRootsInput:
 				content = overlayModal(content, configRootInputView(m.configRootInput, m.configRootCursor, m.configErr, m.inputCursorState()), m.contentWidth())
 			case screenNote:

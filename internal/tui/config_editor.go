@@ -3,7 +3,6 @@ package tui
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -67,12 +66,7 @@ func (m *Model) openConfig() {
 	m.configInputKind = configInputNone
 	m.configInput = ""
 	m.configCursor = 0
-	m.configRootOptions = nil
-	m.configRootChecked = nil
-	m.configRootExpanded = nil
-	m.configRootChildren = nil
-	m.configRootCounts = nil
-	m.configRootSelected = 0
+	m.configRootPicker = rootPicker{}
 	m.configRootInput = ""
 	m.configRootCursor = 0
 }
@@ -172,7 +166,7 @@ func (m Model) editConfigRow() (tea.Model, tea.Cmd) {
 	switch m.configSelected {
 	case 0:
 		m.openConfigRoots()
-		return m, tea.Batch(m.loadConfigRootCandidates(), m.countConfigRootPaths(m.visibleConfigRootPaths()))
+		return m, tea.Batch(m.loadConfigRootCandidates(), m.countConfigRootPaths(m.configRootPicker.visiblePaths()))
 	case 1:
 		m.openConfigList(configListIgnoreDirs)
 	case 4:
@@ -254,15 +248,11 @@ func (m *Model) openConfigList(field configListField) {
 func (m *Model) openConfigRoots() {
 	m.screen = screenConfigRoots
 	m.configErr = ""
-	m.configRootSelected = 0
-	m.configRootExpanded = map[string]bool{}
-	m.configRootChildren = map[string][]string{}
-	m.configRootCounts = map[string]int{}
-	m.configRootChecked = checkedSetupRoots(m.configRootOptions, m.configDraft.Roots)
-	if len(m.configRootOptions) == 0 {
-		m.configRootOptions = append([]string{}, m.configDraft.Roots...)
+	if len(m.configRootPicker.options) == 0 {
+		m.configRootPicker = newRootPicker(m.configDraft.Roots, m.configDraft.Roots)
+		return
 	}
-	m.revealConfigCheckedRoots()
+	m.configRootPicker = newRootPicker(m.configRootPicker.options, m.configDraft.Roots)
 }
 
 func (m Model) loadConfigRootCandidates() tea.Cmd {
@@ -277,37 +267,8 @@ func (m Model) loadConfigRootCandidates() tea.Cmd {
 }
 
 func (m *Model) applyConfigRootCandidates(candidates []string) {
-	seen := map[string]bool{}
-	options := make([]string, 0, len(candidates)+len(m.configDraft.Roots))
-	for _, path := range candidates {
-		if path == "" || seen[path] {
-			continue
-		}
-		options = append(options, path)
-		seen[path] = true
-	}
-	for _, path := range m.configDraft.Roots {
-		if path == "" || seen[path] {
-			continue
-		}
-		if hasConfigRootOptionAncestor(options, path) {
-			continue
-		}
-		options = append(options, path)
-		seen[path] = true
-	}
-	m.configRootOptions = options
-	m.configRootChecked = checkedSetupRoots(options, m.configDraft.Roots)
-	m.revealConfigCheckedRoots()
-}
-
-func hasConfigRootOptionAncestor(options []string, path string) bool {
-	for _, option := range options {
-		if normalizeSetupPath(option) == normalizeSetupPath(path) || setupIsDescendant(option, path) {
-			return true
-		}
-	}
-	return false
+	options := rootPickerOptionsWithRoots(candidates, m.configDraft.Roots)
+	m.configRootPicker = newRootPicker(options, m.configDraft.Roots)
 }
 
 func (m Model) openConfigInput(kind configInputKind, value string) Model {
@@ -442,45 +403,45 @@ func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateConfigRoots(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	rows := m.visibleConfigRootRows()
+	rows := m.configRootPicker.visibleRows()
 	switch value := msg.String(); {
 	case isEscapeKey(value), value == "s":
-		m.configDraft.Roots = m.selectedConfigRoots()
+		m.configDraft.Roots = m.configRootPicker.selectedRoots()
 		m.screen = screenConfig
 		m.configErr = ""
 	case isDownKey(value):
-		m.configRootSelected = wrapPickerSelection(m.configRootSelected, len(rows)+1, 1)
+		m.configRootPicker.selected = wrapPickerSelection(m.configRootPicker.selected, len(rows)+1, 1)
 	case isUpKey(value):
-		m.configRootSelected = wrapPickerSelection(m.configRootSelected, len(rows)+1, -1)
+		m.configRootPicker.selected = wrapPickerSelection(m.configRootPicker.selected, len(rows)+1, -1)
 	case isRightKey(value):
-		if m.configRootSelected < len(rows) {
-			children := m.expandConfigRootPath(rows[m.configRootSelected].Path)
+		if m.configRootPicker.selected < len(rows) {
+			children := m.configRootPicker.expandPath(rows[m.configRootPicker.selected].Path)
 			return m, m.countConfigRootPaths(children)
 		}
 	case isLeftKey(value):
-		if m.configRootSelected < len(rows) {
-			row := rows[m.configRootSelected]
+		if m.configRootPicker.selected < len(rows) {
+			row := rows[m.configRootPicker.selected]
 			if row.Depth > 0 {
-				m.selectConfigRootPath(row.Parent)
+				m.configRootPicker.selectPath(row.Parent)
 				break
 			}
 			if row.Expandable || row.Expanded {
-				m.configRootExpanded[row.Path] = false
+				m.configRootPicker.expanded[row.Path] = false
 			}
 		}
 	case value == " ":
-		if m.configRootSelected < len(rows) {
-			m.toggleConfigRootRow(rows[m.configRootSelected])
+		if m.configRootPicker.selected < len(rows) {
+			m.configRootPicker.toggleRow(rows[m.configRootPicker.selected])
 		}
 	case isEnterKey(value):
-		if m.configRootSelected >= len(rows) {
+		if m.configRootPicker.selected >= len(rows) {
 			m.screen = screenConfigRootsInput
 			m.configRootInput = ""
 			m.configRootCursor = 0
 			m.configErr = ""
 			return m, m.startInputCursorBlink()
 		}
-		m.configDraft.Roots = m.selectedConfigRoots()
+		m.configDraft.Roots = m.configRootPicker.selectedRoots()
 		m.screen = screenConfig
 		m.configErr = ""
 	}
@@ -498,15 +459,15 @@ func (m Model) updateConfigRootsInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.screen = screenConfigRoots
 			return m, nil
 		}
-		if m.configRootChecked == nil {
-			m.configRootChecked = map[string]bool{}
+		if m.configRootPicker.checked == nil {
+			m.configRootPicker.checked = map[string]bool{}
 		}
-		m.configRootChecked[root] = true
-		m.addConfigRootOption(root)
+		m.configRootPicker.checked[root] = true
+		m.configRootPicker.addOption(root)
 		m.configRootInput = ""
 		m.configRootCursor = 0
 		m.screen = screenConfigRoots
-		m.selectConfigRootPath(root)
+		m.configRootPicker.selectPath(root)
 	case value == "left":
 		m.configRootCursor = textMoveLeft(m.configRootInput, m.configRootCursor)
 	case value == "right":
@@ -626,285 +587,8 @@ func (m *Model) moveConfigListItem(delta int) {
 	m.setConfigListValues(values)
 }
 
-func (m Model) visibleConfigRootRows() []setupRow {
-	rows := make([]setupRow, 0, len(m.configRootOptions))
-	for _, option := range m.configRootOptions {
-		rows = append(rows, m.visibleConfigRootRowsFor(option, "", 0)...)
-	}
-	return rows
-}
-
-func (m Model) visibleConfigRootPaths() []string {
-	rows := m.visibleConfigRootRows()
-	paths := make([]string, 0, len(rows))
-	for _, row := range rows {
-		paths = append(paths, row.Path)
-	}
-	return paths
-}
-
-func (m Model) visibleConfigRootRowsFor(path, parent string, depth int) []setupRow {
-	children, known := m.configRootChildren[path]
-	expanded := m.configRootExpanded[path] && len(children) > 0
-	checked := m.isConfigRootChecked(path)
-	rows := []setupRow{
-		{
-			Path:       path,
-			Label:      setupRowLabel(path, depth),
-			Parent:     parent,
-			Depth:      depth,
-			Checked:    checked,
-			Partial:    !checked && m.hasCheckedConfigRootDescendant(path),
-			Expandable: !known || len(children) > 0,
-			Expanded:   expanded,
-			Count:      m.configRootPathCount(path),
-		},
-	}
-	if !expanded {
-		return rows
-	}
-	for _, child := range children {
-		rows = append(rows, m.visibleConfigRootRowsFor(child, path, depth+1)...)
-	}
-	return rows
-}
-
-func (m Model) knownConfigRootRows() []setupRow {
-	rows := make([]setupRow, 0, len(m.configRootOptions))
-	for _, option := range m.configRootOptions {
-		rows = append(rows, m.knownConfigRootRowsFor(option, "", 0)...)
-	}
-	return rows
-}
-
-func (m Model) knownConfigRootRowsFor(path, parent string, depth int) []setupRow {
-	rows := []setupRow{{Path: path, Parent: parent, Depth: depth}}
-	for _, child := range m.configRootChildren[path] {
-		rows = append(rows, m.knownConfigRootRowsFor(child, path, depth+1)...)
-	}
-	return rows
-}
-
-func (m Model) selectedConfigRoots() []string {
-	roots := make([]string, 0, len(m.configRootChecked))
-	seen := map[string]bool{}
-	for _, row := range m.knownConfigRootRows() {
-		if m.configRootChecked[row.Path] {
-			roots = append(roots, row.Path)
-			seen[row.Path] = true
-		}
-	}
-	extra := make([]string, 0, len(m.configRootChecked))
-	for path, checked := range m.configRootChecked {
-		if checked && !seen[path] {
-			extra = append(extra, path)
-		}
-	}
-	sort.Strings(extra)
-	roots = append(roots, extra...)
-	return roots
-}
-
-func (m Model) hasCheckedConfigRootDescendant(path string) bool {
-	for checkedPath, checked := range m.configRootChecked {
-		if checked && setupIsDescendant(path, checkedPath) {
-			return true
-		}
-	}
-	return false
-}
-
-func (m Model) isConfigRootChecked(path string) bool {
-	if m.configRootChecked[path] {
-		return true
-	}
-	return m.hasCheckedConfigRootAncestor(path)
-}
-
-func (m Model) hasCheckedConfigRootAncestor(path string) bool {
-	for checkedPath, checked := range m.configRootChecked {
-		if checked && setupIsDescendant(checkedPath, path) {
-			return true
-		}
-	}
-	return false
-}
-
-func (m Model) hasAllCheckedConfigRootChildren(path string) bool {
-	children := m.ensureConfigRootChildren(path)
-	if len(children) == 0 {
-		return false
-	}
-	for _, child := range children {
-		if !m.isConfigRootChecked(child) {
-			return false
-		}
-	}
-	return true
-}
-
-func (m *Model) toggleConfigRootRow(row setupRow) {
-	if m.configRootChecked == nil {
-		m.configRootChecked = checkedSetupRoots(m.configRootOptions, m.configDraft.Roots)
-	}
-	if !m.configRootChecked[row.Path] && m.hasCheckedConfigRootAncestor(row.Path) {
-		m.excludeConfigRootFromCheckedAncestor(row.Path)
-		m.uncheckConfigRootDescendants(row.Path)
-		return
-	}
-	if !m.configRootChecked[row.Path] && m.hasAllCheckedConfigRootChildren(row.Path) {
-		m.uncheckConfigRootDescendants(row.Path)
-		return
-	}
-	next := !m.configRootChecked[row.Path]
-	m.configRootChecked[row.Path] = next
-	if !next {
-		return
-	}
-	if row.Depth == 0 {
-		m.uncheckConfigRootDescendants(row.Path)
-		return
-	}
-	if row.Parent != "" {
-		m.uncheckConfigRootAncestors(row.Path)
-		m.uncheckConfigRootDescendants(row.Path)
-	}
-}
-
-func (m *Model) excludeConfigRootFromCheckedAncestor(path string) {
-	ancestors := make([]string, 0, len(m.configRootChecked))
-	for checkedPath, checked := range m.configRootChecked {
-		if checked && setupIsDescendant(checkedPath, path) {
-			ancestors = append(ancestors, checkedPath)
-		}
-	}
-	sort.Slice(ancestors, func(i, j int) bool {
-		return len([]rune(ancestors[i])) > len([]rune(ancestors[j]))
-	})
-	for _, ancestor := range ancestors {
-		m.configRootChecked[ancestor] = false
-		m.checkConfigRootSiblingsAlongPath(ancestor, path)
-	}
-}
-
-func (m *Model) checkConfigRootSiblingsAlongPath(root, excluded string) {
-	current := root
-	for current != "" && current != excluded {
-		children := m.ensureConfigRootChildren(current)
-		next := setupDirectChildOnPath(current, excluded, children)
-		for _, child := range children {
-			if child != next && child != excluded {
-				m.configRootChecked[child] = true
-			}
-		}
-		if next == "" {
-			return
-		}
-		current = next
-	}
-}
-
-func (m *Model) uncheckConfigRootDescendants(path string) {
-	for checkedPath := range m.configRootChecked {
-		if setupIsDescendant(path, checkedPath) {
-			m.configRootChecked[checkedPath] = false
-		}
-	}
-}
-
-func (m *Model) uncheckConfigRootAncestors(path string) {
-	for checkedPath := range m.configRootChecked {
-		if setupIsDescendant(checkedPath, path) {
-			m.configRootChecked[checkedPath] = false
-		}
-	}
-}
-
-func (m *Model) selectConfigRootPath(path string) {
-	rows := m.visibleConfigRootRows()
-	for index, row := range rows {
-		if row.Path == path {
-			m.configRootSelected = index
-			return
-		}
-	}
-}
-
-func (m *Model) revealConfigCheckedRoots() {
-	for checkedPath, checked := range m.configRootChecked {
-		if !checked {
-			continue
-		}
-		m.revealConfigRootPath(checkedPath)
-	}
-}
-
-func (m *Model) revealConfigRootPath(path string) {
-	for _, option := range m.configRootOptions {
-		if option == path || !setupIsDescendant(option, path) {
-			continue
-		}
-		current := option
-		for current != "" && current != path {
-			m.configRootExpanded[current] = true
-			children := m.ensureConfigRootChildren(current)
-			next := setupDirectChildOnPath(current, path, children)
-			if next == "" {
-				return
-			}
-			current = next
-		}
-	}
-}
-
-func (m *Model) addConfigRootOption(path string) {
-	for _, existing := range m.configRootOptions {
-		if existing == path {
-			return
-		}
-	}
-	m.configRootOptions = append(m.configRootOptions, path)
-}
-
-func (m *Model) ensureConfigRootChildren(path string) []string {
-	if children, ok := m.configRootChildren[path]; ok {
-		return children
-	}
-	children, err := discoverSetupChildren(path)
-	if err != nil {
-		children = nil
-	}
-	children = mergeCheckedSetupChildren(path, children, m.configRootChecked)
-	m.configRootChildren[path] = children
-	return children
-}
-
-func (m *Model) expandConfigRootPath(path string) []string {
-	children := m.ensureConfigRootChildren(path)
-	if len(children) > 0 {
-		m.configRootExpanded[path] = true
-	}
-	return children
-}
-
-func (m Model) configRootPathCount(path string) *int {
-	if m.configRootCounts == nil {
-		return nil
-	}
-	count, ok := m.configRootCounts[path]
-	if !ok {
-		return nil
-	}
-	return &count
-}
-
 func (m Model) countConfigRootPaths(paths []string) tea.Cmd {
-	missing := make([]string, 0, len(paths))
-	for _, path := range paths {
-		if _, ok := m.configRootCounts[path]; !ok {
-			missing = append(missing, path)
-		}
-	}
+	missing := m.configRootPicker.missingCountPaths(paths)
 	if len(missing) == 0 {
 		return nil
 	}
