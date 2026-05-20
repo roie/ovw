@@ -2371,7 +2371,7 @@ func TestModelCommandPaletteOpensConfigEditor(t *testing.T) {
 		t.Fatalf("screen = %v, want config", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Settings", "Project folders", "Ignored folders", "Show unpushed commits", "Note display", "Open settings file", "←→ change", "s save"} {
+	for _, want := range []string{"Settings", "Project folders", "Ignored folders", "Show unpushed commits", "Note display", "Keyboard shortcuts", "Open settings file", "←→ change", "s save"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("config view missing %q:\n%s", want, view)
 		}
@@ -2380,6 +2380,21 @@ func TestModelCommandPaletteOpensConfigEditor(t *testing.T) {
 		if strings.Contains(view, notWant) {
 			t.Fatalf("config view should not show separate note setting %q:\n%s", notWant, view)
 		}
+	}
+}
+
+func TestModelCommandPaletteUsesConfiguredActionShortcuts(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.Actions.Editor = "e"
+	cfg.Keys.Actions.Runner = "u"
+	model := Model{config: cfg, projects: []project.Project{{Name: "app", Path: "/tmp/app", Scripts: []string{"dev"}}}}
+
+	actions := model.commandActions()
+	if got := shortcutForAction(actions, "Open in editor"); got != "e" {
+		t.Fatalf("editor shortcut = %q, want e", got)
+	}
+	if got := shortcutForAction(actions, "Run script"); got != "u" {
+		t.Fatalf("runner shortcut = %q, want u", got)
 	}
 }
 
@@ -2397,6 +2412,94 @@ func TestModelCommandPaletteOrdersSettingsBeforeHelpAndQuit(t *testing.T) {
 	}
 	if settings > help || settings > quit {
 		t.Fatalf("Settings should be before Help and Quit: %#v", labels)
+	}
+}
+
+func TestModelConfigEditsProjectActionShortcut(t *testing.T) {
+	model := Model{config: config.Default()}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Keyboard shortcuts") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigKeys {
+		t.Fatalf("screen = %v, want config keys", model.screen)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"Keyboard shortcuts", "Open editor", "o", "enter edit", "s done"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("shortcut view missing %q:\n%s", want, view)
+		}
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigInput {
+		t.Fatalf("screen = %v, want config input", model.screen)
+	}
+	model = updateSpecialKey(t, model, tea.KeyCtrlA)
+	model = updateSpecialKey(t, model, tea.KeyCtrlK)
+	model = updateKey(t, model, "e")
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.screen != screenConfigKeys {
+		t.Fatalf("screen = %v, want config keys after save", model.screen)
+	}
+	if model.configDraft.Keys.Actions.Editor != "e" {
+		t.Fatalf("editor shortcut = %q, want e", model.configDraft.Keys.Actions.Editor)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	if model.screen != screenConfig {
+		t.Fatalf("screen after leaving shortcuts = %v, want config", model.screen)
+	}
+}
+
+func TestModelConfigShortcutInputEscapeReturnsToKeyboardShortcuts(t *testing.T) {
+	model := Model{config: config.Default()}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Keyboard shortcuts") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigInput {
+		t.Fatalf("screen = %v, want config input", model.screen)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+
+	if model.screen != screenConfigKeys {
+		t.Fatalf("screen after shortcut input escape = %v, want keyboard shortcuts", model.screen)
+	}
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	if model.screen != screenConfig {
+		t.Fatalf("screen after keyboard shortcuts escape = %v, want settings", model.screen)
+	}
+}
+
+func TestModelConfigRejectsDuplicateProjectActionShortcut(t *testing.T) {
+	model := Model{config: config.Default(), configDraft: config.Default()}
+	model.openConfigKeys()
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model = updateSpecialKey(t, model, tea.KeyCtrlA)
+	model = updateSpecialKey(t, model, tea.KeyCtrlK)
+	model = updateKey(t, model, "t")
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.screen != screenConfigInput {
+		t.Fatalf("screen = %v, want to stay in input on invalid shortcut", model.screen)
+	}
+	if !strings.Contains(model.configErr, "already used by editor") {
+		t.Fatalf("configErr = %q, want duplicate shortcut error", model.configErr)
 	}
 }
 
@@ -4266,6 +4369,35 @@ func TestModelOpenEditorUsesSelectedProject(t *testing.T) {
 	}
 }
 
+func TestModelOpenEditorUsesConfiguredShortcut(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.Actions.Editor = "e"
+	var gotPath string
+	model := Model{
+		config: cfg,
+		editor: func(editor, path string) error {
+			gotPath = path
+			return nil
+		},
+		projects: []project.Project{{Name: "one", Path: "/tmp/one"}},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("default editor key should not run after remapping")
+	}
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected editor command from configured shortcut")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotPath != "/tmp/one" {
+		t.Fatalf("path = %q, want /tmp/one", gotPath)
+	}
+}
+
 func TestModelDetailOpenEditorUsesSelectedProject(t *testing.T) {
 	cfg := config.Default()
 	cfg.Editor = "code --reuse-window"
@@ -4294,6 +4426,30 @@ func TestModelDetailOpenEditorUsesSelectedProject(t *testing.T) {
 	}
 	if model.message != "Opened one" {
 		t.Fatalf("message = %q, want Opened one", model.message)
+	}
+}
+
+func TestModelDetailFooterUsesConfiguredActionShortcuts(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.Actions.Editor = "e"
+	cfg.Keys.Actions.Terminal = "y"
+	cfg.Keys.Actions.Note = "u"
+	cfg.Keys.Actions.Status = "i"
+	cfg.Keys.Actions.Hide = "z"
+	cfg.Keys.Actions.Pin = "b"
+	model := Model{
+		config:   cfg,
+		projects: []project.Project{{Name: "one", Path: "/tmp/one"}},
+		screen:   screenDetail,
+		width:    80,
+		height:   24,
+	}
+
+	view := stripANSI(model.View())
+	for _, want := range []string{"e open", "y terminal", "u note", "i status", "z hide", "b pin"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("detail view missing configured shortcut %q:\n%s", want, view)
+		}
 	}
 }
 
@@ -4667,6 +4823,15 @@ func commandLabels(actions []commandAction) []string {
 		labels = append(labels, action.Label)
 	}
 	return labels
+}
+
+func shortcutForAction(actions []commandAction, label string) string {
+	for _, action := range actions {
+		if action.Label == label {
+			return action.Shortcut
+		}
+	}
+	return ""
 }
 
 func indexOfLabel(labels []string, label string) int {

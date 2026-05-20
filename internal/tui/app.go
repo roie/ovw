@@ -63,6 +63,7 @@ const (
 	screenConfigRoots
 	screenConfigRootsInput
 	screenConfigNote
+	screenConfigKeys
 )
 
 type Model struct {
@@ -143,6 +144,7 @@ type Model struct {
 	configRootInput   string
 	configRootCursor  int
 	configNoteSel     int
+	configKeySel      int
 	message           string
 	loading           bool
 	loadErr           error
@@ -251,6 +253,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenConfigNote {
 			return m.updateConfigNote(msg)
 		}
+		if m.screen == screenConfigKeys {
+			return m.updateConfigKeys(msg)
+		}
 		if m.screen == screenNote {
 			return m.updateNote(msg)
 		}
@@ -356,24 +361,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openColumns()
 			return m, nil
 		}
-		if isNoteKey(msg.String()) && m.canOpenDetail() {
+		if m.isNoteKey(msg.String()) && m.canOpenDetail() {
 			project, _ := m.currentProject()
 			m.screen = screenNote
 			m.noteInput = project.Note.Value
 			m.noteCursor = len([]rune(m.noteInput))
 			return m, m.startInputCursorBlink()
 		}
-		if isStatusKey(msg.String()) && m.canOpenDetail() {
+		if m.isStatusKey(msg.String()) && m.canOpenDetail() {
 			project, _ := m.currentProject()
 			m.screen = screenStatus
 			m.statusSelected = m.currentStatusIndex(project.Status.Value)
 			return m, nil
 		}
-		if isPinKey(msg.String()) && m.canOpenDetail() {
+		if m.isPinKey(msg.String()) && m.canOpenDetail() {
 			m.loading = true
 			return m, m.togglePin()
 		}
-		if isRunnerKey(msg.String()) && m.canOpenDetail() {
+		if m.isRunnerKey(msg.String()) && m.canOpenDetail() {
 			return m.openRunner()
 		}
 		if isReloadKey(msg.String()) {
@@ -381,10 +386,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			return m, m.reloadOverview("", "Reloaded")
 		}
-		if isOpenKey(msg.String()) && m.canOpenDetail() {
+		if m.isOpenKey(msg.String()) && m.canOpenDetail() {
 			return m, m.openSelectedProject()
 		}
-		if isTerminalKey(msg.String()) && m.canOpenDetail() {
+		if m.isTerminalKey(msg.String()) && m.canOpenDetail() {
 			return m, m.openSelectedTerminal()
 		}
 	case tea.WindowSizeMsg:
@@ -661,7 +666,7 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case isDetailScrollKey(value):
 		m.scrollDetailModal(value)
-	case isNoteKey(value):
+	case m.isNoteKey(value):
 		project, ok := m.currentProject()
 		if ok {
 			m.screen = screenNote
@@ -669,23 +674,23 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.noteCursor = len([]rune(m.noteInput))
 			return m, m.startInputCursorBlink()
 		}
-	case isStatusKey(value):
+	case m.isStatusKey(value):
 		project, ok := m.currentProject()
 		if ok {
 			m.screen = screenStatus
 			m.statusSelected = m.currentStatusIndex(project.Status.Value)
 		}
-	case isOpenKey(value):
+	case m.isOpenKey(value):
 		return m, m.openSelectedProject()
-	case isTerminalKey(value):
+	case m.isTerminalKey(value):
 		return m, m.openSelectedTerminal()
-	case isVisibilityKey(value):
+	case m.isVisibilityKey(value):
 		m.screen = screenTable
 		m.detailModalY = 0
 		m.detailsExpanded = false
 		m.loading = true
 		return m, m.toggleVisibility()
-	case isPinKey(value):
+	case m.isPinKey(value):
 		m.screen = screenTable
 		m.detailModalY = 0
 		m.detailsExpanded = false
@@ -2087,16 +2092,16 @@ func renderShell(m Model) string {
 			switch m.screen {
 			case screenDetail:
 				project, ok := m.currentProject()
-				modal, maxOffset := detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded)
+				modal, maxOffset := detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.actionKeys())
 				if m.detailModalY > maxOffset {
 					m.detailModalY = maxOffset
-					modal, _ = detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded)
+					modal, _ = detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.actionKeys())
 				}
 				content = overlayModal(content, modal, m.contentWidth())
 			case screenAdd:
 				content = overlayModal(content, addProjectView(m.addInput, m.addCursor, m.addErr, m.inputCursorState()), m.contentWidth())
 			case screenHelp:
-				content = overlayModal(content, helpView(), m.contentWidth())
+				content = overlayModal(content, helpView(m.actionKeys()), m.contentWidth())
 			case screenCommand:
 				content = overlayModal(content, commandView(m.commandInput, m.commandCursor, m.filteredCommandActions(), m.commandSelected, m.inputCursorState()), m.contentWidth())
 			case screenRunner:
@@ -2125,6 +2130,8 @@ func renderShell(m Model) string {
 				content = overlayModal(content, configRootInputView(m.configRootInput, m.configRootCursor, m.configErr, m.inputCursorState()), m.contentWidth())
 			case screenConfigNote:
 				content = overlayModal(content, configNoteView(m.configNoteRows(), m.configNoteSel, m.configErr), m.contentWidth())
+			case screenConfigKeys:
+				content = overlayModal(content, configKeysView(m.configKeyRows(), m.configKeySel, m.configErr), m.contentWidth())
 			case screenNote:
 				project, _ := m.currentProject()
 				content = overlayModal(content, noteView(project.Name, m.noteInput, project.Note.Display, m.noteCursor, m.inputCursorState()), m.contentWidth())
@@ -2436,7 +2443,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigNote, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigNote, screenConfigKeys, screenNote, screenStatus, screenStatusInput:
 		return true
 	default:
 		return false

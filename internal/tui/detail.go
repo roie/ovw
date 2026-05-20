@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
 	"ovw/internal/projectview"
@@ -31,7 +32,7 @@ func detailModalView(project project.Project, ok bool, width int) string {
 	return modal
 }
 
-func detailModalViewWithScroll(project project.Project, ok bool, width int, height int, offset int, expanded bool) (string, int) {
+func detailModalViewWithScroll(project project.Project, ok bool, width int, height int, offset int, expanded bool, actionKeys ...config.ActionKeyConfig) (string, int) {
 	if width <= 0 || width > 72 {
 		width = 72
 	}
@@ -42,7 +43,7 @@ func detailModalViewWithScroll(project project.Project, ok bool, width int, heig
 	if ok && project.Name != "" {
 		title = projectTitle(project)
 	}
-	lines := detailModalLinesWithWidth(project, ok, width-4, expanded)
+	lines := detailModalLinesWithWidth(project, ok, width-4, expanded, actionKeys...)
 	lines, maxOffset := scrollDetailModalLines(lines, height, offset, width-4)
 	return modalView(title, lines, width), maxOffset
 }
@@ -51,9 +52,13 @@ func detailModalLines(project project.Project, ok bool) []string {
 	return detailModalLinesWithWidth(project, ok, 68, false)
 }
 
-func detailModalLinesWithWidth(project project.Project, ok bool, width int, expanded bool) []string {
+func detailModalLinesWithWidth(project project.Project, ok bool, width int, expanded bool, actionKeys ...config.ActionKeyConfig) []string {
 	if !ok {
 		return []string{modalMuted("No project selected")}
+	}
+	keys := config.Default().Keys.Actions
+	if len(actionKeys) > 0 {
+		keys = actionKeys[0]
 	}
 	valueWidth := width - 11
 	if valueWidth < 8 {
@@ -82,12 +87,12 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int, expa
 		}
 	}
 	primaryActions := []string{
-		actionHint("o", "open"),
-		actionHint("t", "terminal"),
-		actionHint("n", "note"),
-		actionHint("m", "status"),
+		actionHint(keys.Editor, "open"),
+		actionHint(keys.Terminal, "terminal"),
+		actionHint(keys.Note, "note"),
+		actionHint(keys.Status, "status"),
 	}
-	secondaryActions := []string{actionHint("x", visibilityAction(project)), actionHint("p", pinAction(project))}
+	secondaryActions := []string{actionHint(keys.Hide, visibilityAction(project)), actionHint(keys.Pin, pinAction(project))}
 	if hasCompactContent {
 		if expanded {
 			secondaryActions = append(secondaryActions, actionHint("space", "collapse"))

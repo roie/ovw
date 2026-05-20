@@ -36,6 +36,9 @@ func TestDefaultConfigValues(t *testing.T) {
 	if cfg.Stack.Aliases["Cloudflare Workers"] != "CF" {
 		t.Fatalf("Cloudflare alias = %q", cfg.Stack.Aliases["Cloudflare Workers"])
 	}
+	if cfg.Keys.Actions.Editor != "o" || cfg.Keys.Actions.Terminal != "t" || cfg.Keys.Actions.Hide != "x" {
+		t.Fatalf("action keys = %#v", cfg.Keys.Actions)
+	}
 }
 
 func TestPathHelpersUseHome(t *testing.T) {
@@ -64,6 +67,7 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	cfg.Roots = []string{"~/dev"}
 	cfg.StaleDays = 7
 	cfg.ColumnOrder = []string{"name", "path", "stack"}
+	cfg.Keys.Actions.Editor = "e"
 	cfg.Stack.Aliases["Cloudflare Workers"] = "Workers"
 
 	if err := Write(path, cfg); err != nil {
@@ -83,6 +87,9 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded.ColumnOrder, cfg.ColumnOrder) {
 		t.Fatalf("ColumnOrder = %#v", loaded.ColumnOrder)
+	}
+	if loaded.Keys.Actions.Editor != "e" {
+		t.Fatalf("Editor key = %q", loaded.Keys.Actions.Editor)
 	}
 	if loaded.Stack.Aliases["Cloudflare Workers"] != "Workers" {
 		t.Fatalf("Alias = %q", loaded.Stack.Aliases["Cloudflare Workers"])
@@ -137,6 +144,30 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				return cfg
 			},
 			want: `invalid sort_dir "down": expected asc or desc`,
+		},
+		{
+			name: "empty action key",
+			edit: func(cfg Config) Config {
+				cfg.Keys.Actions.Editor = ""
+				return cfg
+			},
+			want: `invalid keys.actions.editor: expected a key`,
+		},
+		{
+			name: "reserved action key",
+			edit: func(cfg Config) Config {
+				cfg.Keys.Actions.Editor = "?"
+				return cfg
+			},
+			want: `invalid keys.actions.editor "?": key is reserved`,
+		},
+		{
+			name: "duplicate action key",
+			edit: func(cfg Config) Config {
+				cfg.Keys.Actions.Terminal = "o"
+				return cfg
+			},
+			want: `invalid keys.actions.terminal "o": already used by editor`,
 		},
 	}
 	for _, tc := range tests {
@@ -202,6 +233,9 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	}
 	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note") {
 		t.Fatalf("default config missing column options comment:\n%s", text)
+	}
+	if !strings.Contains(text, "[keys.actions]") || !strings.Contains(text, `editor = "o"`) || !strings.Contains(text, `hide = "x"`) {
+		t.Fatalf("default config missing keyboard shortcuts:\n%s", text)
 	}
 	if strings.Contains(text, "show_untagged") || strings.Contains(text, "relative_dates") {
 		t.Fatalf("default config contains stale display fields:\n%s", text)

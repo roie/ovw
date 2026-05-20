@@ -1,6 +1,10 @@
 package tui
 
-import "github.com/charmbracelet/bubbles/key"
+import (
+	"ovw/internal/config"
+
+	"github.com/charmbracelet/bubbles/key"
+)
 
 type keyMap struct {
 	Quit key.Binding
@@ -78,36 +82,67 @@ func isColumnsKey(value string) bool {
 	return value == "c"
 }
 
-func isNoteKey(value string) bool {
-	return value == "n"
+func actionKeys(cfg config.Config) config.ActionKeyConfig {
+	keys := cfg.Keys.Actions
+	defaults := config.Default().Keys.Actions
+	if keys.Editor == "" {
+		keys.Editor = defaults.Editor
+	}
+	if keys.Terminal == "" {
+		keys.Terminal = defaults.Terminal
+	}
+	if keys.Runner == "" {
+		keys.Runner = defaults.Runner
+	}
+	if keys.Note == "" {
+		keys.Note = defaults.Note
+	}
+	if keys.Status == "" {
+		keys.Status = defaults.Status
+	}
+	if keys.Pin == "" {
+		keys.Pin = defaults.Pin
+	}
+	if keys.Hide == "" {
+		keys.Hide = defaults.Hide
+	}
+	return keys
 }
 
-func isStatusKey(value string) bool {
-	return value == "m"
+func (m Model) actionKeys() config.ActionKeyConfig {
+	return actionKeys(m.config)
 }
 
-func isPinKey(value string) bool {
-	return value == "p"
+func (m Model) isNoteKey(value string) bool {
+	return value == m.actionKeys().Note
+}
+
+func (m Model) isStatusKey(value string) bool {
+	return value == m.actionKeys().Status
+}
+
+func (m Model) isPinKey(value string) bool {
+	return value == m.actionKeys().Pin
 }
 
 func isReloadKey(value string) bool {
 	return value == "ctrl+r" || value == "f5"
 }
 
-func isRunnerKey(value string) bool {
-	return value == "r"
+func (m Model) isRunnerKey(value string) bool {
+	return value == m.actionKeys().Runner
 }
 
-func isOpenKey(value string) bool {
-	return value == "o"
+func (m Model) isOpenKey(value string) bool {
+	return value == m.actionKeys().Editor
 }
 
-func isTerminalKey(value string) bool {
-	return value == "t"
+func (m Model) isTerminalKey(value string) bool {
+	return value == m.actionKeys().Terminal
 }
 
-func isVisibilityKey(value string) bool {
-	return value == "x"
+func (m Model) isVisibilityKey(value string) bool {
+	return value == m.actionKeys().Hide
 }
 
 func isHelpKey(value string) bool {

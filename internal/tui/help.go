@@ -4,12 +4,17 @@ import (
 	"strings"
 
 	"ovw/internal/buildinfo"
+	"ovw/internal/config"
 )
 
 const helpDescription = "A terminal overview for your local projects."
 const helpURL = "https://github.com/roie/ovw"
 
-func helpView() string {
+func helpView(actionKeys ...config.ActionKeyConfig) string {
+	keys := config.Default().Keys.Actions
+	if len(actionKeys) > 0 {
+		keys = actionKeys[0]
+	}
 	entries := []helpEntry{
 		{Key: "↑↓ or j/k", Action: "move"},
 		{Key: "←→ or h/l", Action: "scroll columns"},
@@ -20,10 +25,10 @@ func helpView() string {
 		{Key: "a", Action: "add"},
 		{Key: "f, s", Action: "filter, sort"},
 		{Key: "c", Action: "columns"},
-		{Key: "o, t", Action: "open editor, terminal"},
-		{Key: "r", Action: "runner"},
-		{Key: "n, m", Action: "note, status"},
-		{Key: "p", Action: "pin"},
+		{Key: keys.Editor + ", " + keys.Terminal, Action: "open editor, terminal"},
+		{Key: keys.Runner, Action: "runner"},
+		{Key: keys.Note + ", " + keys.Status, Action: "note, status"},
+		{Key: keys.Pin, Action: "pin"},
 		{Key: "ctrl+r or F5", Action: "reload"},
 	}
 	lines := helpEntryLines(entries)

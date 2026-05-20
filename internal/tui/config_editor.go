@@ -27,6 +27,13 @@ const (
 	configInputStaleDays
 	configInputEditor
 	configInputShell
+	configInputKeyEditor
+	configInputKeyTerminal
+	configInputKeyRunner
+	configInputKeyNote
+	configInputKeyStatus
+	configInputKeyPin
+	configInputKeyHide
 )
 
 type configSavedMsg struct {
@@ -63,6 +70,12 @@ type configNoteRow struct {
 	Checked bool
 }
 
+type configKeyRow struct {
+	Label string
+	Value string
+	Kind  configInputKind
+}
+
 func (m *Model) openConfig() {
 	m.screen = screenConfig
 	m.configDraft = m.config
@@ -80,6 +93,7 @@ func (m *Model) openConfig() {
 	m.configRootInput = ""
 	m.configRootCursor = 0
 	m.configNoteSel = 0
+	m.configKeySel = 0
 }
 
 func (m Model) configRows() []configRow {
@@ -91,12 +105,18 @@ func (m Model) configRows() []configRow {
 		{Label: "Show unpushed commits", Value: boolSummary(cfg.ShowUnpushed)},
 		{Label: "Mark stale after", Value: daysSummary(cfg.StaleDays)},
 		{Label: "Note display", Value: noteDisplaySummary(cfg)},
+		{Label: "Keyboard shortcuts", Value: actionKeysSummary(cfg.Keys.Actions)},
 		{Label: "Editor", Value: emptySummary(cfg.Editor)},
 		{Label: "Terminal", Value: terminalSummary(cfg.Shell)},
 		{Label: "Default sort", Value: cfg.SortBy + " " + cfg.SortDir},
 		{Label: "Open settings file", Value: rawConfigPath(m.configPaths.Config)},
 		{Label: "Reset settings", Value: ""},
 	}
+}
+
+func actionKeysSummary(keys config.ActionKeyConfig) string {
+	keys = actionKeys(config.Config{Keys: config.KeyConfig{Actions: keys}})
+	return fmt.Sprintf("%s/%s/%s", keys.Editor, keys.Terminal, keys.Runner)
 }
 
 func listSummary(values []string) string {
@@ -206,13 +226,15 @@ func (m Model) editConfigRow() (tea.Model, tea.Cmd) {
 	case 5:
 		m.openConfigNote()
 	case 6:
-		return m.openConfigInput(configInputEditor, m.configDraft.Editor), m.startInputCursorBlink()
+		m.openConfigKeys()
 	case 7:
+		return m.openConfigInput(configInputEditor, m.configDraft.Editor), m.startInputCursorBlink()
+	case 8:
 		return m.openConfigInput(configInputShell, m.configDraft.Shell), m.startInputCursorBlink()
-	case 9:
+	case 10:
 		m.loading = true
 		return m, m.openConfigFile()
-	case 10:
+	case 11:
 		roots := append([]string{}, m.configDraft.Roots...)
 		m.configDraft = config.Default()
 		m.configDraft.Roots = roots
@@ -238,7 +260,9 @@ func (m *Model) changeConfigRow() {
 		m.configDraft.ShowUnpushed = !m.configDraft.ShowUnpushed
 	case 5:
 		m.openConfigNote()
-	case 8:
+	case 6:
+		m.openConfigKeys()
+	case 9:
 		m.cycleConfigSort(-1)
 	}
 	m.configErr = ""
@@ -257,7 +281,10 @@ func (m *Model) incrementConfigRow() {
 	case 5:
 		m.openConfigNote()
 		return
-	case 8:
+	case 6:
+		m.openConfigKeys()
+		return
+	case 9:
 		m.cycleConfigSort(1)
 		return
 	default:
@@ -268,6 +295,12 @@ func (m *Model) incrementConfigRow() {
 func (m *Model) openConfigNote() {
 	m.screen = screenConfigNote
 	m.configNoteSel = 0
+	m.configErr = ""
+}
+
+func (m *Model) openConfigKeys() {
+	m.screen = screenConfigKeys
+	m.configKeySel = 0
 	m.configErr = ""
 }
 
@@ -433,7 +466,11 @@ func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch value := msg.String(); {
 	case isEscapeKey(value):
-		m.screen = screenConfig
+		if isConfigKeyInput(m.configInputKind) {
+			m.screen = screenConfigKeys
+		} else {
+			m.screen = screenConfig
+		}
 		m.configErr = ""
 	case isEnterKey(value):
 		return m.saveConfigInput()
@@ -459,6 +496,15 @@ func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.configInput, m.configCursor = textInsert(m.configInput, m.configCursor, inputText(msg))
 	}
 	return m, nil
+}
+
+func isConfigKeyInput(kind configInputKind) bool {
+	switch kind {
+	case configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m Model) configNoteRows() []configNoteRow {
@@ -488,6 +534,36 @@ func (m Model) updateConfigNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 2:
 			m.configDraft.NoteFallbackDescription = !m.configDraft.NoteFallbackDescription
 		}
+	}
+	return m, nil
+}
+
+func (m Model) configKeyRows() []configKeyRow {
+	keys := actionKeys(m.configDraft)
+	return []configKeyRow{
+		{Label: "Open editor", Value: keys.Editor, Kind: configInputKeyEditor},
+		{Label: "Open terminal", Value: keys.Terminal, Kind: configInputKeyTerminal},
+		{Label: "Run script", Value: keys.Runner, Kind: configInputKeyRunner},
+		{Label: "Edit note", Value: keys.Note, Kind: configInputKeyNote},
+		{Label: "Set status", Value: keys.Status, Kind: configInputKeyStatus},
+		{Label: "Pin project", Value: keys.Pin, Kind: configInputKeyPin},
+		{Label: "Hide project", Value: keys.Hide, Kind: configInputKeyHide},
+	}
+}
+
+func (m Model) updateConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	rows := m.configKeyRows()
+	switch value := msg.String(); {
+	case isEscapeKey(value), value == "s":
+		m.screen = screenConfig
+		m.configErr = ""
+	case isDownKey(value):
+		m.configKeySel = wrapPickerSelection(m.configKeySel, len(rows), 1)
+	case isUpKey(value):
+		m.configKeySel = wrapPickerSelection(m.configKeySel, len(rows), -1)
+	case isEnterKey(value), value == " ":
+		row := rows[clampIndex(m.configKeySel, len(rows))]
+		return m.openConfigInput(row.Kind, row.Value), m.startInputCursorBlink()
 	}
 	return m, nil
 }
@@ -592,9 +668,37 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 	case configInputShell:
 		m.configDraft.Shell = value
 		m.screen = screenConfig
+	case configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
+		next := m.configDraft
+		setActionKey(&next.Keys.Actions, m.configInputKind, value)
+		if err := config.Validate(next); err != nil {
+			m.configErr = err.Error()
+			return m, nil
+		}
+		m.configDraft = next
+		m.screen = screenConfigKeys
 	}
 	m.configErr = ""
 	return m, nil
+}
+
+func setActionKey(keys *config.ActionKeyConfig, kind configInputKind, value string) {
+	switch kind {
+	case configInputKeyEditor:
+		keys.Editor = value
+	case configInputKeyTerminal:
+		keys.Terminal = value
+	case configInputKeyRunner:
+		keys.Runner = value
+	case configInputKeyNote:
+		keys.Note = value
+	case configInputKeyStatus:
+		keys.Status = value
+	case configInputKeyPin:
+		keys.Pin = value
+	case configInputKeyHide:
+		keys.Hide = value
+	}
 }
 
 func (m Model) saveConfigListInput() Model {
@@ -714,6 +818,20 @@ func (m Model) configInputTitle() string {
 		return "Editor"
 	case configInputShell:
 		return "Terminal"
+	case configInputKeyEditor:
+		return "Open editor shortcut"
+	case configInputKeyTerminal:
+		return "Open terminal shortcut"
+	case configInputKeyRunner:
+		return "Run script shortcut"
+	case configInputKeyNote:
+		return "Edit note shortcut"
+	case configInputKeyStatus:
+		return "Set status shortcut"
+	case configInputKeyPin:
+		return "Pin project shortcut"
+	case configInputKeyHide:
+		return "Hide project shortcut"
 	default:
 		return "Config"
 	}
@@ -727,6 +845,20 @@ func (m Model) configInputPlaceholder() string {
 		return "code"
 	case configInputShell:
 		return "empty uses default terminal"
+	case configInputKeyEditor:
+		return "o"
+	case configInputKeyTerminal:
+		return "t"
+	case configInputKeyRunner:
+		return "r"
+	case configInputKeyNote:
+		return "n"
+	case configInputKeyStatus:
+		return "m"
+	case configInputKeyPin:
+		return "p"
+	case configInputKeyHide:
+		return "x"
 	default:
 		return ""
 	}
@@ -856,6 +988,19 @@ func configNoteView(rows []configNoteRow, selected int, errText string) string {
 	}
 	lines = append(lines, "", actionHint("space", "toggle")+" · "+actionHint("enter", "done"))
 	return modalView("Note display", lines, 72)
+}
+
+func configKeysView(rows []configKeyRow, selected int, errText string) string {
+	labels := make([]string, 0, len(rows))
+	for _, row := range rows {
+		labels = append(labels, row.Label+"  "+modalMuted(row.Value))
+	}
+	lines := modalOptionLines(labels, selected)
+	if errText != "" {
+		lines = append(lines, "", errorStyle.Render(errText))
+	}
+	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("s", "done"))
+	return modalView("Keyboard shortcuts", lines, 64)
 }
 
 func configRootsView(rows []setupRow, selected int, errText string) string {

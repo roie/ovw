@@ -112,6 +112,7 @@ func commandMatches(action commandAction, query string) bool {
 }
 
 func (m Model) commandActions() []commandAction {
+	keys := m.actionKeys()
 	actions := []commandAction{
 		{Label: "Search projects", Shortcut: "/", Aliases: []string{"search", "find"}, Run: func(m Model) (Model, tea.Cmd) {
 			m.screen = screenTable
@@ -119,17 +120,17 @@ func (m Model) commandActions() []commandAction {
 			m.searchCursor = textCursor(m.search, m.searchCursor)
 			return m, nil
 		}},
-		{Label: "Open in editor", Shortcut: "o", Aliases: []string{"open", "editor"}, Run: commandOpenSelectedProject},
-		{Label: "Open terminal here", Shortcut: "t", Aliases: []string{"terminal", "shell"}, Run: commandOpenSelectedTerminal},
+		{Label: "Open in editor", Shortcut: keys.Editor, Aliases: []string{"open", "editor"}, Run: commandOpenSelectedProject},
+		{Label: "Open terminal here", Shortcut: keys.Terminal, Aliases: []string{"terminal", "shell"}, Run: commandOpenSelectedTerminal},
 		{Label: "Show details", Shortcut: "enter", Aliases: []string{"details", "detail"}, Run: commandShowDetails},
-		{Label: "Edit note", Shortcut: "n", Aliases: []string{"note"}, Run: commandEditNote},
-		{Label: "Set status", Shortcut: "m", Aliases: []string{"status"}, Run: commandSetStatus},
-		{Label: m.pinCommandLabel(), Shortcut: "p", Aliases: []string{"pin", "unpin"}, Run: commandTogglePin},
+		{Label: "Edit note", Shortcut: keys.Note, Aliases: []string{"note"}, Run: commandEditNote},
+		{Label: "Set status", Shortcut: keys.Status, Aliases: []string{"status"}, Run: commandSetStatus},
+		{Label: m.pinCommandLabel(), Shortcut: keys.Pin, Aliases: []string{"pin", "unpin"}, Run: commandTogglePin},
 		{Label: "Filter projects", Shortcut: "f", Aliases: []string{"filter"}, Run: commandFilterProjects},
 		{Label: "Sort projects", Shortcut: "s", Aliases: []string{"sort"}, Run: commandSortProjects},
 	}
 	if m.canRunSelectedScript() {
-		actions = append(actions, commandAction{Label: "Run script", Shortcut: "r", Aliases: []string{"runner", "script", "run"}, Run: commandOpenRunner})
+		actions = append(actions, commandAction{Label: "Run script", Shortcut: keys.Runner, Aliases: []string{"runner", "script", "run"}, Run: commandOpenRunner})
 	}
 	actions = append(actions, commandAction{Label: "Choose columns", Shortcut: "c", Aliases: []string{"columns"}, Run: func(m Model) (Model, tea.Cmd) {
 		m.openColumns()

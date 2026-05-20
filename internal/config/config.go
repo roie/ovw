@@ -35,6 +35,7 @@ type Config struct {
 	SortBy                  string      `toml:"sort_by"`
 	SortDir                 string      `toml:"sort_dir"`
 	Stack                   StackConfig `toml:"stack"`
+	Keys                    KeyConfig   `toml:"keys"`
 	Editor                  string      `toml:"editor"`
 	Shell                   string      `toml:"shell"`
 }
@@ -42,6 +43,20 @@ type Config struct {
 type StackConfig struct {
 	ShowUnknown bool              `toml:"show_unknown"`
 	Aliases     map[string]string `toml:"aliases"`
+}
+
+type KeyConfig struct {
+	Actions ActionKeyConfig `toml:"actions"`
+}
+
+type ActionKeyConfig struct {
+	Editor   string `toml:"editor"`
+	Terminal string `toml:"terminal"`
+	Runner   string `toml:"runner"`
+	Note     string `toml:"note"`
+	Status   string `toml:"status"`
+	Pin      string `toml:"pin"`
+	Hide     string `toml:"hide"`
 }
 
 type FilePaths struct {
@@ -79,6 +94,17 @@ func Default() Config {
 				"React Native":       "RN",
 				"TypeScript":         "TS",
 				"JavaScript":         "JS",
+			},
+		},
+		Keys: KeyConfig{
+			Actions: ActionKeyConfig{
+				Editor:   "o",
+				Terminal: "t",
+				Runner:   "r",
+				Note:     "n",
+				Status:   "m",
+				Pin:      "p",
+				Hide:     "x",
 			},
 		},
 		Editor: "code",
@@ -161,12 +187,59 @@ func Validate(cfg Config) error {
 	if cfg.SortDir != "asc" && cfg.SortDir != "desc" {
 		return fmt.Errorf("invalid sort_dir %q: expected asc or desc", cfg.SortDir)
 	}
+	if err := validateActionKeys(cfg.Keys.Actions); err != nil {
+		return err
+	}
 	return nil
 }
 
 func validSortBy(sortBy string) bool {
 	switch sortBy {
 	case "activity", "updated", "name", "status":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateActionKeys(keys ActionKeyConfig) error {
+	values := []struct {
+		name string
+		key  string
+	}{
+		{"editor", keys.Editor},
+		{"terminal", keys.Terminal},
+		{"runner", keys.Runner},
+		{"note", keys.Note},
+		{"status", keys.Status},
+		{"pin", keys.Pin},
+		{"hide", keys.Hide},
+	}
+	seen := map[string]string{}
+	for _, value := range values {
+		key := strings.TrimSpace(value.key)
+		if key == "" {
+			return fmt.Errorf("invalid keys.actions.%s: expected a key", value.name)
+		}
+		if reservedActionKey(key) {
+			return fmt.Errorf("invalid keys.actions.%s %q: key is reserved", value.name, key)
+		}
+		if previous, ok := seen[key]; ok {
+			return fmt.Errorf("invalid keys.actions.%s %q: already used by %s", value.name, key, previous)
+		}
+		seen[key] = value.name
+	}
+	return nil
+}
+
+func reservedActionKey(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "q", "ctrl+c", "?", "esc", "enter", "/", " ", "space",
+		"up", "down", "left", "right", "h", "j", "k", "l",
+		"ctrl+p", ":", "ctrl+r", "f5",
+		"a", "f", "s", "c",
+		"backspace", "ctrl+h", "delete", "ctrl+d",
+		"ctrl+a", "ctrl+e", "ctrl+u", "ctrl+k", "ctrl+w":
 		return true
 	default:
 		return false
@@ -462,6 +535,14 @@ sort_by = "activity"
 sort_dir = "desc"
 
 # ─────────────────────────────────────────
+# Editor and Shell
+# ─────────────────────────────────────────
+
+# Commands used by TUI open and terminal actions.
+editor = "code"
+shell = ""
+
+# ─────────────────────────────────────────
 # Stack
 # ─────────────────────────────────────────
 
@@ -475,10 +556,15 @@ show_unknown = true
 "JavaScript"         = "JS"
 
 # ─────────────────────────────────────────
-# Editor and Shell
+# Keyboard Shortcuts
 # ─────────────────────────────────────────
 
-# Commands used by TUI open and terminal actions.
-editor = "code"
-shell = ""
+[keys.actions]
+editor = "o"
+terminal = "t"
+runner = "r"
+note = "n"
+status = "m"
+pin = "p"
+hide = "x"
 `
