@@ -490,15 +490,6 @@ func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.saveConfigListInput(), nil
-	case value == "d":
-		if m.configListInput != "" || m.configListEditing {
-			m.configListInput, m.configListCursor = textInsert(m.configListInput, m.configListCursor, inputText(msg))
-			return m, nil
-		}
-		if len(values) > 0 {
-			m.setConfigListValues(deleteStringAt(values, clampIndex(m.configListSel, len(values))))
-			m.configListSel = clampIndex(m.configListSel, len(m.configListValues()))
-		}
 	case isLeftKey(value):
 		if m.configListInput != "" || m.configListEditing {
 			m.configListCursor = textMoveLeft(m.configListInput, m.configListCursor)
@@ -527,13 +518,15 @@ func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.configListInput, m.configListCursor = textDeletePreviousWord(m.configListInput, m.configListCursor)
 	case isBackspaceKey(value):
 		m.configListInput, m.configListCursor = textBackspace(m.configListInput, m.configListCursor)
-	case isDeleteKey(value):
-		if m.configListField == configListFieldOptions && m.configListInput == "" && !m.configListEditing && len(values) > 0 {
+	case value == "delete":
+		if m.configListInput == "" && !m.configListEditing && len(values) > 0 {
 			m.setConfigListValues(deleteStringAt(values, clampIndex(m.configListSel, len(values))))
 			m.configListSel = clampIndex(m.configListSel, len(m.configListValues()))
 		} else {
 			m.configListInput, m.configListCursor = textDelete(m.configListInput, m.configListCursor)
 		}
+	case isDeleteKey(value):
+		m.configListInput, m.configListCursor = textDelete(m.configListInput, m.configListCursor)
 	default:
 		m.configListInput, m.configListCursor = textInsert(m.configListInput, m.configListCursor, inputText(msg))
 		m.configListEditing = false
@@ -592,7 +585,7 @@ func (m Model) updateConfigFields(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveConfigField(-1)
 	case isRightKey(value):
 		m.moveConfigField(1)
-	case value == "d":
+	case value == "delete":
 		if m.configFieldSel < len(m.configDraft.Fields) {
 			m.deleteConfigField(m.configFieldSel)
 		}
@@ -1315,7 +1308,7 @@ func configListView(title string, values []string, selected int, input string, c
 
 func configListFooter(title string, valueCount int) string {
 	if title != "Options" {
-		return actionHint("enter", "add/save") + " · " + actionHint("space", "edit") + " · " + actionHint("d", "delete") + " · " + actionHint("←→", "reorder") + " · " + actionHint("s", "done")
+		return actionHint("enter", "add/save") + " · " + actionHint("space", "edit") + " · " + actionHint("del", "delete") + " · " + actionHint("←→", "reorder") + " · " + actionHint("s", "done")
 	}
 	if valueCount == 0 {
 		return actionHint("enter", "add") + " · " + actionHint("esc", "done")
@@ -1372,7 +1365,7 @@ func configFieldsView(fields []config.FieldConfig, selected int, errText string)
 	if errText != "" {
 		lines = append(lines, "", errorStyle.Render(errText))
 	}
-	lines = append(lines, "", actionHint("enter", "edit/add")+" · "+actionHint("d", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("s", "done"))
+	lines = append(lines, "", actionHint("enter", "edit/add")+" · "+actionHint("del", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("s", "done"))
 	return modalView("Fields", lines, 72)
 }
 

@@ -3043,7 +3043,7 @@ func TestModelConfigAddsCustomField(t *testing.T) {
 		t.Fatalf("screen = %v, want config fields", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Fields", "+ add field", "enter edit/add", "d delete"} {
+	for _, want := range []string{"Fields", "+ add field", "enter edit/add", "del delete"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("fields view missing %q:\n%s", want, view)
 		}
@@ -3145,6 +3145,10 @@ func TestModelConfigDeletesCustomFieldFromList(t *testing.T) {
 	model.openConfigFields()
 
 	model = updateKey(t, model, "d")
+	if got, want := len(model.configDraft.Fields), 2; got != want {
+		t.Fatalf("d should not delete fields, got %d fields", got)
+	}
+	model = updateSpecialKey(t, model, tea.KeyDelete)
 
 	if got, want := model.configDraft.Fields, []config.FieldConfig{{ID: "reviewed", Label: "Reviewed", Type: "checkbox"}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("fields = %#v, want %#v", got, want)
@@ -3251,6 +3255,28 @@ func TestModelConfigFieldOptionsTreatPrintableKeysAsInput(t *testing.T) {
 		if strings.Contains(view, unwanted) {
 			t.Fatalf("empty options view should not show %q:\n%s", unwanted, view)
 		}
+	}
+}
+
+func TestModelConfigListDeletesWithDeleteKey(t *testing.T) {
+	cfg := config.Default()
+	cfg.IgnoreDirs = []string{"node_modules", "dist"}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigList(configListIgnoreDirs)
+
+	model = updateKey(t, model, "d")
+	if got, want := model.configDraft.IgnoreDirs, []string{"node_modules", "dist"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("d should not delete list items, got %#v", got)
+	}
+	if model.configListInput != "d" {
+		t.Fatalf("configListInput = %q, want d typed into add input", model.configListInput)
+	}
+	model.configListInput = ""
+	model.configListCursor = 0
+	model = updateSpecialKey(t, model, tea.KeyDelete)
+	if got, want := model.configDraft.IgnoreDirs, []string{"dist"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ignore dirs = %#v, want %#v", got, want)
 	}
 }
 
