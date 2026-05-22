@@ -2323,7 +2323,7 @@ func renderShell(m Model) string {
 			case screenConfig:
 				content = overlayModal(content, configView(m.configRows(), m.configSelected, m.configErr), m.contentWidth())
 			case screenConfigList:
-				content = overlayModal(content, configListView(m.configListTitle(), m.configListValues(), m.configListSelected(), m.configListInput, m.configListCursor, m.configListEditing, m.configErr, m.inputCursorState()), m.contentWidth())
+				content = overlayModal(content, configListView(m.configListTitle(), m.configListValues(), m.configListSelected(), m.configListInput, m.configListCursor, m.configListEditing, m.configErr, m.tableHeight(), m.inputCursorState()), m.contentWidth())
 			case screenConfigInput:
 				content = overlayModal(content, configInputView(m.configInputTitle(), m.configInput, m.configInputPlaceholder(), m.configCursor, m.configErr, m.inputCursorState()), m.contentWidth())
 			case screenConfigRoots:

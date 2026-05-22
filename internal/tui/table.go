@@ -6,6 +6,8 @@ import (
 	"ovw/internal/config"
 	"ovw/internal/project"
 	"ovw/internal/projectview"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 type tableCell struct {
@@ -242,12 +244,11 @@ func truncateText(value string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	runes := []rune(value)
-	if len(runes) <= width {
+	if lipglossWidth(value) <= width {
 		return value
 	}
 	if width <= 3 {
-		return string(runes[:width])
+		return ansi.Truncate(value, width, "")
 	}
-	return string(runes[:width-3]) + "..."
+	return ansi.Truncate(value, width, "...")
 }

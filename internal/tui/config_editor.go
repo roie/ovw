@@ -1287,7 +1287,7 @@ func configView(rows []configRow, selected int, errText string) string {
 	return modalView("Settings", lines, 64)
 }
 
-func configListView(title string, values []string, selected int, input string, cursor int, editing bool, errText string, cursorState ...inputCursorState) string {
+func configListView(title string, values []string, selected int, input string, cursor int, editing bool, errText string, height int, cursorState ...inputCursorState) string {
 	placeholder := "type to add..."
 	if editing {
 		placeholder = "edit selected..."
@@ -1297,7 +1297,8 @@ func configListView(title string, values []string, selected int, input string, c
 	if len(values) == 0 {
 		lines = append(lines, modalMuted("No values yet"))
 	} else {
-		lines = append(lines, modalOptionLines(values, selected)...)
+		optionHeight := configListOptionHeight(height, len(lines), errText != "")
+		lines = append(lines, visibleConfigListOptionLines(values, selected, optionHeight)...)
 	}
 	if errText != "" {
 		lines = append(lines, "", errorStyle.Render(errText))
@@ -1306,14 +1307,48 @@ func configListView(title string, values []string, selected int, input string, c
 	return modalView(title, lines, 64)
 }
 
+func configListOptionHeight(height int, beforeOptions int, hasError bool) int {
+	if height <= 0 {
+		return 1 << 30
+	}
+	// Frame lines, existing input/separator lines, optional error block,
+	// blank separator before footer, and footer line.
+	reserved := 4 + beforeOptions + 2
+	if hasError {
+		reserved += 2
+	}
+	available := height - reserved
+	if available < 1 {
+		return 1
+	}
+	return available
+}
+
+func visibleConfigListOptionLines(values []string, selected int, height int) []string {
+	lines := modalOptionLines(values, selected)
+	if height <= 0 || len(lines) <= height {
+		return lines
+	}
+	selected = clampIndex(selected, len(lines))
+	start := selected - height + 1
+	if start < 0 {
+		start = 0
+	}
+	end := start + height
+	if end > len(lines) {
+		end = len(lines)
+	}
+	return append([]string{}, lines[start:end]...)
+}
+
 func configListFooter(title string, valueCount int) string {
 	if title != "Options" {
-		return actionHint("enter", "add/save") + " · " + actionHint("space", "edit") + " · " + actionHint("del", "delete") + " · " + actionHint("←→", "reorder") + " · " + actionHint("s", "done")
+		return actionHint("enter", "add/save") + " · " + actionHint("space", "edit") + " · " + actionHint("del", "delete") + " · " + actionHint("s", "done")
 	}
 	if valueCount == 0 {
 		return actionHint("enter", "add") + " · " + actionHint("esc", "done")
 	}
-	return actionHint("enter", "edit/add") + " · " + actionHint("del", "delete") + " · " + actionHint("←→", "reorder") + " · " + actionHint("esc", "done")
+	return actionHint("enter", "edit/add") + " · " + actionHint("del", "delete") + " · " + actionHint("esc", "done")
 }
 
 func configInputView(title, value, placeholder string, cursor int, errText string, cursorState ...inputCursorState) string {

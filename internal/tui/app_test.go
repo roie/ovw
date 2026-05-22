@@ -3280,6 +3280,54 @@ func TestModelConfigListDeletesWithDeleteKey(t *testing.T) {
 	}
 }
 
+func TestModelConfigListKeepsFooterInsideModalWhenLong(t *testing.T) {
+	cfg := config.Default()
+	cfg.IgnoreDirs = []string{
+		"node_modules",
+		".git",
+		"dist",
+		"build",
+		"target",
+		".next",
+		".nuxt",
+		".svelte-kit",
+		".turbo",
+		".cache",
+		"coverage",
+		"vendor",
+		".venv",
+		"venv",
+		"__pycache__",
+	}
+	model := Model{
+		width:  80,
+		height: 22,
+		config: cfg,
+		projects: []project.Project{
+			{Name: "app", Path: "/tmp/app", Status: ovwformat.StatusFromTags("", []string{"dirty"}), Note: ovwformat.NoteInfo{Display: "feat: table bleed"}},
+		},
+	}
+	model.openConfig()
+	model.openConfigList(configListIgnoreDirs)
+
+	lines := strings.Split(stripANSI(model.View()), "\n")
+	if len(lines) != model.height {
+		t.Fatalf("View() rendered %d lines, want %d:\n%s", len(lines), model.height, strings.Join(lines, "\n"))
+	}
+	foundFooter := false
+	for _, line := range lines {
+		if strings.Contains(line, "enter") && strings.Contains(line, "del") && strings.Contains(line, "done") {
+			foundFooter = true
+			if strings.Contains(line, "dirty") || strings.Contains(line, "feat: table bleed") {
+				t.Fatalf("modal footer leaked table content:\n%s", strings.Join(lines, "\n"))
+			}
+		}
+	}
+	if !foundFooter {
+		t.Fatalf("modal footer missing from long config list:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
 func TestModelConfigSavesExistingCustomFieldWithoutExposingID(t *testing.T) {
 	cfg := config.Default()
 	cfg.Fields = []config.FieldConfig{{ID: "review_url", Label: "Review URL", Type: "text"}}
