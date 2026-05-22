@@ -53,12 +53,20 @@ func detailModalLines(project project.Project, ok bool) []string {
 }
 
 func detailModalLinesWithWidth(project project.Project, ok bool, width int, expanded bool, actionKeys ...config.ActionKeyConfig) []string {
-	if !ok {
-		return []string{modalMuted("No project selected")}
-	}
 	keys := config.Default().Keys.Actions
 	if len(actionKeys) > 0 {
 		keys = actionKeys[0]
+	}
+	return detailModalLinesWithSelectionRows(project, ok, width, expanded, -1, keys)
+}
+
+func detailModalLinesWithSelection(project project.Project, ok bool, width int, expanded bool, selected int, keys config.ActionKeyConfig) string {
+	return strings.Join(detailModalLinesWithSelectionRows(project, ok, width, expanded, selected, keys), "\n")
+}
+
+func detailModalLinesWithSelectionRows(project project.Project, ok bool, width int, expanded bool, selected int, keys config.ActionKeyConfig) []string {
+	if !ok {
+		return []string{modalMuted("No project selected")}
 	}
 	valueWidth := width - 11
 	if valueWidth < 8 {
@@ -70,18 +78,27 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int, expa
 		lines = append(lines, "")
 	}
 	hasCompactContent := detailModalHasCompactContent(project)
-	for _, field := range detailFields(project, projectview.DetailActivity) {
-		if field.Label == "Scripts" && !expanded {
-			field.Value, _ = compactScripts(project.Scripts)
+	rows := detailRows(project, projectview.DetailActivity)
+	selectedRow := selectedDetailRowIndex(selected, rows)
+	for index, row := range rows {
+		if row.Label == "Scripts" && !expanded {
+			row.Value, _ = compactScripts(project.Scripts)
 		}
-		if field.Value == "" {
+		if row.Value == "" && row.EditKind == detailEditNone {
 			continue
 		}
-		wrapped := textwrap.Lines(field.Value, valueWidth)
+		wrapped := textwrap.Lines(row.Value, valueWidth)
+		if row.Value == "" && row.EditKind != detailEditNone {
+			wrapped = []string{""}
+		}
 		if len(wrapped) == 0 {
 			continue
 		}
-		lines = append(lines, detailLine(field.Label, wrapped[0]))
+		line := detailLine(row.Label, wrapped[0])
+		if index == selectedRow {
+			line = modalAccent("> " + line)
+		}
+		lines = append(lines, line)
 		for _, line := range wrapped[1:] {
 			lines = append(lines, detailLine("", line))
 		}
@@ -89,8 +106,11 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int, expa
 	primaryActions := []string{
 		actionHint(keys.Editor, "open"),
 		actionHint(keys.Terminal, "terminal"),
-		actionHint(keys.Note, "note"),
-		actionHint(keys.Status, "status"),
+	}
+	if enterHint := detailEnterHint(rows, selected); enterHint != "" {
+		primaryActions = append(primaryActions, enterHint)
+	} else {
+		primaryActions = append(primaryActions, actionHint(keys.Note, "note"), actionHint(keys.Status, "status"))
 	}
 	secondaryActions := []string{actionHint(keys.Hide, visibilityAction(project)), actionHint(keys.Pin, pinAction(project))}
 	if hasCompactContent {
@@ -102,6 +122,35 @@ func detailModalLinesWithWidth(project project.Project, ok bool, width int, expa
 	}
 	lines = append(lines, "", strings.Join(primaryActions, " · "), strings.Join(secondaryActions, " · "))
 	return lines
+}
+
+func editableDetailRowIndexes(rows []detailRow) []int {
+	indexes := []int{}
+	for index, row := range rows {
+		if row.EditKind != detailEditNone {
+			indexes = append(indexes, index)
+		}
+	}
+	return indexes
+}
+
+func selectedDetailRowIndex(selected int, rows []detailRow) int {
+	editable := editableDetailRowIndexes(rows)
+	if len(editable) == 0 || selected < 0 {
+		return -1
+	}
+	return editable[clampIndex(selected, len(editable))]
+}
+
+func detailEnterHint(rows []detailRow, selected int) string {
+	rowIndex := selectedDetailRowIndex(selected, rows)
+	if rowIndex < 0 {
+		return ""
+	}
+	if rows[rowIndex].EditKind == detailEditCustomCheckbox {
+		return actionHint("enter", "toggle")
+	}
+	return actionHint("enter", "edit")
 }
 
 func detailModalHasCompactContent(project project.Project) bool {

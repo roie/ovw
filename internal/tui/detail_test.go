@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"ovw/internal/config"
 	ovwformat "ovw/internal/format"
 	"ovw/internal/project"
 	"ovw/internal/projectview"
@@ -34,6 +35,26 @@ func TestDetailRowsClassifyEditableMetadata(t *testing.T) {
 	assertDetailRowKind(t, rows, "Jira", detailEditCustomText)
 	assertDetailRowKind(t, rows, "Priority", detailEditCustomSelect)
 	assertDetailRowKind(t, rows, "Reviewed", detailEditCustomCheckbox)
+}
+
+func TestDetailModalHighlightsSelectedEditableRow(t *testing.T) {
+	project := project.Project{
+		Path:   "/tmp/app",
+		Status: ovwformat.StatusFromTags("active", []string{"active"}),
+		Note:   ovwformat.NoteInfo{Display: "ship it", Value: "ship it"},
+	}
+
+	got := stripANSI(detailModalLinesWithSelection(project, true, 68, false, 1, config.Default().Keys.Actions))
+
+	if !strings.Contains(got, "> Note") {
+		t.Fatalf("selected editable row should be highlighted:\n%s", got)
+	}
+	if strings.Contains(got, "> Path") {
+		t.Fatalf("read-only row should not be selected:\n%s", got)
+	}
+	if !strings.Contains(got, "enter edit") {
+		t.Fatalf("footer should expose edit action:\n%s", got)
+	}
 }
 
 func assertDetailRowKind(t *testing.T, rows []detailRow, label string, want detailEditKind) {
