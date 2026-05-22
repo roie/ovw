@@ -1770,6 +1770,30 @@ func TestModelDetailEditsCustomSelectField(t *testing.T) {
 	}
 }
 
+func TestModelDetailSelectFieldDefaultsToFirstOptionWhenUnset(t *testing.T) {
+	model := Model{
+		screen:         screenDetail,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name: "app",
+			Path: "/tmp/app",
+			FieldDefs: []project.FieldDef{
+				{ID: "priority", Label: "Priority", Type: "select", Options: []string{"high", "medium"}},
+			},
+		}},
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.screen != screenFieldSelect {
+		t.Fatalf("screen = %v, want field select", model.screen)
+	}
+	if model.fieldSelected != 0 {
+		t.Fatalf("fieldSelected = %d, want first option", model.fieldSelected)
+	}
+}
+
 func TestModelDetailTogglesCustomCheckboxField(t *testing.T) {
 	var saved app.MetadataUpdate
 	model := Model{
@@ -3003,6 +3027,282 @@ func TestModelConfigNoteDisplayUsesNestedCheckboxes(t *testing.T) {
 	view = stripANSI(model.View())
 	if !strings.Contains(view, "Note display") || !strings.Contains(view, "description fallback") {
 		t.Fatalf("settings row should summarize note display:\n%s", view)
+	}
+}
+
+func TestModelConfigAddsCustomField(t *testing.T) {
+	model := Model{config: config.Default()}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Fields") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigFields {
+		t.Fatalf("screen = %v, want config fields", model.screen)
+	}
+	view := stripANSI(model.View())
+	for _, want := range []string{"Fields", "+ add field", "enter edit/add", "d delete"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("fields view missing %q:\n%s", want, view)
+		}
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigField {
+		t.Fatalf("screen = %v, want new field editor", model.screen)
+	}
+	if len(model.configDraft.Fields) != 0 {
+		t.Fatalf("new field should not be committed before save: %#v", model.configDraft.Fields)
+	}
+	view = stripANSI(model.View())
+	for _, want := range []string{"Field", "Label", "Type", "text", "s save"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("new field editor missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "ID") {
+		t.Fatalf("new field editor should not expose ID:\n%s", view)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigInput {
+		t.Fatalf("screen = %v, want label input", model.screen)
+	}
+	if model.configInputPlaceholder() != "Field label" {
+		t.Fatalf("label placeholder = %q, want Field label", model.configInputPlaceholder())
+	}
+	for _, ch := range "Review URL" {
+		model = updateKey(t, model, string(ch))
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.configFieldDraft.Label != "Review URL" {
+		t.Fatalf("draft label = %q, want Review URL", model.configFieldDraft.Label)
+	}
+	if model.configFieldDraft.ID != "review_url" {
+		t.Fatalf("draft id = %q, want review_url", model.configFieldDraft.ID)
+	}
+
+	for !strings.Contains(stripANSI(model.View()), "> Type") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigField {
+		t.Fatalf("enter on type should stay in field editor, got %v", model.screen)
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if model.configFieldDraft.Type != "select" {
+		t.Fatalf("draft type = %q, want select", model.configFieldDraft.Type)
+	}
+	if len(model.configFieldDraft.Options) != 0 {
+		t.Fatalf("draft options = %#v, want no fake default option", model.configFieldDraft.Options)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model = updated.(Model)
+	if model.screen != screenConfigField {
+		t.Fatalf("screen after invalid save = %v, want field editor", model.screen)
+	}
+	if !strings.Contains(model.configErr, "select fields need at least one option") {
+		t.Fatalf("configErr = %q, want select options error", model.configErr)
+	}
+
+	for !strings.Contains(stripANSI(model.View()), "> Options") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model.configListInput = "approved"
+	model.configListCursor = len("approved")
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model = updated.(Model)
+	if got, want := model.configDraft.Fields, []config.FieldConfig{{ID: "review_url", Label: "Review URL", Type: "select", Options: []string{"approved"}}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fields = %#v, want %#v", got, want)
+	}
+	if model.screen != screenConfigFields {
+		t.Fatalf("screen after save = %v, want fields list", model.screen)
+	}
+}
+
+func TestModelConfigDeletesCustomFieldFromList(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{
+		{ID: "jira", Label: "Jira", Type: "text"},
+		{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+	}
+	cfg.Columns = []string{"name", "field:jira", "field:reviewed"}
+	cfg.ColumnOrder = []string{"name", "field:jira", "status", "field:reviewed"}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+
+	model = updateKey(t, model, "d")
+
+	if got, want := model.configDraft.Fields, []config.FieldConfig{{ID: "reviewed", Label: "Reviewed", Type: "checkbox"}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fields = %#v, want %#v", got, want)
+	}
+	if got, want := model.configDraft.Columns, []string{"name", "field:reviewed"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("columns = %#v, want %#v", got, want)
+	}
+	if got, want := model.configDraft.ColumnOrder, []string{"name", "status", "field:reviewed"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("column order = %#v, want %#v", got, want)
+	}
+	if model.screen != screenConfigFields {
+		t.Fatalf("screen = %v, want fields list", model.screen)
+	}
+}
+
+func TestModelConfigUsesRawFieldTypeLabels(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{
+		{ID: "title", Label: "Title", Type: "text"},
+		{ID: "priority", Label: "Priority", Type: "select", Options: []string{"low"}},
+		{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+	}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+
+	view := stripANSI(model.View())
+	for _, want := range []string{"Title  text", "Priority  select", "Reviewed  checkbox"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("fields view missing field type %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestModelConfigEditsCustomFieldOptions(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{{ID: "priority", Label: "Priority", Type: "text", Column: true}}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigField {
+		t.Fatalf("screen = %v, want field detail", model.screen)
+	}
+	for !strings.Contains(stripANSI(model.View()), "> Type") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if got := model.configFieldDraft.Type; got != "select" {
+		t.Fatalf("field type = %q, want select", got)
+	}
+	if got := model.configFieldDraft.Options; len(got) != 0 {
+		t.Fatalf("field options = %#v, want no default option", got)
+	}
+
+	for !strings.Contains(stripANSI(model.View()), "> Options") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigList {
+		t.Fatalf("screen = %v, want options list", model.screen)
+	}
+	model.configListInput = "high"
+	model.configListCursor = len("high")
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if got, want := model.configFieldDraft.Options, []string{"high"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("field options = %#v, want %#v", got, want)
+	}
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	if model.screen != screenConfigField {
+		t.Fatalf("screen after options escape = %v, want field detail", model.screen)
+	}
+}
+
+func TestModelConfigFieldOptionsTreatPrintableKeysAsInput(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{{ID: "priority", Label: "Priority", Type: "select"}}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	for !strings.Contains(stripANSI(model.View()), "> Options") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	for _, ch := range "hjklsd" {
+		model = updateKey(t, model, string(ch))
+	}
+
+	if model.configListInput != "hjklsd" {
+		t.Fatalf("configListInput = %q, want printable keys typed", model.configListInput)
+	}
+	view := stripANSI(model.View())
+	for _, unwanted := range []string{"space edit", "d delete", "←→ reorder", "s done"} {
+		if strings.Contains(view, unwanted) {
+			t.Fatalf("empty options view should not show %q:\n%s", unwanted, view)
+		}
+	}
+}
+
+func TestModelConfigSavesExistingCustomFieldWithoutExposingID(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{{ID: "review_url", Label: "Review URL", Type: "text"}}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	view := stripANSI(model.View())
+	if strings.Contains(view, "ID") {
+		t.Fatalf("field editor should not expose ID:\n%s", view)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model = updateSpecialKey(t, model, tea.KeyCtrlA)
+	model = updateSpecialKey(t, model, tea.KeyCtrlK)
+	for _, ch := range "Review link" {
+		model = updateKey(t, model, string(ch))
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	for !strings.Contains(stripANSI(model.View()), "> Type") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model = updated.(Model)
+
+	for !strings.Contains(stripANSI(model.View()), "> Options") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model.configListInput = "approved"
+	model.configListCursor = len("approved")
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	model = updateSpecialKey(t, model, tea.KeyEsc)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model = updated.(Model)
+
+	if got, want := model.configDraft.Fields, []config.FieldConfig{{ID: "review_url", Label: "Review link", Type: "select", Options: []string{"approved"}}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fields = %#v, want %#v", got, want)
+	}
+	if model.screen != screenConfigFields {
+		t.Fatalf("screen after save = %v, want fields list", model.screen)
 	}
 }
 

@@ -133,6 +133,20 @@ func TestColumnValueShowsCustomField(t *testing.T) {
 	}
 }
 
+func TestColumnValueDisplaysCheckboxCustomFieldAsState(t *testing.T) {
+	proj := project.Project{
+		Fields:    map[string]string{"reviewed": "true", "blocked": "false"},
+		FieldDefs: []project.FieldDef{{ID: "reviewed", Type: "checkbox"}, {ID: "blocked", Type: "checkbox"}},
+	}
+
+	if got := ColumnValue(proj, "field:reviewed", "app"); got != "[x]" {
+		t.Fatalf("ColumnValue(field:reviewed) = %q, want [x]", got)
+	}
+	if got := ColumnValue(proj, "field:blocked", "app"); got != "[ ]" {
+		t.Fatalf("ColumnValue(field:blocked) = %q, want [ ]", got)
+	}
+}
+
 func TestFieldsUseProjectFieldDefinitionsByDefault(t *testing.T) {
 	project := project.Project{
 		Path:      "/tmp/app",
@@ -154,6 +168,38 @@ func TestFieldsUseProjectFieldDefinitionsByDefault(t *testing.T) {
 		if got[index] != want[index] {
 			t.Fatalf("labels = %#v, want %#v", got, want)
 		}
+	}
+}
+
+func TestFieldsDisplayCheckboxValuesAsState(t *testing.T) {
+	project := project.Project{
+		Path: "/tmp/app",
+		Fields: map[string]string{
+			"reviewed": "true",
+			"blocked":  "false",
+			"empty":    "",
+		},
+		FieldDefs: []project.FieldDef{
+			{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+			{ID: "blocked", Label: "Blocked", Type: "checkbox"},
+			{ID: "empty", Label: "Empty", Type: "checkbox"},
+		},
+	}
+
+	fields := Fields(project, Options{HideEmptyDisplayFields: true})
+	values := map[string]string{}
+	for _, field := range fields {
+		values[field.Label] = field.Value
+	}
+
+	if values["Reviewed"] != "[x]" {
+		t.Fatalf("Reviewed = %q, want [x]", values["Reviewed"])
+	}
+	if values["Blocked"] != "[ ]" {
+		t.Fatalf("Blocked = %q, want [ ]", values["Blocked"])
+	}
+	if values["Empty"] != "" {
+		t.Fatalf("Empty = %q, want blank", values["Empty"])
 	}
 }
 

@@ -65,6 +65,8 @@ const (
 	screenConfigInput
 	screenConfigRoots
 	screenConfigRootsInput
+	screenConfigFields
+	screenConfigField
 	screenConfigNote
 	screenConfigKeys
 )
@@ -153,6 +155,11 @@ type Model struct {
 	configRootPicker  rootPicker
 	configRootInput   string
 	configRootCursor  int
+	configFieldSel    int
+	configFieldIndex  int
+	configFieldAdding bool
+	configFieldDraft  config.FieldConfig
+	configFieldRowSel int
 	configNoteSel     int
 	configKeySel      int
 	message           string
@@ -259,6 +266,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenConfigRootsInput {
 			return m.updateConfigRootsInput(msg)
+		}
+		if m.screen == screenConfigFields {
+			return m.updateConfigFields(msg)
+		}
+		if m.screen == screenConfigField {
+			return m.updateConfigField(msg)
 		}
 		if m.screen == screenConfigNote {
 			return m.updateConfigNote(msg)
@@ -761,6 +774,9 @@ func (m Model) editSelectedDetailRow() (tea.Model, tea.Cmd) {
 		m.fieldLabel = row.Label
 		m.fieldOptions = append([]string(nil), row.Options...)
 		m.fieldSelected = indexOfString(m.fieldOptions, project.Fields[row.FieldID])
+		if m.fieldSelected < 0 {
+			m.fieldSelected = 0
+		}
 		return m, nil
 	case detailEditCustomCheckbox:
 		next := toggleCheckboxValue(project.Fields[row.FieldID])
@@ -2314,6 +2330,10 @@ func renderShell(m Model) string {
 				content = overlayModal(content, configRootsView(m.configRootPicker.visibleRows(), m.configRootPicker.selected, m.configErr), m.contentWidth())
 			case screenConfigRootsInput:
 				content = overlayModal(content, configRootInputView(m.configRootInput, m.configRootCursor, m.configErr, m.inputCursorState()), m.contentWidth())
+			case screenConfigFields:
+				content = overlayModal(content, configFieldsView(m.configDraft.Fields, m.configFieldSel, m.configErr), m.contentWidth())
+			case screenConfigField:
+				content = overlayModal(content, configFieldView(m.configFieldRows(), m.configFieldRowSel, m.configErr), m.contentWidth())
 			case screenConfigNote:
 				content = overlayModal(content, configNoteView(m.configNoteRows(), m.configNoteSel, m.configErr), m.contentWidth())
 			case screenConfigKeys:
@@ -2635,7 +2655,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigNote, screenConfigKeys, screenNote, screenStatus, screenStatusInput, screenFieldInput, screenFieldSelect:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigFields, screenConfigField, screenConfigNote, screenConfigKeys, screenNote, screenStatus, screenStatusInput, screenFieldInput, screenFieldSelect:
 		return true
 	default:
 		return false

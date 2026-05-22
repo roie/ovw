@@ -51,10 +51,19 @@ func ColumnValue(project project.Project, column, displayName string) string {
 			if value == "" {
 				return "—"
 			}
-			return format.SingleLine(value)
+			return format.SingleLine(customFieldDisplayValue(value, customFieldType(project.FieldDefs, fieldID)))
 		}
 		return ""
 	}
+}
+
+func customFieldType(fields []project.FieldDef, id string) string {
+	for _, field := range fields {
+		if field.ID == id {
+			return field.Type
+		}
+	}
+	return ""
 }
 
 func portsDisplay(ports []int) string {

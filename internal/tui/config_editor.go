@@ -18,6 +18,7 @@ const (
 	configListNone configListField = iota
 	configListRoots
 	configListIgnoreDirs
+	configListFieldOptions
 )
 
 type configInputKind int
@@ -34,6 +35,7 @@ const (
 	configInputKeyStatus
 	configInputKeyPin
 	configInputKeyHide
+	configInputFieldLabel
 )
 
 type configSavedMsg struct {
@@ -76,6 +78,11 @@ type configKeyRow struct {
 	Kind  configInputKind
 }
 
+type configFieldRow struct {
+	Label string
+	Value string
+}
+
 func (m *Model) openConfig() {
 	m.screen = screenConfig
 	m.configDraft = m.config
@@ -92,6 +99,11 @@ func (m *Model) openConfig() {
 	m.configRootPicker = rootPicker{}
 	m.configRootInput = ""
 	m.configRootCursor = 0
+	m.configFieldSel = 0
+	m.configFieldIndex = -1
+	m.configFieldAdding = false
+	m.configFieldDraft = config.FieldConfig{}
+	m.configFieldRowSel = 0
 	m.configNoteSel = 0
 	m.configKeySel = 0
 }
@@ -104,6 +116,7 @@ func (m Model) configRows() []configRow {
 		{Label: "Include nested projects", Value: boolSummary(cfg.ScanNestedProjects)},
 		{Label: "Show unpushed commits", Value: boolSummary(cfg.ShowUnpushed)},
 		{Label: "Mark stale after", Value: daysSummary(cfg.StaleDays)},
+		{Label: "Fields", Value: fieldsSummary(cfg.Fields)},
 		{Label: "Note display", Value: noteDisplaySummary(cfg)},
 		{Label: "Keyboard shortcuts", Value: actionKeysSummary(cfg.Keys.Actions)},
 		{Label: "Editor", Value: emptySummary(cfg.Editor)},
@@ -112,6 +125,16 @@ func (m Model) configRows() []configRow {
 		{Label: "Open settings file", Value: rawConfigPath(m.configPaths.Config)},
 		{Label: "Reset settings", Value: ""},
 	}
+}
+
+func fieldsSummary(fields []config.FieldConfig) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	if len(fields) == 1 {
+		return fieldDisplayLabel(fields[0])
+	}
+	return fmt.Sprintf("%s +%d", fieldDisplayLabel(fields[0]), len(fields)-1)
 }
 
 func actionKeysSummary(keys config.ActionKeyConfig) string {
@@ -224,17 +247,19 @@ func (m Model) editConfigRow() (tea.Model, tea.Cmd) {
 	case 4:
 		return m.openConfigInput(configInputStaleDays, strconv.Itoa(m.configDraft.StaleDays)), m.startInputCursorBlink()
 	case 5:
-		m.openConfigNote()
+		m.openConfigFields()
 	case 6:
-		m.openConfigKeys()
+		m.openConfigNote()
 	case 7:
-		return m.openConfigInput(configInputEditor, m.configDraft.Editor), m.startInputCursorBlink()
+		m.openConfigKeys()
 	case 8:
+		return m.openConfigInput(configInputEditor, m.configDraft.Editor), m.startInputCursorBlink()
+	case 9:
 		return m.openConfigInput(configInputShell, m.configDraft.Shell), m.startInputCursorBlink()
-	case 10:
+	case 11:
 		m.loading = true
 		return m, m.openConfigFile()
-	case 11:
+	case 12:
 		roots := append([]string{}, m.configDraft.Roots...)
 		m.configDraft = config.Default()
 		m.configDraft.Roots = roots
@@ -259,10 +284,12 @@ func (m *Model) changeConfigRow() {
 	case 3:
 		m.configDraft.ShowUnpushed = !m.configDraft.ShowUnpushed
 	case 5:
-		m.openConfigNote()
+		m.openConfigFields()
 	case 6:
+		m.openConfigNote()
+	case 7:
 		m.openConfigKeys()
-	case 9:
+	case 10:
 		m.cycleConfigSort(-1)
 	}
 	m.configErr = ""
@@ -279,17 +306,48 @@ func (m *Model) incrementConfigRow() {
 	case 4:
 		m.configDraft.StaleDays++
 	case 5:
-		m.openConfigNote()
+		m.openConfigFields()
 		return
 	case 6:
+		m.openConfigNote()
+		return
+	case 7:
 		m.openConfigKeys()
 		return
-	case 9:
+	case 10:
 		m.cycleConfigSort(1)
 		return
 	default:
 		m.changeConfigRow()
 	}
+}
+
+func (m *Model) openConfigFields() {
+	m.screen = screenConfigFields
+	m.configFieldSel = clampIndex(m.configFieldSel, len(m.configDraft.Fields)+1)
+	m.configFieldIndex = -1
+	m.configFieldRowSel = 0
+	m.configErr = ""
+}
+
+func (m *Model) openConfigField(index int) {
+	m.screen = screenConfigField
+	m.configFieldIndex = clampIndex(index, len(m.configDraft.Fields))
+	m.configFieldAdding = false
+	if len(m.configDraft.Fields) > 0 {
+		m.configFieldDraft = m.configDraft.Fields[m.configFieldIndex]
+	}
+	m.configFieldRowSel = 0
+	m.configErr = ""
+}
+
+func (m *Model) openNewConfigField() {
+	m.screen = screenConfigField
+	m.configFieldIndex = -1
+	m.configFieldAdding = true
+	m.configFieldDraft = config.FieldConfig{Type: "text"}
+	m.configFieldRowSel = 0
+	m.configErr = ""
 }
 
 func (m *Model) openConfigNote() {
@@ -384,17 +442,25 @@ func (m *Model) cycleConfigSort(delta int) {
 
 func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	values := m.configListValues()
-	if (m.configListInput != "" || m.configListEditing) && (msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace) {
+	if (m.configListField == configListFieldOptions || m.configListInput != "" || m.configListEditing) && (msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace) {
 		m.configListInput, m.configListCursor = textInsert(m.configListInput, m.configListCursor, inputText(msg))
 		return m, nil
 	}
 	switch value := msg.String(); {
 	case isEscapeKey(value):
-		m.screen = screenConfig
+		if m.configListField == configListFieldOptions {
+			m.screen = screenConfigField
+		} else {
+			m.screen = screenConfig
+		}
 		m.configErr = ""
 	case value == "s":
 		if m.configListInput == "" && !m.configListEditing {
-			m.screen = screenConfig
+			if m.configListField == configListFieldOptions {
+				m.screen = screenConfigField
+			} else {
+				m.screen = screenConfig
+			}
 			m.configErr = ""
 			return m, nil
 		}
@@ -416,6 +482,13 @@ func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.configListCursor = len([]rune(m.configListInput))
 		m.configListEditing = true
 	case isEnterKey(value):
+		if m.configListField == configListFieldOptions && m.configListInput == "" && !m.configListEditing && len(values) > 0 {
+			m.configListSel = clampIndex(m.configListSel, len(values))
+			m.configListInput = values[m.configListSel]
+			m.configListCursor = len([]rune(m.configListInput))
+			m.configListEditing = true
+			return m, nil
+		}
 		return m.saveConfigListInput(), nil
 	case value == "d":
 		if m.configListInput != "" || m.configListEditing {
@@ -455,7 +528,12 @@ func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isBackspaceKey(value):
 		m.configListInput, m.configListCursor = textBackspace(m.configListInput, m.configListCursor)
 	case isDeleteKey(value):
-		m.configListInput, m.configListCursor = textDelete(m.configListInput, m.configListCursor)
+		if m.configListField == configListFieldOptions && m.configListInput == "" && !m.configListEditing && len(values) > 0 {
+			m.setConfigListValues(deleteStringAt(values, clampIndex(m.configListSel, len(values))))
+			m.configListSel = clampIndex(m.configListSel, len(m.configListValues()))
+		} else {
+			m.configListInput, m.configListCursor = textDelete(m.configListInput, m.configListCursor)
+		}
 	default:
 		m.configListInput, m.configListCursor = textInsert(m.configListInput, m.configListCursor, inputText(msg))
 		m.configListEditing = false
@@ -468,6 +546,8 @@ func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value):
 		if isConfigKeyInput(m.configInputKind) {
 			m.screen = screenConfigKeys
+		} else if m.configInputKind == configInputFieldLabel {
+			m.screen = screenConfigField
 		} else {
 			m.screen = screenConfig
 		}
@@ -496,6 +576,250 @@ func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.configInput, m.configCursor = textInsert(m.configInput, m.configCursor, inputText(msg))
 	}
 	return m, nil
+}
+
+func (m Model) updateConfigFields(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	count := len(m.configDraft.Fields) + 1
+	switch value := msg.String(); {
+	case isEscapeKey(value), value == "s":
+		m.screen = screenConfig
+		m.configErr = ""
+	case isDownKey(value):
+		m.configFieldSel = wrapPickerSelection(m.configFieldSel, count, 1)
+	case isUpKey(value):
+		m.configFieldSel = wrapPickerSelection(m.configFieldSel, count, -1)
+	case isLeftKey(value):
+		m.moveConfigField(-1)
+	case isRightKey(value):
+		m.moveConfigField(1)
+	case value == "d":
+		if m.configFieldSel < len(m.configDraft.Fields) {
+			m.deleteConfigField(m.configFieldSel)
+		}
+	case isEnterKey(value), value == " ":
+		if m.configFieldSel >= len(m.configDraft.Fields) {
+			m.openNewConfigField()
+			return m, nil
+		}
+		m.openConfigField(m.configFieldSel)
+	}
+	return m, nil
+}
+
+func (m Model) configFieldRows() []configFieldRow {
+	field := m.currentConfigField()
+	if field == nil {
+		return nil
+	}
+	rows := []configFieldRow{
+		{Label: "Label", Value: fieldDisplayLabel(*field)},
+		{Label: "Type", Value: field.Type},
+	}
+	if field.Type == "select" {
+		rows = append(rows, configFieldRow{Label: "Options", Value: listSummary(field.Options)})
+	}
+	return rows
+}
+
+func (m Model) updateConfigField(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	rows := m.configFieldRows()
+	if len(rows) == 0 {
+		m.screen = screenConfigFields
+		return m, nil
+	}
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenConfigFields
+		m.configErr = ""
+	case value == "s":
+		if m.saveConfigFieldDraft() {
+			m.screen = screenConfigFields
+		}
+	case isDownKey(value):
+		m.configFieldRowSel = wrapPickerSelection(m.configFieldRowSel, len(rows), 1)
+	case isUpKey(value):
+		m.configFieldRowSel = wrapPickerSelection(m.configFieldRowSel, len(rows), -1)
+	case isLeftKey(value):
+		m.changeConfigFieldRow(-1)
+	case isRightKey(value):
+		m.changeConfigFieldRow(1)
+	case isEnterKey(value), value == " ":
+		return m.editConfigFieldRow()
+	}
+	return m, nil
+}
+
+func (m Model) editConfigFieldRow() (tea.Model, tea.Cmd) {
+	field := m.currentConfigField()
+	if field == nil {
+		m.screen = screenConfigFields
+		return m, nil
+	}
+	row := m.configFieldRows()[clampIndex(m.configFieldRowSel, len(m.configFieldRows()))]
+	switch row.Label {
+	case "Label":
+		return m.openConfigInput(configInputFieldLabel, field.Label), m.startInputCursorBlink()
+	case "Type":
+		return m, nil
+	case "Options":
+		m.openConfigList(configListFieldOptions)
+	}
+	return m, nil
+}
+
+func (m *Model) changeConfigFieldRow(delta int) {
+	field := m.currentConfigField()
+	if field == nil {
+		return
+	}
+	row := m.configFieldRows()[clampIndex(m.configFieldRowSel, len(m.configFieldRows()))]
+	switch row.Label {
+	case "Type":
+		m.cycleConfigFieldType(delta)
+	}
+	m.configErr = ""
+}
+
+func (m *Model) cycleConfigFieldType(delta int) {
+	types := []string{"text", "select", "checkbox"}
+	field := m.currentConfigField()
+	if field == nil {
+		return
+	}
+	index := indexOfString(types, field.Type)
+	if index < 0 {
+		index = 0
+	}
+	next := wrapPickerSelection(index, len(types), delta)
+	m.configFieldDraft.Type = types[next]
+	if types[next] != "select" {
+		m.configFieldDraft.Options = nil
+	}
+	m.configFieldRowSel = clampIndex(m.configFieldRowSel, len(m.configFieldRows()))
+}
+
+func (m *Model) moveConfigField(delta int) {
+	fields := append([]config.FieldConfig{}, m.configDraft.Fields...)
+	if len(fields) == 0 || m.configFieldSel >= len(fields) {
+		return
+	}
+	index := clampIndex(m.configFieldSel, len(fields))
+	next := index + delta
+	if next < 0 || next >= len(fields) {
+		return
+	}
+	fields[index], fields[next] = fields[next], fields[index]
+	m.configDraft.Fields = fields
+	m.configFieldSel = next
+}
+
+func (m *Model) deleteConfigField(index int) {
+	if len(m.configDraft.Fields) == 0 {
+		return
+	}
+	index = clampIndex(index, len(m.configDraft.Fields))
+	fieldColumn := "field:" + m.configDraft.Fields[index].ID
+	next := append([]config.FieldConfig{}, m.configDraft.Fields[:index]...)
+	next = append(next, m.configDraft.Fields[index+1:]...)
+	m.configDraft.Fields = next
+	m.configDraft.Columns = deleteString(m.configDraft.Columns, fieldColumn)
+	m.configDraft.ColumnOrder = deleteString(m.configDraft.ColumnOrder, fieldColumn)
+	m.configFieldSel = clampIndex(index, len(m.configDraft.Fields)+1)
+	m.configFieldIndex = -1
+	m.configErr = ""
+}
+
+func deleteString(values []string, value string) []string {
+	next := make([]string, 0, len(values))
+	for _, candidate := range values {
+		if candidate != value {
+			next = append(next, candidate)
+		}
+	}
+	return next
+}
+
+func (m *Model) saveConfigFieldDraft() bool {
+	field := m.configFieldDraft
+	if strings.TrimSpace(field.ID) == "" && strings.TrimSpace(field.Label) != "" {
+		field.ID = fieldIDFromLabel(field.Label)
+	}
+	next := m.configDraft
+	if m.configFieldAdding {
+		next.Fields = append(append([]config.FieldConfig{}, next.Fields...), field)
+	} else if m.configFieldIndex >= 0 && m.configFieldIndex < len(next.Fields) {
+		fields := append([]config.FieldConfig{}, next.Fields...)
+		fields[m.configFieldIndex] = field
+		next.Fields = fields
+	} else {
+		m.screen = screenConfigFields
+		return false
+	}
+	if err := config.Validate(next); err != nil {
+		m.configErr = err.Error()
+		return false
+	}
+	m.configDraft = next
+	if m.configFieldAdding {
+		m.configFieldSel = len(m.configDraft.Fields) - 1
+	} else {
+		m.configFieldSel = clampIndex(m.configFieldIndex, len(m.configDraft.Fields))
+	}
+	m.configFieldAdding = false
+	m.configFieldIndex = -1
+	m.configErr = ""
+	return true
+}
+
+func (m Model) currentConfigField() *config.FieldConfig {
+	if m.configFieldAdding {
+		return &m.configFieldDraft
+	}
+	if m.configFieldIndex < 0 || m.configFieldIndex >= len(m.configDraft.Fields) {
+		return nil
+	}
+	return &m.configFieldDraft
+}
+
+func fieldDisplayLabel(field config.FieldConfig) string {
+	label := strings.TrimSpace(field.Label)
+	if label != "" {
+		return label
+	}
+	return titleFromFieldID(field.ID)
+}
+
+func titleFromFieldID(id string) string {
+	parts := strings.FieldsFunc(id, func(r rune) bool {
+		return r == '-' || r == '_'
+	})
+	for index, part := range parts {
+		if part == "" {
+			continue
+		}
+		parts[index] = strings.ToUpper(part[:1]) + part[1:]
+	}
+	return strings.Join(parts, " ")
+}
+
+func fieldIDFromLabel(label string) string {
+	lower := strings.ToLower(strings.TrimSpace(label))
+	var out strings.Builder
+	lastUnderscore := false
+	for _, r := range lower {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			out.WriteRune(r)
+			lastUnderscore = false
+			continue
+		}
+		if r == '_' || r == ' ' || r == '/' || r == '.' {
+			if out.Len() > 0 && !lastUnderscore {
+				out.WriteByte('_')
+				lastUnderscore = true
+			}
+		}
+	}
+	return strings.Trim(out.String(), "_")
 }
 
 func isConfigKeyInput(kind configInputKind) bool {
@@ -677,6 +1001,16 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 		}
 		m.configDraft = next
 		m.screen = screenConfigKeys
+	case configInputFieldLabel:
+		if m.currentConfigField() == nil {
+			m.screen = screenConfigFields
+			return m, nil
+		}
+		m.configFieldDraft.Label = value
+		if strings.TrimSpace(m.configFieldDraft.ID) == "" {
+			m.configFieldDraft.ID = fieldIDFromLabel(value)
+		}
+		m.screen = screenConfigField
 	}
 	m.configErr = ""
 	return m, nil
@@ -730,6 +1064,8 @@ func (m Model) configListTitle() string {
 		return "Project folders"
 	case configListIgnoreDirs:
 		return "Ignored folders"
+	case configListFieldOptions:
+		return "Options"
 	default:
 		return "Config list"
 	}
@@ -741,6 +1077,11 @@ func (m Model) configListValues() []string {
 		return m.configDraft.Roots
 	case configListIgnoreDirs:
 		return m.configDraft.IgnoreDirs
+	case configListFieldOptions:
+		if field := m.currentConfigField(); field != nil {
+			return field.Options
+		}
+		return nil
 	default:
 		return nil
 	}
@@ -752,6 +1093,10 @@ func (m *Model) setConfigListValues(values []string) {
 		m.configDraft.Roots = values
 	case configListIgnoreDirs:
 		m.configDraft.IgnoreDirs = values
+	case configListFieldOptions:
+		if m.currentConfigField() != nil {
+			m.configFieldDraft.Options = values
+		}
 	}
 }
 
@@ -832,6 +1177,8 @@ func (m Model) configInputTitle() string {
 		return "Pin project shortcut"
 	case configInputKeyHide:
 		return "Hide project shortcut"
+	case configInputFieldLabel:
+		return "Field label"
 	default:
 		return "Config"
 	}
@@ -859,6 +1206,8 @@ func (m Model) configInputPlaceholder() string {
 		return "p"
 	case configInputKeyHide:
 		return "x"
+	case configInputFieldLabel:
+		return "Field label"
 	default:
 		return ""
 	}
@@ -960,8 +1309,18 @@ func configListView(title string, values []string, selected int, input string, c
 	if errText != "" {
 		lines = append(lines, "", errorStyle.Render(errText))
 	}
-	lines = append(lines, "", actionHint("enter", "add/save")+" · "+actionHint("space", "edit")+" · "+actionHint("d", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("s", "done"))
+	lines = append(lines, "", configListFooter(title, len(values)))
 	return modalView(title, lines, 64)
+}
+
+func configListFooter(title string, valueCount int) string {
+	if title != "Options" {
+		return actionHint("enter", "add/save") + " · " + actionHint("space", "edit") + " · " + actionHint("d", "delete") + " · " + actionHint("←→", "reorder") + " · " + actionHint("s", "done")
+	}
+	if valueCount == 0 {
+		return actionHint("enter", "add") + " · " + actionHint("esc", "done")
+	}
+	return actionHint("enter", "edit/add") + " · " + actionHint("del", "delete") + " · " + actionHint("←→", "reorder") + " · " + actionHint("esc", "done")
 }
 
 func configInputView(title, value, placeholder string, cursor int, errText string, cursorState ...inputCursorState) string {
@@ -1001,6 +1360,37 @@ func configKeysView(rows []configKeyRow, selected int, errText string) string {
 	}
 	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("s", "done"))
 	return modalView("Keyboard shortcuts", lines, 64)
+}
+
+func configFieldsView(fields []config.FieldConfig, selected int, errText string) string {
+	labels := make([]string, 0, len(fields)+1)
+	for _, field := range fields {
+		labels = append(labels, fieldDisplayLabel(field)+"  "+modalMuted(field.Type))
+	}
+	labels = append(labels, "+ add field")
+	lines := modalOptionLines(labels, selected)
+	if errText != "" {
+		lines = append(lines, "", errorStyle.Render(errText))
+	}
+	lines = append(lines, "", actionHint("enter", "edit/add")+" · "+actionHint("d", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("s", "done"))
+	return modalView("Fields", lines, 72)
+}
+
+func configFieldView(rows []configFieldRow, selected int, errText string) string {
+	labels := make([]string, 0, len(rows))
+	for _, row := range rows {
+		value := row.Value
+		if value != "" {
+			value = "  " + modalMuted(value)
+		}
+		labels = append(labels, row.Label+value)
+	}
+	lines := modalOptionLines(labels, selected)
+	if errText != "" {
+		lines = append(lines, "", errorStyle.Render(errText))
+	}
+	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("←→", "change")+" · "+actionHint("s", "save"))
+	return modalView("Field", lines, 64)
 }
 
 func configRootsView(rows []setupRow, selected int, errText string) string {

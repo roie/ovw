@@ -88,13 +88,27 @@ func Fields(project project.Project, opts Options) []Field {
 	for _, field := range fieldsToShow {
 		fields = append(fields, Field{
 			Label:   field.Label,
-			Value:   project.Fields[field.ID],
+			Value:   customFieldDisplayValue(project.Fields[field.ID], field.Type),
 			ID:      field.ID,
 			Type:    field.Type,
 			Options: append([]string(nil), field.Options...),
 		})
 	}
 	return fields
+}
+
+func customFieldDisplayValue(value, fieldType string) string {
+	if fieldType != "checkbox" {
+		return value
+	}
+	switch value {
+	case "true":
+		return "[x]"
+	case "false":
+		return "[ ]"
+	default:
+		return ""
+	}
 }
 
 func Subtitle(project project.Project) string {
