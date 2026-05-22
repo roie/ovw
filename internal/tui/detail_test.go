@@ -57,6 +57,19 @@ func TestDetailModalHighlightsSelectedEditableRow(t *testing.T) {
 	}
 }
 
+func TestDetailModalShowsReadonlyRowsWithoutEditMarker(t *testing.T) {
+	project := project.Project{
+		Path:         "/tmp/app",
+		StackDisplay: "Go",
+	}
+
+	got := stripANSI(strings.Join(detailModalLinesWithSelectionRows(project, true, 68, false, 0, config.Default().Keys.Actions), "\n"))
+
+	if strings.Contains(got, "> Path") || strings.Contains(got, "> Stack") {
+		t.Fatalf("read-only rows should not be selected:\n%s", got)
+	}
+}
+
 func assertDetailRowKind(t *testing.T, rows []detailRow, label string, want detailEditKind) {
 	t.Helper()
 	for _, row := range rows {

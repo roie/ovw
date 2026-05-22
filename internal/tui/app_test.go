@@ -1564,6 +1564,22 @@ func TestModelDetailEscapeClosesWithoutTogglingVisibility(t *testing.T) {
 	}
 }
 
+func TestModelDetailEnterWithoutEditableRowKeepsDetailsOpen(t *testing.T) {
+	model := Model{
+		screen:   screenDetail,
+		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("enter without editable row should not return command")
+	}
+	if model.screen != screenDetail {
+		t.Fatalf("screen = %v, want detail", model.screen)
+	}
+}
+
 func TestModelDetailNoteAndStatusKeysOpenEditors(t *testing.T) {
 	model := Model{
 		config:   config.Default(),
