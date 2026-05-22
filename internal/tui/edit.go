@@ -33,6 +33,12 @@ func fieldInputView(projectName, label, value string, cursor int, cursorState ..
 	return inputModalView(modalTitleWithProject(label, projectName), value, "", 56, cursor, cursorState...)
 }
 
+func fieldSelectView(projectName, label string, options []string, selected int) string {
+	lines := modalOptionLines(options, selected)
+	lines = append(lines, "", actionHint("enter", "select")+" · "+actionHint("esc", "back"))
+	return modalView(modalTitleWithProject(label, projectName), lines, 42)
+}
+
 func addProjectView(value string, cursor int, err string, cursorState ...inputCursorState) string {
 	inputWidth := 52
 	lines := inputModalLines(value, "~/dev/my-project", inputWidth, cursor, cursorState...)

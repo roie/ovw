@@ -1711,6 +1711,49 @@ func TestModelDetailEditsCustomTextField(t *testing.T) {
 	}
 }
 
+func TestModelDetailEditsCustomSelectField(t *testing.T) {
+	var saved app.MetadataUpdate
+	model := Model{
+		screen:         screenDetail,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Fields: map[string]string{"priority": "medium"},
+			FieldDefs: []project.FieldDef{
+				{ID: "priority", Label: "Priority", Type: "select", Options: []string{"high", "medium", "low"}},
+			},
+		}},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			saved = update
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Projects: []project.Project{{Name: "app", Path: "/tmp/app"}}}, nil
+		},
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenFieldSelect {
+		t.Fatalf("screen = %v, want field select", model.screen)
+	}
+	if model.fieldSelected != 1 {
+		t.Fatalf("fieldSelected = %d, want current option index 1", model.fieldSelected)
+	}
+
+	model = updateKey(t, model, "j")
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if got := saved.Fields["priority"]; got == nil || *got != "low" {
+		t.Fatalf("saved fields = %#v", saved.Fields)
+	}
+}
+
 func TestModelDetailVisibilityKeyUnhidesProject(t *testing.T) {
 	var hiddenValue bool
 	model := Model{

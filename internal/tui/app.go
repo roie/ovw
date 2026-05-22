@@ -53,6 +53,7 @@ const (
 	screenStatus
 	screenStatusInput
 	screenFieldInput
+	screenFieldSelect
 	screenHelp
 	screenCommand
 	screenRunner
@@ -114,6 +115,8 @@ type Model struct {
 	fieldLabel        string
 	fieldInput        string
 	fieldCursor       int
+	fieldOptions      []string
+	fieldSelected     int
 	runnerSelected    int
 	runnerInput       string
 	runnerCursor      int
@@ -274,6 +277,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenFieldInput {
 			return m.updateFieldInput(msg)
+		}
+		if m.screen == screenFieldSelect {
+			return m.updateFieldSelect(msg)
 		}
 		if m.screen == screenRunner {
 			return m.updateRunner(msg)
@@ -746,6 +752,13 @@ func (m Model) editSelectedDetailRow() (tea.Model, tea.Cmd) {
 		m.fieldInput = project.Fields[row.FieldID]
 		m.fieldCursor = len([]rune(m.fieldInput))
 		return m, m.startInputCursorBlink()
+	case detailEditCustomSelect:
+		m.screen = screenFieldSelect
+		m.fieldID = row.FieldID
+		m.fieldLabel = row.Label
+		m.fieldOptions = append([]string(nil), row.Options...)
+		m.fieldSelected = indexOfString(m.fieldOptions, project.Fields[row.FieldID])
+		return m, nil
 	default:
 		return m, nil
 	}
@@ -1260,6 +1273,35 @@ func (m Model) updateFieldInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.fieldInput, m.fieldCursor = textInsert(m.fieldInput, m.fieldCursor, inputText(msg))
 	}
 	return m, nil
+}
+
+func (m Model) updateFieldSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenDetail
+	case isDownKey(value):
+		m.fieldSelected = wrapPickerSelection(m.fieldSelected, len(m.fieldOptions), 1)
+	case isUpKey(value):
+		m.fieldSelected = wrapPickerSelection(m.fieldSelected, len(m.fieldOptions), -1)
+	case isEnterKey(value):
+		if len(m.fieldOptions) == 0 {
+			return m, nil
+		}
+		selected := m.fieldOptions[clampIndex(m.fieldSelected, len(m.fieldOptions))]
+		m.screen = screenDetail
+		m.loading = true
+		return m, m.saveCustomField(m.fieldID, selected, "Field saved")
+	}
+	return m, nil
+}
+
+func indexOfString(values []string, value string) int {
+	for index, candidate := range values {
+		if candidate == value {
+			return index
+		}
+	}
+	return 0
 }
 
 func inputText(msg tea.KeyMsg) string {
@@ -2264,6 +2306,9 @@ func renderShell(m Model) string {
 			case screenFieldInput:
 				project, _ := m.currentProject()
 				content = overlayModal(content, fieldInputView(project.Name, m.fieldLabel, m.fieldInput, m.fieldCursor, m.inputCursorState()), m.contentWidth())
+			case screenFieldSelect:
+				project, _ := m.currentProject()
+				content = overlayModal(content, fieldSelectView(project.Name, m.fieldLabel, m.fieldOptions, m.fieldSelected), m.contentWidth())
 			}
 			body += "\n\n" + content
 		}
@@ -2566,7 +2611,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigNote, screenConfigKeys, screenNote, screenStatus, screenStatusInput, screenFieldInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigNote, screenConfigKeys, screenNote, screenStatus, screenStatusInput, screenFieldInput, screenFieldSelect:
 		return true
 	default:
 		return false
