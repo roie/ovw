@@ -1540,7 +1540,7 @@ func TestModelDetailVisibilityKeyHidesProject(t *testing.T) {
 	}
 }
 
-func TestModelDetailEnterClosesWithoutTogglingVisibility(t *testing.T) {
+func TestModelDetailEscapeClosesWithoutTogglingVisibility(t *testing.T) {
 	called := false
 	model := Model{
 		visible: func(path string, hidden bool) (app.MetadataUpdateResult, error) {
@@ -1551,13 +1551,13 @@ func TestModelDetailEnterClosesWithoutTogglingVisibility(t *testing.T) {
 		screen:   screenDetail,
 	}
 
-	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	model = updated.(Model)
 	if cmd != nil {
-		t.Fatal("enter should not return a visibility command")
+		t.Fatal("esc should not return a visibility command")
 	}
 	if called {
-		t.Fatal("enter should not toggle visibility")
+		t.Fatal("esc should not toggle visibility")
 	}
 	if model.screen != screenTable {
 		t.Fatalf("screen = %v, want table", model.screen)
@@ -1622,6 +1622,36 @@ func TestModelDetailArrowsMoveEditableSelectionOnly(t *testing.T) {
 	view = stripANSI(model.View())
 	if !strings.Contains(view, "> Jira") {
 		t.Fatalf("details should select custom field after moving down:\n%s", view)
+	}
+}
+
+func TestModelDetailEnterEditsSelectedBuiltInMetadata(t *testing.T) {
+	model := Model{
+		screen:         screenDetail,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Status: ovwformat.StatusFromTags("active", []string{"active"}),
+			Note:   ovwformat.NoteInfo{Display: "ship it", Value: "ship it"},
+		}},
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenStatus {
+		t.Fatalf("screen = %v, want status picker", model.screen)
+	}
+
+	model.screen = screenDetail
+	model.detailSelected = 1
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenNote {
+		t.Fatalf("screen = %v, want note editor", model.screen)
+	}
+	if cmd == nil {
+		t.Fatal("note editor should start cursor blink")
 	}
 }
 

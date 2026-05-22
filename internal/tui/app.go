@@ -657,11 +657,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch value := msg.String(); {
-	case isEscapeKey(value), isEnterKey(value):
+	case isEscapeKey(value):
 		m.screen = screenTable
 		m.detailModalY = 0
 		m.detailSelected = 0
 		m.detailsExpanded = false
+	case isEnterKey(value):
+		return m.editSelectedDetailRow()
 	case isDownKey(value):
 		m = m.moveDetailSelection(1)
 	case isUpKey(value):
@@ -706,6 +708,32 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.togglePin()
 	}
 	return m, nil
+}
+
+func (m Model) editSelectedDetailRow() (tea.Model, tea.Cmd) {
+	rows := m.currentDetailRows()
+	rowIndex := selectedDetailRowIndex(m.detailSelected, rows)
+	if rowIndex < 0 {
+		return m, nil
+	}
+	row := rows[rowIndex]
+	project, ok := m.currentProject()
+	if !ok {
+		return m, nil
+	}
+	switch row.EditKind {
+	case detailEditStatus:
+		m.screen = screenStatus
+		m.statusSelected = m.currentStatusIndex(project.Status.Value)
+		return m, nil
+	case detailEditNote:
+		m.screen = screenNote
+		m.noteInput = project.Note.Value
+		m.noteCursor = len([]rune(m.noteInput))
+		return m, m.startInputCursorBlink()
+	default:
+		return m, nil
+	}
 }
 
 func (m Model) currentDetailRows() []detailRow {
