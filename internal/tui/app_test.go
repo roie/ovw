@@ -3048,48 +3048,40 @@ func TestModelConfigAddsCustomField(t *testing.T) {
 		t.Fatalf("screen = %v, want config fields", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Fields", "+ add field", "enter edit/add", "del delete"} {
+	for _, want := range []string{"Fields", "type to add...", "enter add/edit", "del delete"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("fields view missing %q:\n%s", want, view)
 		}
 	}
 
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	model = updated.(Model)
-	if model.screen != screenConfigField {
-		t.Fatalf("screen = %v, want new field editor", model.screen)
-	}
-	if len(model.configDraft.Fields) != 0 {
-		t.Fatalf("new field should not be committed before save: %#v", model.configDraft.Fields)
-	}
-	view = stripANSI(model.View())
-	for _, want := range []string{"Field", "Label", "Type", "text", "ctrl+s save"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("new field editor missing %q:\n%s", want, view)
-		}
-	}
-	if strings.Contains(view, "ID") {
-		t.Fatalf("new field editor should not expose ID:\n%s", view)
-	}
-
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	model = updated.(Model)
-	if model.screen != screenConfigInput {
-		t.Fatalf("screen = %v, want label input", model.screen)
-	}
-	if model.configInputPlaceholder() != "Field label" {
-		t.Fatalf("label placeholder = %q, want Field label", model.configInputPlaceholder())
-	}
 	for _, ch := range "Review URL" {
 		model = updateKey(t, model, string(ch))
 	}
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	if model.configFieldDraft.Label != "Review URL" {
-		t.Fatalf("draft label = %q, want Review URL", model.configFieldDraft.Label)
+	if got, want := model.configDraft.Fields, []config.FieldConfig{{ID: "review_url", Label: "Review URL", Type: "text"}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fields = %#v, want %#v", got, want)
 	}
-	if model.configFieldDraft.ID != "review_url" {
-		t.Fatalf("draft id = %q, want review_url", model.configFieldDraft.ID)
+	if model.screen != screenConfigFields {
+		t.Fatalf("screen after inline add = %v, want fields list", model.screen)
+	}
+	if model.configFieldInput != "" {
+		t.Fatalf("configFieldInput = %q, want cleared after add", model.configFieldInput)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigField {
+		t.Fatalf("screen = %v, want field editor", model.screen)
+	}
+	view = stripANSI(model.View())
+	for _, want := range []string{"Field", "Label", "Review URL", "Type", "text", "ctrl+s save"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("field editor missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "ID") {
+		t.Fatalf("field editor should not expose ID:\n%s", view)
 	}
 
 	for !strings.Contains(stripANSI(model.View()), "> Type") {
@@ -3140,11 +3132,9 @@ func TestModelConfigAddsCustomField(t *testing.T) {
 func TestModelConfigFieldRequiresLabelBeforeSave(t *testing.T) {
 	model := Model{config: config.Default()}
 	model.openConfig()
-	model.openConfigFields()
+	model.openNewConfigField()
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	model = updated.(Model)
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	model = updated.(Model)
 
 	if model.screen != screenConfigField {
@@ -3158,6 +3148,51 @@ func TestModelConfigFieldRequiresLabelBeforeSave(t *testing.T) {
 	}
 	if strings.Contains(stripANSI(model.View()), "fields[0].id") {
 		t.Fatalf("field editor should not expose config internals:\n%s", stripANSI(model.View()))
+	}
+}
+
+func TestModelConfigFieldsTreatPrintableKeysAsInput(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{{ID: "status_url", Label: "Status URL", Type: "text"}}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+
+	for _, ch := range "sprint doc" {
+		model = updateKey(t, model, string(ch))
+	}
+	if model.configFieldInput != "sprint doc" {
+		t.Fatalf("configFieldInput = %q, want typed field label", model.configFieldInput)
+	}
+	if got, want := model.configDraft.Fields, cfg.Fields; !reflect.DeepEqual(got, want) {
+		t.Fatalf("typing should not mutate fields, got %#v want %#v", got, want)
+	}
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	if got, want := model.configDraft.Fields, []config.FieldConfig{
+		{ID: "status_url", Label: "Status URL", Type: "text"},
+		{ID: "sprint_doc", Label: "sprint doc", Type: "text"},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fields = %#v, want %#v", got, want)
+	}
+}
+
+func TestModelConfigFieldsShowFriendlyDuplicateLabelError(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{{ID: "status_url", Label: "Status URL", Type: "text"}}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+
+	for _, ch := range "Status URL" {
+		model = updateKey(t, model, string(ch))
+	}
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+
+	if model.configErr != "A field with this label already exists." {
+		t.Fatalf("configErr = %q, want friendly duplicate label error", model.configErr)
+	}
+	if got, want := model.configDraft.Fields, cfg.Fields; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fields = %#v, want unchanged %#v", got, want)
 	}
 }
 
@@ -3177,6 +3212,11 @@ func TestModelConfigDeletesCustomFieldFromList(t *testing.T) {
 	if got, want := len(model.configDraft.Fields), 2; got != want {
 		t.Fatalf("d should not delete fields, got %d fields", got)
 	}
+	if model.configFieldInput != "d" {
+		t.Fatalf("configFieldInput = %q, want d typed into add input", model.configFieldInput)
+	}
+	model.configFieldInput = ""
+	model.configFieldCursor = 0
 	model = updateSpecialKey(t, model, tea.KeyDelete)
 
 	if got, want := model.configDraft.Fields, []config.FieldConfig{{ID: "reviewed", Label: "Reviewed", Type: "checkbox"}}; !reflect.DeepEqual(got, want) {

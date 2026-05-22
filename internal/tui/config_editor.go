@@ -104,6 +104,8 @@ func (m *Model) openConfig() {
 	m.configFieldAdding = false
 	m.configFieldDraft = config.FieldConfig{}
 	m.configFieldRowSel = 0
+	m.configFieldInput = ""
+	m.configFieldCursor = 0
 	m.configNoteSel = 0
 	m.configKeySel = 0
 }
@@ -324,7 +326,7 @@ func (m *Model) incrementConfigRow() {
 
 func (m *Model) openConfigFields() {
 	m.screen = screenConfigFields
-	m.configFieldSel = clampIndex(m.configFieldSel, len(m.configDraft.Fields)+1)
+	m.configFieldSel = clampIndex(m.configFieldSel, len(m.configDraft.Fields))
 	m.configFieldIndex = -1
 	m.configFieldRowSel = 0
 	m.configErr = ""
@@ -561,7 +563,12 @@ func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateConfigFields(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	count := len(m.configDraft.Fields) + 1
+	count := len(m.configDraft.Fields)
+	if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
+		m.configFieldInput, m.configFieldCursor = textInsert(m.configFieldInput, m.configFieldCursor, inputText(msg))
+		m.configErr = ""
+		return m, nil
+	}
 	switch value := msg.String(); {
 	case isEscapeKey(value):
 		m.screen = screenConfig
@@ -571,21 +578,69 @@ func (m Model) updateConfigFields(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isUpKey(value):
 		m.configFieldSel = wrapPickerSelection(m.configFieldSel, count, -1)
 	case isLeftKey(value):
-		m.moveConfigField(-1)
+		if m.configFieldInput != "" {
+			m.configFieldCursor = textMoveLeft(m.configFieldInput, m.configFieldCursor)
+		} else {
+			m.moveConfigField(-1)
+		}
 	case isRightKey(value):
-		m.moveConfigField(1)
+		if m.configFieldInput != "" {
+			m.configFieldCursor = textMoveRight(m.configFieldInput, m.configFieldCursor)
+		} else {
+			m.moveConfigField(1)
+		}
 	case value == "delete":
-		if m.configFieldSel < len(m.configDraft.Fields) {
+		if m.configFieldInput != "" {
+			m.configFieldInput, m.configFieldCursor = textDelete(m.configFieldInput, m.configFieldCursor)
+		} else if m.configFieldSel < len(m.configDraft.Fields) {
 			m.deleteConfigField(m.configFieldSel)
 		}
-	case isEnterKey(value), value == " ":
-		if m.configFieldSel >= len(m.configDraft.Fields) {
-			m.openNewConfigField()
+	case isBackspaceKey(value):
+		m.configFieldInput, m.configFieldCursor = textBackspace(m.configFieldInput, m.configFieldCursor)
+	case isDeletePreviousWordKey(value):
+		m.configFieldInput, m.configFieldCursor = textDeletePreviousWord(m.configFieldInput, m.configFieldCursor)
+	case isClearBeforeKey(value):
+		m.configFieldInput, m.configFieldCursor = textClearBefore(m.configFieldInput, m.configFieldCursor)
+	case isClearAfterKey(value):
+		m.configFieldInput, m.configFieldCursor = textClearAfter(m.configFieldInput, m.configFieldCursor)
+	case isMoveStartKey(value):
+		m.configFieldCursor = textMoveStart(m.configFieldInput, m.configFieldCursor)
+	case isMoveEndKey(value):
+		m.configFieldCursor = textMoveEnd(m.configFieldInput, m.configFieldCursor)
+	case isEnterKey(value):
+		if strings.TrimSpace(m.configFieldInput) != "" {
+			m.addConfigFieldFromInput()
+			return m, nil
+		}
+		if len(m.configDraft.Fields) == 0 {
 			return m, nil
 		}
 		m.openConfigField(m.configFieldSel)
 	}
 	return m, nil
+}
+
+func (m *Model) addConfigFieldFromInput() {
+	label := strings.TrimSpace(m.configFieldInput)
+	if label == "" {
+		return
+	}
+	field := config.FieldConfig{ID: fieldIDFromLabel(label), Label: label, Type: "text"}
+	if field.ID == "" {
+		m.configErr = "Use a field label with letters or numbers."
+		return
+	}
+	next := m.configDraft
+	next.Fields = append(append([]config.FieldConfig{}, next.Fields...), field)
+	if err := config.Validate(next); err != nil {
+		m.configErr = configFieldErrorMessage(err)
+		return
+	}
+	m.configDraft = next
+	m.configFieldSel = len(m.configDraft.Fields) - 1
+	m.configFieldInput = ""
+	m.configFieldCursor = 0
+	m.configErr = ""
 }
 
 func (m Model) configFieldRows() []configFieldRow {
@@ -742,7 +797,7 @@ func (m *Model) saveConfigFieldDraft() bool {
 		return false
 	}
 	if err := config.Validate(next); err != nil {
-		m.configErr = err.Error()
+		m.configErr = configFieldErrorMessage(err)
 		return false
 	}
 	m.configDraft = next
@@ -755,6 +810,17 @@ func (m *Model) saveConfigFieldDraft() bool {
 	m.configFieldIndex = -1
 	m.configErr = ""
 	return true
+}
+
+func configFieldErrorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := err.Error()
+	if strings.Contains(message, "already used") {
+		return "A field with this label already exists."
+	}
+	return message
 }
 
 func (m Model) currentConfigField() *config.FieldConfig {
@@ -1387,17 +1453,22 @@ func configKeysView(rows []configKeyRow, selected int, errText string) string {
 	return modalView("Keyboard shortcuts", lines, 64)
 }
 
-func configFieldsView(fields []config.FieldConfig, selected int, errText string) string {
-	labels := make([]string, 0, len(fields)+1)
+func configFieldsView(fields []config.FieldConfig, selected int, input string, cursor int, errText string, cursorState ...inputCursorState) string {
+	lines := inputModalLines(input, "type to add...", 64, cursor, cursorState...)
+	lines = append(lines, "")
+	labels := make([]string, 0, len(fields))
 	for _, field := range fields {
 		labels = append(labels, fieldDisplayLabel(field)+"  "+modalMuted(field.Type))
 	}
-	labels = append(labels, "+ add field")
-	lines := modalOptionLines(labels, selected)
+	if len(labels) == 0 {
+		lines = append(lines, modalMuted("No fields yet"))
+	} else {
+		lines = append(lines, modalOptionLines(labels, selected)...)
+	}
 	if errText != "" {
 		lines = append(lines, "", errorStyle.Render(errText))
 	}
-	lines = append(lines, "", actionHint("enter", "edit/add")+" · "+actionHint("del", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("esc", "done"))
+	lines = append(lines, "", actionHint("enter", "add/edit")+" · "+actionHint("del", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("esc", "done"))
 	return modalView("Fields", lines, 72)
 }
 

@@ -160,6 +160,8 @@ type Model struct {
 	configFieldAdding bool
 	configFieldDraft  config.FieldConfig
 	configFieldRowSel int
+	configFieldInput  string
+	configFieldCursor int
 	configNoteSel     int
 	configKeySel      int
 	message           string
@@ -2331,7 +2333,7 @@ func renderShell(m Model) string {
 			case screenConfigRootsInput:
 				content = overlayModal(content, configRootInputView(m.configRootInput, m.configRootCursor, m.configErr, m.inputCursorState()), m.contentWidth())
 			case screenConfigFields:
-				content = overlayModal(content, configFieldsView(m.configDraft.Fields, m.configFieldSel, m.configErr), m.contentWidth())
+				content = overlayModal(content, configFieldsView(m.configDraft.Fields, m.configFieldSel, m.configFieldInput, m.configFieldCursor, m.configErr, m.inputCursorState()), m.contentWidth())
 			case screenConfigField:
 				content = overlayModal(content, configFieldView(m.configFieldRows(), m.configFieldRowSel, m.configErr), m.contentWidth())
 			case screenConfigNote:
