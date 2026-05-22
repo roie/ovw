@@ -140,6 +140,15 @@ columns = ["name", "path", "stack", "manager", "scripts", "version", "ports", "b
 In the TUI, `c` lets you show, hide, and reorder columns without editing the
 config file.
 
+Project action shortcuts can be changed in Settings -> Keyboard shortcuts, or
+directly in the config file:
+
+```toml
+[keys.actions]
+details = "d"
+terminal = "enter"
+```
+
 The table keeps configured columns stable. The side pane and details view hide
 empty rows so only available project details are shown.
 
