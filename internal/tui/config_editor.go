@@ -527,11 +527,12 @@ func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if isConfigKeyInput(m.configInputKind) {
+		return m.updateConfigShortcutInput(msg)
+	}
 	switch value := msg.String(); {
 	case isEscapeKey(value):
-		if isConfigKeyInput(m.configInputKind) {
-			m.screen = screenConfigKeys
-		} else if m.configInputKind == configInputFieldLabel {
+		if m.configInputKind == configInputFieldLabel {
 			m.screen = screenConfigField
 		} else {
 			m.screen = screenConfig
@@ -561,6 +562,20 @@ func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.configInput, m.configCursor = textInsert(m.configInput, m.configCursor, inputText(msg))
 	}
 	return m, nil
+}
+
+func (m Model) updateConfigShortcutInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	value := strings.TrimSpace(msg.String())
+	switch {
+	case isEscapeKey(value):
+		m.screen = screenConfigKeys
+		m.configErr = ""
+		return m, nil
+	case value == "":
+		return m, nil
+	default:
+		return m.saveConfigShortcut(value)
+	}
 }
 
 func (m Model) updateConfigFields(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1051,14 +1066,7 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 		m.configDraft.Shell = value
 		m.screen = screenConfig
 	case configInputKeyDetails, configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
-		next := m.configDraft
-		setActionKey(&next.Keys.Actions, m.configInputKind, value)
-		if err := config.Validate(next); err != nil {
-			m.configErr = err.Error()
-			return m, nil
-		}
-		m.configDraft = next
-		m.screen = screenConfigKeys
+		return m.saveConfigShortcut(value)
 	case configInputFieldLabel:
 		if m.currentConfigField() == nil {
 			m.screen = screenConfigFields
@@ -1070,6 +1078,19 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 		}
 		m.screen = screenConfigField
 	}
+	m.configErr = ""
+	return m, nil
+}
+
+func (m Model) saveConfigShortcut(value string) (tea.Model, tea.Cmd) {
+	next := m.configDraft
+	setActionKey(&next.Keys.Actions, m.configInputKind, strings.TrimSpace(value))
+	if err := config.Validate(next); err != nil {
+		m.configErr = err.Error()
+		return m, nil
+	}
+	m.configDraft = next
+	m.screen = screenConfigKeys
 	m.configErr = ""
 	return m, nil
 }
@@ -1428,6 +1449,18 @@ func configInputView(title, value, placeholder string, cursor int, errText strin
 		lines = append(lines, "", errorStyle.Render(errText))
 	}
 	lines = append(lines, "", actionHint("enter", "save"))
+	return modalView(title, lines, 60)
+}
+
+func configShortcutCaptureView(title, current, errText string) string {
+	lines := []string{modalMuted("press shortcut...")}
+	if current != "" {
+		lines = append(lines, "", "Current  "+modalMuted(current))
+	}
+	if errText != "" {
+		lines = append(lines, "", errorStyle.Render(errText))
+	}
+	lines = append(lines, "", actionHint("esc", "cancel"))
 	return modalView(title, lines, 60)
 }
 

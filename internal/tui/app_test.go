@@ -2858,17 +2858,20 @@ func TestModelConfigEditsProjectActionShortcut(t *testing.T) {
 	if model.screen != screenConfigInput {
 		t.Fatalf("screen = %v, want config input", model.screen)
 	}
-	model = updateSpecialKey(t, model, tea.KeyCtrlA)
-	model = updateSpecialKey(t, model, tea.KeyCtrlK)
-	model = updateKey(t, model, "e")
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	view = stripANSI(model.View())
+	for _, want := range []string{"Open editor shortcut", "press shortcut", "esc cancel"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("shortcut capture view missing %q:\n%s", want, view)
+		}
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
 	model = updated.(Model)
 
 	if model.screen != screenConfigKeys {
 		t.Fatalf("screen = %v, want config keys after save", model.screen)
 	}
-	if model.configDraft.Keys.Actions.Editor != "e" {
-		t.Fatalf("editor shortcut = %q, want e", model.configDraft.Keys.Actions.Editor)
+	if model.configDraft.Keys.Actions.Editor != "ctrl+t" {
+		t.Fatalf("editor shortcut = %q, want ctrl+t", model.configDraft.Keys.Actions.Editor)
 	}
 
 	model = updateSpecialKey(t, model, tea.KeyEsc)
@@ -2909,10 +2912,7 @@ func TestModelConfigRejectsDuplicateProjectActionShortcut(t *testing.T) {
 	model = updateKey(t, model, "j")
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	model = updateSpecialKey(t, model, tea.KeyCtrlA)
-	model = updateSpecialKey(t, model, tea.KeyCtrlK)
-	model = updateKey(t, model, "t")
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
 	model = updated.(Model)
 
 	if model.screen != screenConfigInput {
