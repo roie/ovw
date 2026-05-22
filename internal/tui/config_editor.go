@@ -224,7 +224,7 @@ func (m Model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.changeConfigRow()
 	case isRightKey(value):
 		m.incrementConfigRow()
-	case value == "s":
+	case isConfigSaveKey(value):
 		if err := config.Validate(m.configDraft); err != nil {
 			m.configErr = err.Error()
 			return m, nil
@@ -454,17 +454,6 @@ func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.screen = screenConfig
 		}
 		m.configErr = ""
-	case value == "s":
-		if m.configListInput == "" && !m.configListEditing {
-			if m.configListField == configListFieldOptions {
-				m.screen = screenConfigField
-			} else {
-				m.screen = screenConfig
-			}
-			m.configErr = ""
-			return m, nil
-		}
-		m.configListInput, m.configListCursor = textInsert(m.configListInput, m.configListCursor, inputText(msg))
 	case isDownKey(value):
 		m.configListSel = wrapPickerSelection(m.configListSel, len(values), 1)
 	case isUpKey(value):
@@ -574,7 +563,7 @@ func (m Model) updateConfigInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateConfigFields(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	count := len(m.configDraft.Fields) + 1
 	switch value := msg.String(); {
-	case isEscapeKey(value), value == "s":
+	case isEscapeKey(value):
 		m.screen = screenConfig
 		m.configErr = ""
 	case isDownKey(value):
@@ -624,7 +613,7 @@ func (m Model) updateConfigField(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value):
 		m.screen = screenConfigFields
 		m.configErr = ""
-	case value == "s":
+	case isConfigSaveKey(value):
 		if m.saveConfigFieldDraft() {
 			m.screen = screenConfigFields
 		}
@@ -815,6 +804,10 @@ func fieldIDFromLabel(label string) string {
 	return strings.Trim(out.String(), "_")
 }
 
+func isConfigSaveKey(value string) bool {
+	return value == "ctrl+s"
+}
+
 func isConfigKeyInput(kind configInputKind) bool {
 	switch kind {
 	case configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
@@ -835,7 +828,7 @@ func (m Model) configNoteRows() []configNoteRow {
 func (m Model) updateConfigNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	rows := m.configNoteRows()
 	switch value := msg.String(); {
-	case isEscapeKey(value), isEnterKey(value), value == "s":
+	case isEscapeKey(value), isEnterKey(value):
 		m.screen = screenConfig
 		m.configErr = ""
 	case isDownKey(value):
@@ -871,7 +864,7 @@ func (m Model) configKeyRows() []configKeyRow {
 func (m Model) updateConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	rows := m.configKeyRows()
 	switch value := msg.String(); {
-	case isEscapeKey(value), value == "s":
+	case isEscapeKey(value):
 		m.screen = screenConfig
 		m.configErr = ""
 	case isDownKey(value):
@@ -888,7 +881,7 @@ func (m Model) updateConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateConfigRoots(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	rows := m.configRootPicker.visibleRows()
 	switch value := msg.String(); {
-	case isEscapeKey(value), value == "s":
+	case isEscapeKey(value):
 		m.configDraft.Roots = m.configRootPicker.selectedRoots()
 		m.screen = screenConfig
 		m.configErr = ""
@@ -1283,7 +1276,7 @@ func configView(rows []configRow, selected int, errText string) string {
 	if errText != "" {
 		lines = append(lines, "", errorStyle.Render(errText))
 	}
-	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("←→", "change")+" · "+actionHint("s", "save"))
+	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("←→", "change")+" · "+actionHint("ctrl+s", "save"))
 	return modalView("Settings", lines, 64)
 }
 
@@ -1343,7 +1336,7 @@ func visibleConfigListOptionLines(values []string, selected int, height int) []s
 
 func configListFooter(title string, valueCount int) string {
 	if title != "Options" {
-		return actionHint("enter", "add/save") + " · " + actionHint("space", "edit") + " · " + actionHint("del", "delete") + " · " + actionHint("s", "done")
+		return actionHint("enter", "add/save") + " · " + actionHint("space", "edit") + " · " + actionHint("del", "delete") + " · " + actionHint("esc", "done")
 	}
 	if valueCount == 0 {
 		return actionHint("enter", "add") + " · " + actionHint("esc", "done")
@@ -1386,7 +1379,7 @@ func configKeysView(rows []configKeyRow, selected int, errText string) string {
 	if errText != "" {
 		lines = append(lines, "", errorStyle.Render(errText))
 	}
-	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("s", "done"))
+	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("esc", "done"))
 	return modalView("Keyboard shortcuts", lines, 64)
 }
 
@@ -1400,7 +1393,7 @@ func configFieldsView(fields []config.FieldConfig, selected int, errText string)
 	if errText != "" {
 		lines = append(lines, "", errorStyle.Render(errText))
 	}
-	lines = append(lines, "", actionHint("enter", "edit/add")+" · "+actionHint("del", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("s", "done"))
+	lines = append(lines, "", actionHint("enter", "edit/add")+" · "+actionHint("del", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("esc", "done"))
 	return modalView("Fields", lines, 72)
 }
 
@@ -1417,7 +1410,7 @@ func configFieldView(rows []configFieldRow, selected int, errText string) string
 	if errText != "" {
 		lines = append(lines, "", errorStyle.Render(errText))
 	}
-	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("←→", "change")+" · "+actionHint("s", "save"))
+	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("←→", "change")+" · "+actionHint("ctrl+s", "save"))
 	return modalView("Field", lines, 64)
 }
 

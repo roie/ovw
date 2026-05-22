@@ -2631,7 +2631,7 @@ func TestModelCommandPaletteOpensConfigEditor(t *testing.T) {
 		t.Fatalf("screen = %v, want config", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Settings", "Project folders", "Ignored folders", "Show unpushed commits", "Note display", "Keyboard shortcuts", "Open settings file", "←→ change", "s save"} {
+	for _, want := range []string{"Settings", "Project folders", "Ignored folders", "Show unpushed commits", "Note display", "Keyboard shortcuts", "Open settings file", "←→ change", "ctrl+s save"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("config view missing %q:\n%s", want, view)
 		}
@@ -2688,7 +2688,7 @@ func TestModelConfigEditsProjectActionShortcut(t *testing.T) {
 		t.Fatalf("screen = %v, want config keys", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Keyboard shortcuts", "Open editor", "o", "enter edit", "s done"} {
+	for _, want := range []string{"Keyboard shortcuts", "Open editor", "o", "enter edit", "esc done"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("shortcut view missing %q:\n%s", want, view)
 		}
@@ -2785,6 +2785,11 @@ func TestModelConfigTogglesAndSaves(t *testing.T) {
 	model = updateSpecialKey(t, model, tea.KeyRight)
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
 	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("plain s should not save config")
+	}
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	model = updated.(Model)
 	if cmd == nil {
 		t.Fatal("expected config save command")
 	}
@@ -2839,7 +2844,7 @@ func TestModelConfigAddsRootWithSetupPicker(t *testing.T) {
 	}
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
-	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	model = updated.(Model)
 	if cmd == nil {
 		t.Fatal("expected config save command")
@@ -3058,7 +3063,7 @@ func TestModelConfigAddsCustomField(t *testing.T) {
 		t.Fatalf("new field should not be committed before save: %#v", model.configDraft.Fields)
 	}
 	view = stripANSI(model.View())
-	for _, want := range []string{"Field", "Label", "Type", "text", "s save"} {
+	for _, want := range []string{"Field", "Label", "Type", "text", "ctrl+s save"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("new field editor missing %q:\n%s", want, view)
 		}
@@ -3103,7 +3108,7 @@ func TestModelConfigAddsCustomField(t *testing.T) {
 		t.Fatalf("draft options = %#v, want no fake default option", model.configFieldDraft.Options)
 	}
 
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	model = updated.(Model)
 	if model.screen != screenConfigField {
 		t.Fatalf("screen after invalid save = %v, want field editor", model.screen)
@@ -3122,7 +3127,7 @@ func TestModelConfigAddsCustomField(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	model = updateSpecialKey(t, model, tea.KeyEsc)
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	model = updated.(Model)
 	if got, want := model.configDraft.Fields, []config.FieldConfig{{ID: "review_url", Label: "Review URL", Type: "select", Options: []string{"approved"}}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("fields = %#v, want %#v", got, want)
@@ -3356,7 +3361,7 @@ func TestModelConfigSavesExistingCustomFieldWithoutExposingID(t *testing.T) {
 		model = updateKey(t, model, "j")
 	}
 	model = updateSpecialKey(t, model, tea.KeyRight)
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	model = updated.(Model)
 
 	for !strings.Contains(stripANSI(model.View()), "> Options") {
@@ -3369,7 +3374,7 @@ func TestModelConfigSavesExistingCustomFieldWithoutExposingID(t *testing.T) {
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	model = updateSpecialKey(t, model, tea.KeyEsc)
-	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
 	model = updated.(Model)
 
 	if got, want := model.configDraft.Fields, []config.FieldConfig{{ID: "review_url", Label: "Review link", Type: "select", Options: []string{"approved"}}}; !reflect.DeepEqual(got, want) {
