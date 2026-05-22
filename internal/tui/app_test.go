@@ -3137,6 +3137,30 @@ func TestModelConfigAddsCustomField(t *testing.T) {
 	}
 }
 
+func TestModelConfigFieldRequiresLabelBeforeSave(t *testing.T) {
+	model := Model{config: config.Default()}
+	model.openConfig()
+	model.openConfigFields()
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	model = updated.(Model)
+
+	if model.screen != screenConfigField {
+		t.Fatalf("screen = %v, want field editor", model.screen)
+	}
+	if model.configErr != "Add a label before saving." {
+		t.Fatalf("configErr = %q, want friendly label error", model.configErr)
+	}
+	if len(model.configDraft.Fields) != 0 {
+		t.Fatalf("fields should stay empty after invalid save: %#v", model.configDraft.Fields)
+	}
+	if strings.Contains(stripANSI(model.View()), "fields[0].id") {
+		t.Fatalf("field editor should not expose config internals:\n%s", stripANSI(model.View()))
+	}
+}
+
 func TestModelConfigDeletesCustomFieldFromList(t *testing.T) {
 	cfg := config.Default()
 	cfg.Fields = []config.FieldConfig{

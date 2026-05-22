@@ -723,6 +723,10 @@ func deleteString(values []string, value string) []string {
 
 func (m *Model) saveConfigFieldDraft() bool {
 	field := m.configFieldDraft
+	if strings.TrimSpace(field.Label) == "" {
+		m.configErr = "Add a label before saving."
+		return false
+	}
 	if strings.TrimSpace(field.ID) == "" && strings.TrimSpace(field.Label) != "" {
 		field.ID = fieldIDFromLabel(field.Label)
 	}
