@@ -73,6 +73,7 @@ func Fields(project project.Project, opts Options) []Field {
 		add("Updated", updated)
 	}
 	add("Status", project.Status.Display)
+	add("Note", project.Note.Display)
 	fieldsToShow := opts.Fields
 	if len(fieldsToShow) == 0 {
 		for _, field := range project.FieldDefs {
@@ -93,7 +94,6 @@ func Fields(project project.Project, opts Options) []Field {
 			Options: append([]string(nil), field.Options...),
 		})
 	}
-	add("Note", project.Note.Display)
 	return fields
 }
 

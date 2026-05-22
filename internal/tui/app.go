@@ -16,6 +16,7 @@ import (
 	"ovw/internal/ports"
 	"ovw/internal/project"
 	"ovw/internal/projectfiles"
+	"ovw/internal/projectview"
 	"ovw/internal/scanner"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -89,6 +90,7 @@ type Model struct {
 	tableXOffset      int
 	detailYOffset     int
 	detailModalY      int
+	detailSelected    int
 	detailsExpanded   bool
 	screen            screenMode
 	search            string
@@ -297,6 +299,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isEnterKey(msg.String()) && m.canOpenDetail() {
 			m.screen = screenDetail
 			m.detailModalY = 0
+			m.detailSelected = 0
 			m.detailsExpanded = false
 			return m, nil
 		}
@@ -657,7 +660,12 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isEscapeKey(value), isEnterKey(value):
 		m.screen = screenTable
 		m.detailModalY = 0
+		m.detailSelected = 0
 		m.detailsExpanded = false
+	case isDownKey(value):
+		m = m.moveDetailSelection(1)
+	case isUpKey(value):
+		m = m.moveDetailSelection(-1)
 	case isExpandKey(value):
 		project, ok := m.currentProject()
 		if ok && detailModalHasCompactContent(project) {
@@ -698,6 +706,25 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.togglePin()
 	}
 	return m, nil
+}
+
+func (m Model) currentDetailRows() []detailRow {
+	project, ok := m.currentProject()
+	if !ok {
+		return nil
+	}
+	return detailRows(project, projectview.DetailActivity)
+}
+
+func (m Model) moveDetailSelection(delta int) Model {
+	rows := m.currentDetailRows()
+	editable := editableDetailRowIndexes(rows)
+	if len(editable) == 0 {
+		m.detailSelected = -1
+		return m
+	}
+	m.detailSelected = wrapPickerSelection(clampIndex(m.detailSelected, len(editable)), len(editable), delta)
+	return m
 }
 
 func (m Model) updateAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1423,7 +1450,7 @@ func (m Model) currentScrollableDetailModal() (string, int) {
 	if !ok {
 		return "", 0
 	}
-	return detailModalViewWithScroll(detail, true, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded)
+	return detailModalViewWithSelectionScroll(detail, true, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.detailSelected)
 }
 
 func (m Model) currentScrollableRunner() (string, int) {
@@ -2092,10 +2119,10 @@ func renderShell(m Model) string {
 			switch m.screen {
 			case screenDetail:
 				project, ok := m.currentProject()
-				modal, maxOffset := detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.actionKeys())
+				modal, maxOffset := detailModalViewWithSelectionScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.detailSelected, m.actionKeys())
 				if m.detailModalY > maxOffset {
 					m.detailModalY = maxOffset
-					modal, _ = detailModalViewWithScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.actionKeys())
+					modal, _ = detailModalViewWithSelectionScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.detailSelected, m.actionKeys())
 				}
 				content = overlayModal(content, modal, m.contentWidth())
 			case screenAdd:

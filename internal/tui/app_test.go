@@ -1588,6 +1588,43 @@ func TestModelDetailNoteAndStatusKeysOpenEditors(t *testing.T) {
 	}
 }
 
+func TestModelDetailArrowsMoveEditableSelectionOnly(t *testing.T) {
+	model := Model{
+		screen:         screenDetail,
+		width:          80,
+		height:         20,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Status: ovwformat.StatusFromTags("active", []string{"active"}),
+			Note:   ovwformat.NoteInfo{Display: "ship it", Value: "ship it"},
+			Fields: map[string]string{"jira": "OVW-123"},
+			FieldDefs: []project.FieldDef{
+				{ID: "jira", Label: "Jira", Type: "text"},
+			},
+		}},
+	}
+
+	model = updateKey(t, model, "j")
+	if model.detailSelected != 1 {
+		t.Fatalf("detailSelected = %d, want 1", model.detailSelected)
+	}
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "> Note") {
+		t.Fatalf("details should select Note after moving down:\n%s", view)
+	}
+
+	model = updateKey(t, model, "j")
+	if model.detailSelected != 2 {
+		t.Fatalf("detailSelected = %d, want 2", model.detailSelected)
+	}
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "> Jira") {
+		t.Fatalf("details should select custom field after moving down:\n%s", view)
+	}
+}
+
 func TestModelDetailVisibilityKeyUnhidesProject(t *testing.T) {
 	var hiddenValue bool
 	model := Model{

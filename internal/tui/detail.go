@@ -33,6 +33,10 @@ func detailModalView(project project.Project, ok bool, width int) string {
 }
 
 func detailModalViewWithScroll(project project.Project, ok bool, width int, height int, offset int, expanded bool, actionKeys ...config.ActionKeyConfig) (string, int) {
+	return detailModalViewWithSelectionScroll(project, ok, width, height, offset, expanded, -1, actionKeys...)
+}
+
+func detailModalViewWithSelectionScroll(project project.Project, ok bool, width int, height int, offset int, expanded bool, selected int, actionKeys ...config.ActionKeyConfig) (string, int) {
 	if width <= 0 || width > 72 {
 		width = 72
 	}
@@ -43,7 +47,11 @@ func detailModalViewWithScroll(project project.Project, ok bool, width int, heig
 	if ok && project.Name != "" {
 		title = projectTitle(project)
 	}
-	lines := detailModalLinesWithWidth(project, ok, width-4, expanded, actionKeys...)
+	keys := config.Default().Keys.Actions
+	if len(actionKeys) > 0 {
+		keys = actionKeys[0]
+	}
+	lines := detailModalLinesWithSelectionRows(project, ok, width-4, expanded, selected, keys)
 	lines, maxOffset := scrollDetailModalLines(lines, height, offset, width-4)
 	return modalView(title, lines, width), maxOffset
 }

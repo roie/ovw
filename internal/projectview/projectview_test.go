@@ -46,7 +46,7 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 	for _, field := range fields {
 		got = append(got, field.Label)
 	}
-	want := []string{"Path", "Stack", "Manager", "Scripts", "Version", "Ports", "Branch", "Activity", "Updated", "Status", "Priority", "Jira", "Note"}
+	want := []string{"Path", "Stack", "Manager", "Scripts", "Version", "Ports", "Branch", "Activity", "Updated", "Status", "Note", "Priority", "Jira"}
 	if len(got) != len(want) {
 		t.Fatalf("labels = %#v, want %#v", got, want)
 	}
