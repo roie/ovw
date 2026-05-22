@@ -1655,6 +1655,62 @@ func TestModelDetailEnterEditsSelectedBuiltInMetadata(t *testing.T) {
 	}
 }
 
+func TestModelDetailEditsCustomTextField(t *testing.T) {
+	var saved app.MetadataUpdate
+	model := Model{
+		screen:         screenDetail,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Fields: map[string]string{"jira": "OVW-123"},
+			FieldDefs: []project.FieldDef{
+				{ID: "jira", Label: "Jira", Type: "text"},
+			},
+		}},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			saved = update
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Projects: []project.Project{{
+					Name:   "app",
+					Path:   "/tmp/app",
+					Fields: map[string]string{"jira": "OVW-456"},
+					FieldDefs: []project.FieldDef{
+						{ID: "jira", Label: "Jira", Type: "text"},
+					},
+				}},
+			}, nil
+		},
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenFieldInput {
+		t.Fatalf("screen = %v, want field input", model.screen)
+	}
+	if model.fieldInput != "OVW-123" {
+		t.Fatalf("fieldInput = %q, want OVW-123", model.fieldInput)
+	}
+
+	model.fieldInput = "OVW-456"
+	model.fieldCursor = len([]rune(model.fieldInput))
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if got := saved.Fields["jira"]; got == nil || *got != "OVW-456" {
+		t.Fatalf("saved fields = %#v", saved.Fields)
+	}
+	if model.message != "Field saved" {
+		t.Fatalf("message = %q, want Field saved", model.message)
+	}
+}
+
 func TestModelDetailVisibilityKeyUnhidesProject(t *testing.T) {
 	var hiddenValue bool
 	model := Model{

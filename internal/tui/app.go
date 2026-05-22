@@ -52,6 +52,7 @@ const (
 	screenNote
 	screenStatus
 	screenStatusInput
+	screenFieldInput
 	screenHelp
 	screenCommand
 	screenRunner
@@ -109,6 +110,10 @@ type Model struct {
 	statusSelected    int
 	statusInput       string
 	statusCursor      int
+	fieldID           string
+	fieldLabel        string
+	fieldInput        string
+	fieldCursor       int
 	runnerSelected    int
 	runnerInput       string
 	runnerCursor      int
@@ -266,6 +271,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenStatusInput {
 			return m.updateStatusInput(msg)
+		}
+		if m.screen == screenFieldInput {
+			return m.updateFieldInput(msg)
 		}
 		if m.screen == screenRunner {
 			return m.updateRunner(msg)
@@ -730,6 +738,13 @@ func (m Model) editSelectedDetailRow() (tea.Model, tea.Cmd) {
 		m.screen = screenNote
 		m.noteInput = project.Note.Value
 		m.noteCursor = len([]rune(m.noteInput))
+		return m, m.startInputCursorBlink()
+	case detailEditCustomText:
+		m.screen = screenFieldInput
+		m.fieldID = row.FieldID
+		m.fieldLabel = row.Label
+		m.fieldInput = project.Fields[row.FieldID]
+		m.fieldCursor = len([]rune(m.fieldInput))
 		return m, m.startInputCursorBlink()
 	default:
 		return m, nil
@@ -1211,6 +1226,38 @@ func (m Model) updateStatusInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.statusInput, m.statusCursor = textDelete(m.statusInput, m.statusCursor)
 	default:
 		m.statusInput, m.statusCursor = textInsert(m.statusInput, m.statusCursor, inputText(msg))
+	}
+	return m, nil
+}
+
+func (m Model) updateFieldInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch value := msg.String(); {
+	case isEscapeKey(value):
+		m.screen = screenDetail
+	case isEnterKey(value):
+		m.screen = screenDetail
+		m.loading = true
+		return m, m.saveCustomField(m.fieldID, m.fieldInput, "Field saved")
+	case value == "left":
+		m.fieldCursor = textMoveLeft(m.fieldInput, m.fieldCursor)
+	case value == "right":
+		m.fieldCursor = textMoveRight(m.fieldInput, m.fieldCursor)
+	case isMoveStartKey(value):
+		m.fieldCursor = textMoveStart(m.fieldInput, m.fieldCursor)
+	case isMoveEndKey(value):
+		m.fieldCursor = textMoveEnd(m.fieldInput, m.fieldCursor)
+	case isClearBeforeKey(value):
+		m.fieldInput, m.fieldCursor = textClearBefore(m.fieldInput, m.fieldCursor)
+	case isClearAfterKey(value):
+		m.fieldInput, m.fieldCursor = textClearAfter(m.fieldInput, m.fieldCursor)
+	case isDeletePreviousWordKey(value):
+		m.fieldInput, m.fieldCursor = textDeletePreviousWord(m.fieldInput, m.fieldCursor)
+	case isBackspaceKey(value):
+		m.fieldInput, m.fieldCursor = textBackspace(m.fieldInput, m.fieldCursor)
+	case isDeleteKey(value):
+		m.fieldInput, m.fieldCursor = textDelete(m.fieldInput, m.fieldCursor)
+	default:
+		m.fieldInput, m.fieldCursor = textInsert(m.fieldInput, m.fieldCursor, inputText(msg))
 	}
 	return m, nil
 }
@@ -1796,7 +1843,7 @@ func (m Model) cursorBlinkActive() bool {
 		return true
 	}
 	switch m.screen {
-	case screenAdd, screenNote, screenStatusInput, screenCommand, screenOnboardingInput, screenConfigInput, screenConfigRootsInput:
+	case screenAdd, screenNote, screenStatusInput, screenFieldInput, screenCommand, screenOnboardingInput, screenConfigInput, screenConfigRootsInput:
 		return true
 	case screenRunner:
 		return true
@@ -1871,6 +1918,24 @@ func (m Model) saveStatus(status, message string) tea.Cmd {
 			return metadataFailedMsg{err: errNoProjectSelected{}}
 		}
 		if _, err := m.updater(project.Path, app.MetadataUpdate{Status: &status}); err != nil {
+			return metadataFailedMsg{err: err}
+		}
+		result, err := m.loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		return metadataSavedMsg{message: message, result: result, preservePath: project.Path}
+	}
+}
+
+func (m Model) saveCustomField(fieldID, value, message string) tea.Cmd {
+	project, ok := m.currentProject()
+	return func() tea.Msg {
+		if !ok {
+			return metadataFailedMsg{err: errNoProjectSelected{}}
+		}
+		fieldValue := value
+		if _, err := m.updater(project.Path, app.MetadataUpdate{Fields: map[string]*string{fieldID: &fieldValue}}); err != nil {
 			return metadataFailedMsg{err: err}
 		}
 		result, err := m.loader(m.request)
@@ -2196,6 +2261,9 @@ func renderShell(m Model) string {
 			case screenStatusInput:
 				project, _ := m.currentProject()
 				content = overlayModal(content, statusInputView(project.Name, m.statusInput, m.statusCursor, m.inputCursorState()), m.contentWidth())
+			case screenFieldInput:
+				project, _ := m.currentProject()
+				content = overlayModal(content, fieldInputView(project.Name, m.fieldLabel, m.fieldInput, m.fieldCursor, m.inputCursorState()), m.contentWidth())
 			}
 			body += "\n\n" + content
 		}
@@ -2498,7 +2566,7 @@ func (m Model) showInlineDetail() bool {
 
 func (m Model) isTableLayoutScreen() bool {
 	switch m.screen {
-	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigNote, screenConfigKeys, screenNote, screenStatus, screenStatusInput:
+	case screenTable, screenDetail, screenAdd, screenHelp, screenCommand, screenRunner, screenFilter, screenSort, screenColumns, screenConfig, screenConfigList, screenConfigInput, screenConfigRoots, screenConfigRootsInput, screenConfigNote, screenConfigKeys, screenNote, screenStatus, screenStatusInput, screenFieldInput:
 		return true
 	default:
 		return false

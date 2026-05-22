@@ -29,6 +29,10 @@ func noteView(projectName, value, placeholder string, cursor int, cursorState ..
 	return inputModalView(modalTitleWithProject("Note", projectName), value, placeholder, 56, cursor, cursorState...)
 }
 
+func fieldInputView(projectName, label, value string, cursor int, cursorState ...inputCursorState) string {
+	return inputModalView(modalTitleWithProject(label, projectName), value, "", 56, cursor, cursorState...)
+}
+
 func addProjectView(value string, cursor int, err string, cursorState ...inputCursorState) string {
 	inputWidth := 52
 	lines := inputModalLines(value, "~/dev/my-project", inputWidth, cursor, cursorState...)
