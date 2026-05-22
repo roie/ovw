@@ -2117,7 +2117,7 @@ func renderShell(m Model) string {
 			case screenSort:
 				content = overlayModal(content, sortView(sortOptions(m.config), m.sortSelected, m.activeSortDir), m.contentWidth())
 			case screenColumns:
-				content = overlayModal(content, columnsView(m.columnOrder, m.columnChecked, m.columnSelected, m.columnErr), m.contentWidth())
+				content = overlayModal(content, columnsViewWithConfig(m.config, m.columnOrder, m.columnChecked, m.columnSelected, m.columnErr), m.contentWidth())
 			case screenConfig:
 				content = overlayModal(content, configView(m.configRows(), m.configSelected, m.configErr), m.contentWidth())
 			case screenConfigList:

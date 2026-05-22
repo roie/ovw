@@ -17,7 +17,13 @@ type Options struct {
 	Path                   func(string) string
 	Time                   func(time.Time) string
 	Activity               func(project.Project) string
+	Fields                 []OptionsField
 	HideEmptyDisplayFields bool
+}
+
+type OptionsField struct {
+	ID    string
+	Label string
 }
 
 func Title(project project.Project, name string) string {
@@ -62,6 +68,15 @@ func Fields(project project.Project, opts Options) []Field {
 		add("Updated", updated)
 	}
 	add("Status", project.Status.Display)
+	fieldsToShow := opts.Fields
+	if len(fieldsToShow) == 0 {
+		for _, field := range project.FieldDefs {
+			fieldsToShow = append(fieldsToShow, OptionsField{ID: field.ID, Label: field.Label})
+		}
+	}
+	for _, field := range fieldsToShow {
+		add(field.Label, project.Fields[field.ID])
+	}
 	add("Note", project.Note.Display)
 	return fields
 }

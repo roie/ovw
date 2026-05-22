@@ -18,26 +18,35 @@ import (
 )
 
 type Config struct {
-	Roots                   []string    `toml:"roots"`
-	MaxDepth                int         `toml:"max_depth"`
-	ScanNestedProjects      bool        `toml:"scan_nested_projects"`
-	IgnoreDirs              []string    `toml:"ignore_dirs"`
-	ProjectMarkers          []string    `toml:"project_markers"`
-	StaleDays               int         `toml:"stale_days"`
-	ShowUnpushed            bool        `toml:"show_unpushed"`
-	NoteFallbackCommit      bool        `toml:"note_fallback_commit"`
-	NoteFallbackDescription bool        `toml:"note_fallback_description"`
-	NoteShowBranch          bool        `toml:"note_show_branch"`
-	DefaultBranches         []string    `toml:"default_branches"`
-	Statuses                []string    `toml:"statuses"`
-	Columns                 []string    `toml:"columns"`
-	ColumnOrder             []string    `toml:"column_order,omitempty"`
-	SortBy                  string      `toml:"sort_by"`
-	SortDir                 string      `toml:"sort_dir"`
-	Stack                   StackConfig `toml:"stack"`
-	Keys                    KeyConfig   `toml:"keys"`
-	Editor                  string      `toml:"editor"`
-	Shell                   string      `toml:"shell"`
+	Roots                   []string      `toml:"roots"`
+	MaxDepth                int           `toml:"max_depth"`
+	ScanNestedProjects      bool          `toml:"scan_nested_projects"`
+	IgnoreDirs              []string      `toml:"ignore_dirs"`
+	ProjectMarkers          []string      `toml:"project_markers"`
+	StaleDays               int           `toml:"stale_days"`
+	ShowUnpushed            bool          `toml:"show_unpushed"`
+	NoteFallbackCommit      bool          `toml:"note_fallback_commit"`
+	NoteFallbackDescription bool          `toml:"note_fallback_description"`
+	NoteShowBranch          bool          `toml:"note_show_branch"`
+	DefaultBranches         []string      `toml:"default_branches"`
+	Statuses                []string      `toml:"statuses"`
+	Fields                  []FieldConfig `toml:"fields,omitempty"`
+	Columns                 []string      `toml:"columns"`
+	ColumnOrder             []string      `toml:"column_order,omitempty"`
+	SortBy                  string        `toml:"sort_by"`
+	SortDir                 string        `toml:"sort_dir"`
+	Stack                   StackConfig   `toml:"stack"`
+	Keys                    KeyConfig     `toml:"keys"`
+	Editor                  string        `toml:"editor"`
+	Shell                   string        `toml:"shell"`
+}
+
+type FieldConfig struct {
+	ID      string   `toml:"id"`
+	Label   string   `toml:"label"`
+	Type    string   `toml:"type"`
+	Options []string `toml:"options,omitempty"`
+	Column  bool     `toml:"column,omitempty"`
 }
 
 type StackConfig struct {
@@ -150,10 +159,36 @@ func Load(path string) (Config, error) {
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("invalid config %s: %w", path, err)
 	}
+	cfg = ApplyFieldColumnDefaults(cfg)
 	if err := Validate(cfg); err != nil {
 		return Config{}, fmt.Errorf("invalid config %s: %w", path, err)
 	}
 	return cfg, nil
+}
+
+func ApplyFieldColumnDefaults(cfg Config) Config {
+	for _, field := range cfg.Fields {
+		if !field.Column {
+			continue
+		}
+		column := columns.FieldColumn(field.ID)
+		if !stringSliceContains(cfg.Columns, column) {
+			cfg.Columns = append(cfg.Columns, column)
+		}
+		if len(cfg.ColumnOrder) > 0 && !stringSliceContains(cfg.ColumnOrder, column) {
+			cfg.ColumnOrder = append(cfg.ColumnOrder, column)
+		}
+	}
+	return cfg
+}
+
+func stringSliceContains(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }
 
 func Validate(cfg Config) error {
@@ -171,14 +206,17 @@ func Validate(cfg Config) error {
 	if cfg.StaleDays <= 0 {
 		return fmt.Errorf("invalid stale_days %d: expected 1 or greater", cfg.StaleDays)
 	}
+	if err := validateFields(cfg.Fields); err != nil {
+		return err
+	}
 	for _, column := range cfg.Columns {
-		if !columns.Valid(column) {
-			return fmt.Errorf("invalid column %q: expected %s", column, columns.OptionsString())
+		if err := validateColumn(cfg, "column", column); err != nil {
+			return err
 		}
 	}
 	for _, column := range cfg.ColumnOrder {
-		if !columns.Valid(column) {
-			return fmt.Errorf("invalid column_order %q: expected %s", column, columns.OptionsString())
+		if err := validateColumn(cfg, "column_order", column); err != nil {
+			return err
 		}
 	}
 	if !validSortBy(cfg.SortBy) {
@@ -191,6 +229,92 @@ func Validate(cfg Config) error {
 		return err
 	}
 	return nil
+}
+
+func validateColumn(cfg Config, name, column string) error {
+	if !columns.Valid(column) {
+		return fmt.Errorf("invalid %s %q: expected %s", name, column, columns.OptionsString())
+	}
+	fieldID := columns.FieldID(column)
+	if fieldID == "" {
+		return nil
+	}
+	if FieldByID(cfg, fieldID) == nil {
+		return fmt.Errorf("invalid %s %q: custom field is not defined", name, column)
+	}
+	return nil
+}
+
+func validateFields(fields []FieldConfig) error {
+	seen := map[string]bool{}
+	for index, field := range fields {
+		id := strings.TrimSpace(field.ID)
+		if !validFieldID(id) {
+			return fmt.Errorf("invalid fields[%d].id: expected lowercase letters, numbers, underscores, or hyphens", index)
+		}
+		if seen[id] {
+			return fmt.Errorf("invalid fields[%d].id %q: already used", index, id)
+		}
+		seen[id] = true
+		if !validFieldType(field.Type) {
+			return fmt.Errorf("invalid fields[%d].type %q: expected text, select, or checkbox", index, field.Type)
+		}
+		if field.Type == "select" && len(field.Options) == 0 {
+			return fmt.Errorf("invalid fields[%d].options: select fields need at least one option", index)
+		}
+	}
+	return nil
+}
+
+func validFieldID(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func validFieldType(value string) bool {
+	switch value {
+	case "text", "select", "checkbox":
+		return true
+	default:
+		return false
+	}
+}
+
+func FieldByID(cfg Config, id string) *FieldConfig {
+	for index := range cfg.Fields {
+		if cfg.Fields[index].ID == id {
+			return &cfg.Fields[index]
+		}
+	}
+	return nil
+}
+
+func FieldLabel(cfg Config, column string) string {
+	fieldID := columns.FieldID(column)
+	if fieldID == "" {
+		return columns.Label(column)
+	}
+	field := FieldByID(cfg, fieldID)
+	if field == nil || strings.TrimSpace(field.Label) == "" {
+		return columns.Label(column)
+	}
+	return field.Label
+}
+
+func FieldColumns(cfg Config) []string {
+	out := make([]string, 0, len(cfg.Fields))
+	for _, field := range cfg.Fields {
+		out = append(out, columns.FieldColumn(field.ID))
+	}
+	return out
 }
 
 func validSortBy(sortBy string) bool {
@@ -517,11 +641,24 @@ default_branches = ["main", "master", "trunk"]
 statuses = ["active", "parked", "shipped", "idea"]
 
 # ─────────────────────────────────────────
+# Fields
+# ─────────────────────────────────────────
+
+# Custom project metadata fields.
+# Values live in projects.json under each project's "fields" object.
+# Example:
+# [[fields]]
+# id = "jira"
+# label = "Jira"
+# type = "text"
+# column = true
+
+# ─────────────────────────────────────────
 # Display
 # ─────────────────────────────────────────
 
 # Columns to show and their order.
-# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note
+# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note, field:<id>
 columns = ["name", "stack", "activity", "status", "note"]
 
 # Full column picker order, including hidden columns.

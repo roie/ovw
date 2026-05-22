@@ -17,6 +17,7 @@ type Project struct {
 	Status  string
 	Note    string
 	Scripts map[string]string
+	Fields  map[string]string
 }
 
 func Scan(cfg config.Config, meta metadata.Store) ([]Project, error) {
@@ -120,6 +121,7 @@ func addProject(seen map[string]Project, path string, meta metadata.Store) {
 		Status:  entry.Status,
 		Note:    entry.Note,
 		Scripts: entry.Scripts,
+		Fields:  entry.Fields,
 	}
 }
 

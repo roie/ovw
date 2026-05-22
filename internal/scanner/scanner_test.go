@@ -33,6 +33,28 @@ func TestScanDetectsConfiguredMarkers(t *testing.T) {
 	}
 }
 
+func TestScanPreservesMetadataFields(t *testing.T) {
+	root := t.TempDir()
+	projectPath := filepath.Join(root, "app")
+	touch(t, filepath.Join(projectPath, "go.mod"))
+	canonical, err := metadata.CanonicalPath(projectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := metadata.New()
+	store.Projects[canonical] = metadata.Entry{
+		Fields: map[string]string{"jira": "OVW-123"},
+	}
+
+	projects, err := Scan(configForRoot(root), store)
+	if err != nil {
+		t.Fatalf("Scan() error = %v", err)
+	}
+	if len(projects) != 1 || projects[0].Fields["jira"] != "OVW-123" {
+		t.Fatalf("projects = %#v", projects)
+	}
+}
+
 func TestScanDetectsBunLockbMarker(t *testing.T) {
 	root := t.TempDir()
 	touch(t, filepath.Join(root, "bunapp", "bun.lockb"))

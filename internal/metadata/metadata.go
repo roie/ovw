@@ -19,6 +19,7 @@ type Entry struct {
 	Hidden  bool              `json:"hidden,omitempty"`
 	Pinned  bool              `json:"pinned,omitempty"`
 	Scripts map[string]string `json:"scripts,omitempty"`
+	Fields  map[string]string `json:"fields,omitempty"`
 }
 
 func New() Store {
@@ -85,6 +86,14 @@ func (s *Store) Set(path string, entry Entry) (string, Entry, error) {
 		}
 		for name, command := range entry.Scripts {
 			current.Scripts[name] = command
+		}
+	}
+	if len(entry.Fields) > 0 {
+		if current.Fields == nil {
+			current.Fields = map[string]string{}
+		}
+		for name, value := range entry.Fields {
+			current.Fields[name] = value
 		}
 	}
 	s.Projects[canonical] = current

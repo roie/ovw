@@ -30,9 +30,9 @@ func tableView(projects []project.Project, selected, width, height, xOffset int,
 		return strings.Join(lines, "\n")
 	}
 	columns := tableColumns(cfg)
-	rows := tableRows(projects, columns, sortBy, sortDir)
+	rows := tableRows(projects, columns, cfg, sortBy, sortDir)
 	expandTableRows(rows, width)
-	header := tableHeader(columns, rows, sortBy, sortDir)
+	header := tableHeader(columns, rows, cfg, sortBy, sortDir)
 	xOffset = clampTableXOffset(xOffset, width, tableLineWidth(header))
 	lines := []string{
 		tableViewportLine(tableLine(header), xOffset, width),
@@ -56,7 +56,7 @@ func tableColumns(cfg config.Config) []string {
 	return cfg.Columns
 }
 
-func tableRows(projects []project.Project, columns []string, sortBy, sortDir string) []tableRow {
+func tableRows(projects []project.Project, columns []string, cfg config.Config, sortBy, sortDir string) []tableRow {
 	displayNames := projectview.DisambiguatedNames(projects)
 	rows := make([]tableRow, 0, len(projects))
 	for index, project := range projects {
@@ -68,14 +68,14 @@ func tableRows(projects []project.Project, columns []string, sortBy, sortDir str
 		}
 		rows = append(rows, tableRow{Cells: row})
 	}
-	fitTableRows(rows, columns, sortBy, sortDir)
+	fitTableRows(rows, columns, cfg, sortBy, sortDir)
 	return rows
 }
 
-func tableHeader(columns []string, rows []tableRow, sortBy, sortDir string) tableRow {
+func tableHeader(columns []string, rows []tableRow, cfg config.Config, sortBy, sortDir string) tableRow {
 	cells := make([]tableCell, 0, len(columns))
 	for index, column := range columns {
-		label := tableColumnLabel(column, sortBy, sortDir)
+		label := tableColumnLabel(column, cfg, sortBy, sortDir)
 		width := len([]rune(label))
 		if len(rows) > 0 && index < len(rows[0].Cells) {
 			width = rows[0].Cells[index].Width
@@ -85,10 +85,10 @@ func tableHeader(columns []string, rows []tableRow, sortBy, sortDir string) tabl
 	return tableRow{Cells: cells}
 }
 
-func fitTableRows(rows []tableRow, columns []string, sortBy, sortDir string) {
+func fitTableRows(rows []tableRow, columns []string, cfg config.Config, sortBy, sortDir string) {
 	widths := make([]int, len(columns))
 	for index, column := range columns {
-		widths[index] = len([]rune(tableColumnLabel(column, sortBy, sortDir)))
+		widths[index] = len([]rune(tableColumnLabel(column, cfg, sortBy, sortDir)))
 	}
 	for _, row := range rows {
 		for index, cell := range row.Cells {
@@ -126,8 +126,8 @@ func expandTableRows(rows []tableRow, viewportWidth int) {
 	}
 }
 
-func tableColumnLabel(column, sortBy, dir string) string {
-	label := projectview.ColumnLabel(column)
+func tableColumnLabel(column string, cfg config.Config, sortBy, dir string) string {
+	label := config.FieldLabel(cfg, column)
 	if column != sortBy {
 		return label
 	}

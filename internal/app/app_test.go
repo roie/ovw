@@ -246,13 +246,18 @@ func TestOverviewJSONDetectsPortsWhenColumnVisible(t *testing.T) {
 
 func TestProjectFromPathDetectsPorts(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "app")
+	store := metadata.New()
+	store.Projects[path] = metadata.Entry{Fields: map[string]string{"jira": "OVW-123"}}
 	withPortDetector(t, func(paths []string) map[string][]int {
 		return map[string][]int{path: []int{5173}}
 	})
 
-	project := ProjectFromPath(path, config.Default(), metadata.New(), time.Now())
+	project := ProjectFromPath(path, config.Default(), store, time.Now())
 	if len(project.Ports) != 1 || project.Ports[0] != 5173 {
 		t.Fatalf("ports = %#v, want 5173", project.Ports)
+	}
+	if project.Fields["jira"] != "OVW-123" {
+		t.Fatalf("fields = %#v, want jira field", project.Fields)
 	}
 }
 
@@ -788,11 +793,18 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 	note := "user note"
 	pinned := true
 	script := "go run ."
-	result, err := UpdateProjectMetadata("app", MetadataUpdate{Status: &status, Note: &note, Pinned: &pinned, Scripts: map[string]*string{"run": &script}})
+	jira := "OVW-123"
+	result, err := UpdateProjectMetadata("app", MetadataUpdate{
+		Status:  &status,
+		Note:    &note,
+		Pinned:  &pinned,
+		Scripts: map[string]*string{"run": &script},
+		Fields:  map[string]*string{"jira": &jira},
+	})
 	if err != nil {
 		t.Fatalf("UpdateProjectMetadata() error = %v", err)
 	}
-	if result.Entry.Status != status || result.Entry.Note != note || !result.Entry.Pinned || result.Entry.Scripts["run"] != script {
+	if result.Entry.Status != status || result.Entry.Note != note || !result.Entry.Pinned || result.Entry.Scripts["run"] != script || result.Entry.Fields["jira"] != jira {
 		t.Fatalf("entry = %#v", result.Entry)
 	}
 	store, err := metadata.Load(paths.Metadata)
@@ -800,7 +812,7 @@ func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := store.Projects[result.Path]
-	if got.Status != status || got.Note != note || !got.Pinned || got.Scripts["run"] != script {
+	if got.Status != status || got.Note != note || !got.Pinned || got.Scripts["run"] != script || got.Fields["jira"] != jira {
 		t.Fatalf("stored entry = %#v", got)
 	}
 	data, err := os.ReadFile(paths.Metadata)

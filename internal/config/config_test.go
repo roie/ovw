@@ -67,6 +67,10 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	cfg.Roots = []string{"~/dev"}
 	cfg.StaleDays = 7
 	cfg.ColumnOrder = []string{"name", "path", "stack"}
+	cfg.Fields = []FieldConfig{
+		{ID: "jira", Label: "Jira", Type: "text"},
+		{ID: "priority", Label: "Priority", Type: "select", Options: []string{"high", "medium", "low"}},
+	}
 	cfg.Keys.Actions.Editor = "e"
 	cfg.Stack.Aliases["Cloudflare Workers"] = "Workers"
 
@@ -87,6 +91,9 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded.ColumnOrder, cfg.ColumnOrder) {
 		t.Fatalf("ColumnOrder = %#v", loaded.ColumnOrder)
+	}
+	if !reflect.DeepEqual(loaded.Fields, cfg.Fields) {
+		t.Fatalf("Fields = %#v", loaded.Fields)
 	}
 	if loaded.Keys.Actions.Editor != "e" {
 		t.Fatalf("Editor key = %q", loaded.Keys.Actions.Editor)
@@ -119,7 +126,16 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				cfg.Columns = []string{"name", "url"}
 				return cfg
 			},
-			want: `invalid column "url": expected name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, or note`,
+			want: `invalid column "url": expected name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note, or field:<id>`,
+		},
+		{
+			name: "known custom field column",
+			edit: func(cfg Config) Config {
+				cfg.Fields = []FieldConfig{{ID: "jira", Label: "Jira", Type: "text"}}
+				cfg.Columns = []string{"name", "field:jira"}
+				return cfg
+			},
+			want: "",
 		},
 		{
 			name: "unknown column order",
@@ -127,7 +143,47 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				cfg.ColumnOrder = []string{"name", "url"}
 				return cfg
 			},
-			want: `invalid column_order "url": expected name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, or note`,
+			want: `invalid column_order "url": expected name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note, or field:<id>`,
+		},
+		{
+			name: "unknown custom field column",
+			edit: func(cfg Config) Config {
+				cfg.Columns = []string{"name", "field:jira"}
+				return cfg
+			},
+			want: `invalid column "field:jira": custom field is not defined`,
+		},
+		{
+			name: "empty custom field id",
+			edit: func(cfg Config) Config {
+				cfg.Fields = []FieldConfig{{ID: "", Label: "Jira", Type: "text"}}
+				return cfg
+			},
+			want: `invalid fields[0].id: expected lowercase letters, numbers, underscores, or hyphens`,
+		},
+		{
+			name: "duplicate custom field id",
+			edit: func(cfg Config) Config {
+				cfg.Fields = []FieldConfig{{ID: "jira", Label: "Jira", Type: "text"}, {ID: "jira", Label: "Issue", Type: "text"}}
+				return cfg
+			},
+			want: `invalid fields[1].id "jira": already used`,
+		},
+		{
+			name: "unknown custom field type",
+			edit: func(cfg Config) Config {
+				cfg.Fields = []FieldConfig{{ID: "jira", Label: "Jira", Type: "number"}}
+				return cfg
+			},
+			want: `invalid fields[0].type "number": expected text, select, or checkbox`,
+		},
+		{
+			name: "missing custom field type",
+			edit: func(cfg Config) Config {
+				cfg.Fields = []FieldConfig{{ID: "jira", Label: "Jira"}}
+				return cfg
+			},
+			want: `invalid fields[0].type "": expected text, select, or checkbox`,
 		},
 		{
 			name: "unknown sort",
@@ -177,6 +233,12 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				t.Fatalf("Write() error = %v", err)
 			}
 			_, err := Load(path)
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("Load() error = %v", err)
+				}
+				return
+			}
 			want := "invalid config " + path + ": " + tc.want
 			if err == nil || err.Error() != want {
 				t.Fatalf("Load() error = %v, want %q", err, want)
@@ -231,7 +293,7 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !strings.Contains(text, `columns = ["name", "stack", "activity", "status", "note"]`) {
 		t.Fatalf("default config missing status column:\n%s", text)
 	}
-	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note") {
+	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note, field:<id>") {
 		t.Fatalf("default config missing column options comment:\n%s", text)
 	}
 	if !strings.Contains(text, "[keys.actions]") || !strings.Contains(text, `editor = "o"`) || !strings.Contains(text, `hide = "x"`) {
@@ -258,6 +320,33 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded.Roots, []string{root}) {
 		t.Fatalf("Roots = %#v", loaded.Roots)
+	}
+}
+
+func TestLoadAppliesFieldColumnDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	text := `
+roots = ["~/dev"]
+columns = ["name"]
+sort_by = "activity"
+sort_dir = "desc"
+
+[[fields]]
+id = "jira"
+label = "Jira"
+type = "text"
+column = true
+`
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !reflect.DeepEqual(cfg.Columns, []string{"name", "field:jira"}) {
+		t.Fatalf("Columns = %#v", cfg.Columns)
 	}
 }
 

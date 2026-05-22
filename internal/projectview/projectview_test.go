@@ -20,7 +20,11 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 		Status:      format.StatusFromTags("parked", []string{"dirty", "parked"}),
 		Description: "Project description",
 		Note:        format.NoteInfo{Display: "user note"},
-		UpdatedAt:   time.Date(2026, 5, 7, 12, 30, 0, 0, time.UTC),
+		Fields: map[string]string{
+			"jira":     "OVW-123",
+			"priority": "high",
+		},
+		UpdatedAt: time.Date(2026, 5, 7, 12, 30, 0, 0, time.UTC),
 		Activity: format.ActivityInfo{
 			Display:    "12m",
 			Branch:     "main",
@@ -32,13 +36,17 @@ func TestFieldsUseCanonicalDetailOrder(t *testing.T) {
 	fields := Fields(project, Options{
 		Path: func(path string) string { return "~" + path },
 		Time: func(time.Time) string { return "2026-05-07 12:30" },
+		Fields: []OptionsField{
+			{ID: "priority", Label: "Priority"},
+			{ID: "jira", Label: "Jira"},
+		},
 	})
 
 	got := make([]string, 0, len(fields))
 	for _, field := range fields {
 		got = append(got, field.Label)
 	}
-	want := []string{"Path", "Stack", "Manager", "Scripts", "Version", "Ports", "Branch", "Activity", "Updated", "Status", "Note"}
+	want := []string{"Path", "Stack", "Manager", "Scripts", "Version", "Ports", "Branch", "Activity", "Updated", "Status", "Priority", "Jira", "Note"}
 	if len(got) != len(want) {
 		t.Fatalf("labels = %#v, want %#v", got, want)
 	}
@@ -111,6 +119,41 @@ func TestColumnValueShowsUpdatedTimestamp(t *testing.T) {
 	}
 	if got := ColumnValue(project.Project{}, "updated", "app"); got != "—" {
 		t.Fatalf("ColumnValue(empty updated) = %q, want —", got)
+	}
+}
+
+func TestColumnValueShowsCustomField(t *testing.T) {
+	proj := project.Project{Fields: map[string]string{"jira": "OVW-123"}}
+
+	if got := ColumnValue(proj, "field:jira", "app"); got != "OVW-123" {
+		t.Fatalf("ColumnValue(field:jira) = %q, want OVW-123", got)
+	}
+	if got := ColumnValue(project.Project{}, "field:jira", "app"); got != "—" {
+		t.Fatalf("ColumnValue(empty custom field) = %q, want —", got)
+	}
+}
+
+func TestFieldsUseProjectFieldDefinitionsByDefault(t *testing.T) {
+	project := project.Project{
+		Path:      "/tmp/app",
+		Fields:    map[string]string{"jira": "OVW-123"},
+		FieldDefs: []project.FieldDef{{ID: "jira", Label: "Jira"}},
+	}
+
+	fields := Fields(project, Options{HideEmptyDisplayFields: true})
+
+	got := make([]string, 0, len(fields))
+	for _, field := range fields {
+		got = append(got, field.Label)
+	}
+	want := []string{"Path", "Jira"}
+	if len(got) != len(want) {
+		t.Fatalf("labels = %#v, want %#v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("labels = %#v, want %#v", got, want)
+		}
 	}
 }
 

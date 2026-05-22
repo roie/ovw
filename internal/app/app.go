@@ -99,6 +99,7 @@ type MetadataUpdate struct {
 	Note    *string
 	Pinned  *bool
 	Scripts map[string]*string
+	Fields  map[string]*string
 }
 
 type MetadataUpdateResult struct {
@@ -613,6 +614,7 @@ func ProjectFromPath(path string, cfg config.Config, store metadata.Store, now t
 		Status:  entry.Status,
 		Note:    entry.Note,
 		Scripts: entry.Scripts,
+		Fields:  entry.Fields,
 	}, cfg, now)
 	projects := []project.Project{enriched}
 	attachPorts(projects, detectPorts([]string{path}))
@@ -686,6 +688,19 @@ func UpdateProjectMetadata(target string, update MetadataUpdate) (MetadataUpdate
 	}
 	if len(entry.Scripts) == 0 {
 		entry.Scripts = nil
+	}
+	for name, value := range update.Fields {
+		if entry.Fields == nil {
+			entry.Fields = map[string]string{}
+		}
+		if value == nil {
+			delete(entry.Fields, name)
+			continue
+		}
+		entry.Fields[name] = *value
+	}
+	if len(entry.Fields) == 0 {
+		entry.Fields = nil
 	}
 	state.Store.Projects[path] = entry
 	if err := metadata.Write(state.Paths.Metadata, state.Store); err != nil {
@@ -841,10 +856,20 @@ func EnrichWithGitOptions(scanned scanner.Project, cfg config.Config, now time.T
 		Activity:      activity,
 		Status:        status,
 		Note:          note,
+		Fields:        scanned.Fields,
+		FieldDefs:     projectFieldDefs(cfg),
 		Hidden:        scanned.Hidden,
 		Pinned:        scanned.Pinned,
 		Description:   description,
 	}
+}
+
+func projectFieldDefs(cfg config.Config) []project.FieldDef {
+	defs := make([]project.FieldDef, 0, len(cfg.Fields))
+	for _, field := range cfg.Fields {
+		defs = append(defs, project.FieldDef{ID: field.ID, Label: config.FieldLabel(cfg, "field:"+field.ID)})
+	}
+	return defs
 }
 
 func detectProjectUpdatedAt(path string, cfg config.Config) time.Time {

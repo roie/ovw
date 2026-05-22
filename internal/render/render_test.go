@@ -173,6 +173,28 @@ func TestTableSupportsManagerColumn(t *testing.T) {
 	}
 }
 
+func TestTableSupportsCustomFieldColumns(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{{ID: "jira", Label: "Jira", Type: "text"}}
+	cfg.Columns = []string{"name", "field:jira"}
+	projects := []project.Project{{
+		Name:   "eventca",
+		Path:   "/tmp/eventca",
+		Fields: map[string]string{"jira": "OVW-123"},
+	}}
+
+	var out bytes.Buffer
+	if err := TableWithWidth(&out, projects, cfg, 100*time.Millisecond, 120); err != nil {
+		t.Fatalf("TableWithWidth() error = %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"Name", "Jira", "eventca", "OVW-123"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("table missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestJSONOutputsPureArray(t *testing.T) {
 	lastCommitAt := time.Date(2026, 5, 6, 18, 10, 35, 0, time.FixedZone("EDT", -4*60*60))
 	projects := []project.Project{{
@@ -198,6 +220,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		Status:      format.StatusFromTags("active", []string{"dirty", "active"}),
 		Description: "Project description",
 		Note:        format.NoteInfo{Display: "note", Source: "user", Value: "note"},
+		Fields:      map[string]string{"jira": "OVW-123"},
 		Hidden:      true,
 	}}
 	var out bytes.Buffer
@@ -223,6 +246,10 @@ func TestJSONOutputsPureArray(t *testing.T) {
 	}
 	if note, ok := item["note"].(string); !ok || note != "note" {
 		t.Fatalf("note = %#v, want string note\n%s", item["note"], out.String())
+	}
+	fields, ok := item["fields"].(map[string]any)
+	if !ok || fields["jira"] != "OVW-123" {
+		t.Fatalf("fields = %#v, want jira field\n%s", item["fields"], out.String())
 	}
 	scripts, ok := item["scripts"].([]any)
 	if !ok || len(scripts) != 2 || scripts[0] != "dev" || scripts[1] != "build" {
@@ -276,6 +303,7 @@ func TestJSONOutputsPureArray(t *testing.T) {
 		`"status":`,
 		`"description":`,
 		`"note":`,
+		`"fields":`,
 	})
 }
 

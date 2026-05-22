@@ -32,12 +32,12 @@ func TableWithWidth(w io.Writer, projects []project.Project, cfg config.Config, 
 	}
 	fmt.Fprintf(w, "ovw — %d projects · scanned in %s\n\n", len(projects), ovwformat.Elapsed(elapsed))
 	rows := tableRows(projects, cfg)
-	applyWidth(rows, cfg.Columns, width)
+	applyWidth(rows, cfg, width)
 	var table bytes.Buffer
 	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	headers := make([]string, 0, len(cfg.Columns))
 	for _, column := range cfg.Columns {
-		headers = append(headers, projectview.ColumnLabel(column))
+		headers = append(headers, config.FieldLabel(cfg, column))
 	}
 	fmt.Fprintln(tw, strings.Join(headers, "\t"))
 	for _, row := range rows {
@@ -89,18 +89,19 @@ type tableRow struct {
 }
 
 type jsonProject struct {
-	Name        string       `json:"name"`
-	Path        string       `json:"path"`
-	Stack       []string     `json:"stack"`
-	Managers    []string     `json:"managers"`
-	Scripts     []string     `json:"scripts"`
-	Version     string       `json:"version,omitempty"`
-	Ports       []int        `json:"ports"`
-	Activity    jsonActivity `json:"activity"`
-	Tags        []string     `json:"tags"`
-	Status      string       `json:"status"`
-	Description string       `json:"description,omitempty"`
-	Note        string       `json:"note"`
+	Name        string            `json:"name"`
+	Path        string            `json:"path"`
+	Stack       []string          `json:"stack"`
+	Managers    []string          `json:"managers"`
+	Scripts     []string          `json:"scripts"`
+	Version     string            `json:"version,omitempty"`
+	Ports       []int             `json:"ports"`
+	Activity    jsonActivity      `json:"activity"`
+	Tags        []string          `json:"tags"`
+	Status      string            `json:"status"`
+	Description string            `json:"description,omitempty"`
+	Note        string            `json:"note"`
+	Fields      map[string]string `json:"fields,omitempty"`
 }
 
 type jsonActivity struct {
@@ -138,6 +139,7 @@ func newJSONProject(project project.Project) jsonProject {
 		Status:      project.Status.Value,
 		Description: project.Description,
 		Note:        project.Note.Display,
+		Fields:      project.Fields,
 	}
 }
 
@@ -154,9 +156,9 @@ func tableRows(projects []project.Project, cfg config.Config) []tableRow {
 	return rows
 }
 
-func applyWidth(rows []tableRow, columns []string, width int) {
+func applyWidth(rows []tableRow, cfg config.Config, width int) {
 	noteIndex := -1
-	for i, column := range columns {
+	for i, column := range cfg.Columns {
 		if column == "note" {
 			noteIndex = i
 			break
@@ -165,7 +167,7 @@ func applyWidth(rows []tableRow, columns []string, width int) {
 	if noteIndex < 0 {
 		return
 	}
-	maxNoteWidth := width - nonNoteWidth(rows, columns, noteIndex)
+	maxNoteWidth := width - nonNoteWidth(rows, cfg, noteIndex)
 	if maxNoteWidth < 8 {
 		maxNoteWidth = 8
 	}
@@ -176,10 +178,10 @@ func applyWidth(rows []tableRow, columns []string, width int) {
 	}
 }
 
-func nonNoteWidth(rows []tableRow, columns []string, noteIndex int) int {
+func nonNoteWidth(rows []tableRow, cfg config.Config, noteIndex int) int {
 	widths := map[int]int{}
-	for i, column := range columns {
-		widths[i] = ansi.StringWidth(projectview.ColumnLabel(column))
+	for i, column := range cfg.Columns {
+		widths[i] = ansi.StringWidth(config.FieldLabel(cfg, column))
 	}
 	for _, row := range rows {
 		for i, value := range row.values {

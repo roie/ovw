@@ -33,6 +33,10 @@ func TestWriteReadMetadata(t *testing.T) {
 		Note:   "ship it",
 		Hidden: true,
 		Pinned: true,
+		Fields: map[string]string{
+			"jira":     "OVW-123",
+			"priority": "high",
+		},
 	}
 
 	if err := Write(path, store); err != nil {
@@ -43,7 +47,7 @@ func TestWriteReadMetadata(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 	got := loaded.Projects[canonical]
-	if got.Status != "active" || got.Note != "ship it" || !got.Hidden || !got.Pinned {
+	if got.Status != "active" || got.Note != "ship it" || !got.Hidden || !got.Pinned || got.Fields["jira"] != "OVW-123" || got.Fields["priority"] != "high" {
 		t.Fatalf("Entry = %#v", got)
 	}
 }

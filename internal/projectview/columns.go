@@ -46,6 +46,13 @@ func ColumnValue(project project.Project, column, displayName string) string {
 	case "note":
 		return format.SingleLine(project.Note.Display)
 	default:
+		if fieldID := columns.FieldID(column); fieldID != "" {
+			value := project.Fields[fieldID]
+			if value == "" {
+				return "—"
+			}
+			return format.SingleLine(value)
+		}
 		return ""
 	}
 }

@@ -2248,6 +2248,27 @@ func TestModelColumnPickerPreservesHiddenColumnOrder(t *testing.T) {
 	}
 }
 
+func TestModelColumnPickerIncludesConfiguredFields(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{{ID: "jira", Label: "Jira", Type: "text"}}
+	cfg.Columns = []string{"name"}
+	model := Model{config: cfg}
+
+	model.openColumns()
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "[ ] Jira") {
+		t.Fatalf("columns modal missing custom field:\n%s", view)
+	}
+	for !strings.Contains(stripANSI(model.View()), "> [ ] Jira") {
+		model = updateKey(t, model, "j")
+	}
+	model = updateKey(t, model, " ")
+	if got, want := model.selectedColumns(), []string{"name", "field:jira"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("selected columns = %#v, want %#v", got, want)
+	}
+}
+
 func TestModelColumnPickerCannotQuitWhileSaving(t *testing.T) {
 	block := make(chan struct{})
 	model := Model{

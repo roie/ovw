@@ -10,32 +10,50 @@ import (
 func (m *Model) openColumns() {
 	m.screen = screenColumns
 	m.columnSelected = 0
-	m.columnOrder = orderedColumnIDs(m.config.Columns, m.config.ColumnOrder)
+	m.columnOrder = orderedColumnIDsForConfig(m.config)
 	m.columnChecked = checkedColumns(m.config.Columns)
 	m.columnErr = ""
 }
 
+func availableColumnIDs(cfg config.Config) []string {
+	ids := columnmeta.IDs()
+	ids = append(ids, config.FieldColumns(cfg)...)
+	return ids
+}
+
 func orderedColumnIDs(configured, configuredOrder []string) []string {
+	return orderedColumnIDsForConfig(config.Config{Columns: configured, ColumnOrder: configuredOrder})
+}
+
+func orderedColumnIDsForConfig(cfg config.Config) []string {
 	seen := map[string]bool{}
 	order := []string{}
-	for _, column := range configuredOrder {
-		if columnmeta.Valid(column) && !seen[column] {
+	for _, column := range cfg.ColumnOrder {
+		if validPickerColumn(cfg, column) && !seen[column] {
 			order = append(order, column)
 			seen[column] = true
 		}
 	}
-	for _, column := range configured {
-		if columnmeta.Valid(column) && !seen[column] {
+	for _, column := range cfg.Columns {
+		if validPickerColumn(cfg, column) && !seen[column] {
 			order = append(order, column)
 			seen[column] = true
 		}
 	}
-	for _, column := range columnmeta.IDs() {
+	for _, column := range availableColumnIDs(cfg) {
 		if !seen[column] {
 			order = append(order, column)
 		}
 	}
 	return order
+}
+
+func validPickerColumn(cfg config.Config, column string) bool {
+	if !columnmeta.Valid(column) {
+		return false
+	}
+	fieldID := columnmeta.FieldID(column)
+	return fieldID == "" || config.FieldByID(cfg, fieldID) != nil
 }
 
 func checkedColumns(configured []string) map[string]bool {
@@ -127,15 +145,40 @@ func (m Model) saveColumns() tea.Cmd {
 }
 
 func columnsView(order []string, checked map[string]bool, selected int, errText string) string {
+	return columnsViewWithConfig(config.Config{}, order, checked, selected, errText)
+}
+
+func columnsViewWithConfig(cfg config.Config, order []string, checked map[string]bool, selected int, errText string) string {
 	if len(order) == 0 {
 		return modalView("Columns", []string{modalMuted("No columns available")}, 48)
 	}
-	lines := modalCheckboxLines(order, checked, selected)
+	lines := columnCheckboxLines(cfg, order, checked, selected)
 	if errText != "" {
 		lines = append(lines, "", modalMuted(errText))
 	}
 	lines = append(lines, "", actionHint("space", "toggle")+" · "+actionHint("←→", "reorder")+" · "+actionHint("enter", "save"))
 	return modalView("Columns", lines, 48)
+}
+
+func columnCheckboxLines(cfg config.Config, order []string, checked map[string]bool, selected int) []string {
+	lines := make([]string, 0, len(order))
+	for index, column := range order {
+		box := "[ ]"
+		if checked[column] {
+			box = "[x]"
+		}
+		label := column
+		if columnmeta.FieldID(column) != "" {
+			label = config.FieldLabel(cfg, column)
+		}
+		line := box + " " + label
+		if index == selected {
+			lines = append(lines, modalAccent("> "+line))
+			continue
+		}
+		lines = append(lines, "  "+modalMuted(line))
+	}
+	return lines
 }
 
 type errNoVisibleColumns struct{}

@@ -20,10 +20,17 @@ type Project struct {
 	Activity      format.ActivityInfo `json:"activity"`
 	Status        format.StatusInfo   `json:"status"`
 	Note          format.NoteInfo     `json:"note"`
+	Fields        map[string]string   `json:"fields,omitempty"`
+	FieldDefs     []FieldDef          `json:"-"`
 	RecentFiles   []format.RecentFile `json:"-"`
 	Hidden        bool                `json:"hidden"`
 	Pinned        bool                `json:"pinned"`
 	Description   string              `json:"-"`
+}
+
+type FieldDef struct {
+	ID    string
+	Label string
 }
 
 func (p Project) LastCommitAt() time.Time {
