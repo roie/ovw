@@ -28,6 +28,7 @@ const (
 	configInputStaleDays
 	configInputEditor
 	configInputShell
+	configInputKeyDetails
 	configInputKeyEditor
 	configInputKeyTerminal
 	configInputKeyRunner
@@ -141,7 +142,7 @@ func fieldsSummary(fields []config.FieldConfig) string {
 
 func actionKeysSummary(keys config.ActionKeyConfig) string {
 	keys = actionKeys(config.Config{Keys: config.KeyConfig{Actions: keys}})
-	return fmt.Sprintf("%s/%s/%s", keys.Editor, keys.Terminal, keys.Runner)
+	return fmt.Sprintf("%s/%s/%s/%s", keys.Details, keys.Editor, keys.Terminal, keys.Runner)
 }
 
 func listSummary(values []string) string {
@@ -880,7 +881,7 @@ func isConfigSaveKey(value string) bool {
 
 func isConfigKeyInput(kind configInputKind) bool {
 	switch kind {
-	case configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
+	case configInputKeyDetails, configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
 		return true
 	default:
 		return false
@@ -921,6 +922,7 @@ func (m Model) updateConfigNote(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) configKeyRows() []configKeyRow {
 	keys := actionKeys(m.configDraft)
 	return []configKeyRow{
+		{Label: "Show details", Value: keys.Details, Kind: configInputKeyDetails},
 		{Label: "Open editor", Value: keys.Editor, Kind: configInputKeyEditor},
 		{Label: "Open terminal", Value: keys.Terminal, Kind: configInputKeyTerminal},
 		{Label: "Run script", Value: keys.Runner, Kind: configInputKeyRunner},
@@ -1048,7 +1050,7 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 	case configInputShell:
 		m.configDraft.Shell = value
 		m.screen = screenConfig
-	case configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
+	case configInputKeyDetails, configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
 		next := m.configDraft
 		setActionKey(&next.Keys.Actions, m.configInputKind, value)
 		if err := config.Validate(next); err != nil {
@@ -1074,6 +1076,8 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 
 func setActionKey(keys *config.ActionKeyConfig, kind configInputKind, value string) {
 	switch kind {
+	case configInputKeyDetails:
+		keys.Details = value
 	case configInputKeyEditor:
 		keys.Editor = value
 	case configInputKeyTerminal:
@@ -1219,6 +1223,8 @@ func (m Model) configInputTitle() string {
 		return "Editor"
 	case configInputShell:
 		return "Terminal"
+	case configInputKeyDetails:
+		return "Show details shortcut"
 	case configInputKeyEditor:
 		return "Open editor shortcut"
 	case configInputKeyTerminal:
@@ -1248,6 +1254,8 @@ func (m Model) configInputPlaceholder() string {
 		return "code"
 	case configInputShell:
 		return "empty uses default terminal"
+	case configInputKeyDetails:
+		return "enter"
 	case configInputKeyEditor:
 		return "o"
 	case configInputKeyTerminal:

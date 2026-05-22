@@ -1641,6 +1641,32 @@ func TestModelDetailArrowsMoveEditableSelectionOnly(t *testing.T) {
 	}
 }
 
+func TestModelDetailOpensWithoutVisibleSelectionMarker(t *testing.T) {
+	model := Model{
+		screen:         screenDetail,
+		width:          80,
+		height:         20,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Status: ovwformat.StatusFromTags("active", []string{"active"}),
+			Note:   ovwformat.NoteInfo{Display: "ship it", Value: "ship it"},
+		}},
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "> Status") || strings.Contains(view, "> Note") {
+		t.Fatalf("detail view should open without visible selection marker:\n%s", view)
+	}
+
+	model = updateKey(t, model, "j")
+	view = stripANSI(model.View())
+	if !strings.Contains(view, "> Note") {
+		t.Fatalf("detail view should show marker after row navigation:\n%s", view)
+	}
+}
+
 func TestModelDetailEnterEditsSelectedBuiltInMetadata(t *testing.T) {
 	model := Model{
 		screen:         screenDetail,
@@ -1794,6 +1820,42 @@ func TestModelDetailSelectFieldDefaultsToFirstOptionWhenUnset(t *testing.T) {
 	}
 }
 
+func TestModelDetailArrowsCycleCustomSelectField(t *testing.T) {
+	var saved app.MetadataUpdate
+	model := Model{
+		screen:         screenDetail,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Fields: map[string]string{"priority": "medium"},
+			FieldDefs: []project.FieldDef{
+				{ID: "priority", Label: "Priority", Type: "select", Options: []string{"high", "medium", "low"}},
+			},
+		}},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			saved = update
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Projects: []project.Project{{Name: "app", Path: "/tmp/app"}}}, nil
+		},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected inline select save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if got := saved.Fields["priority"]; got == nil || *got != "low" {
+		t.Fatalf("saved fields = %#v", saved.Fields)
+	}
+	if model.message != "Field saved" {
+		t.Fatalf("message = %q, want Field saved", model.message)
+	}
+}
+
 func TestModelDetailTogglesCustomCheckboxField(t *testing.T) {
 	var saved app.MetadataUpdate
 	model := Model{
@@ -1824,6 +1886,98 @@ func TestModelDetailTogglesCustomCheckboxField(t *testing.T) {
 	model = updateMsg(t, model, cmd())
 	if got := saved.Fields["reviewed"]; got == nil || *got != "true" {
 		t.Fatalf("saved fields = %#v", saved.Fields)
+	}
+}
+
+func TestModelDetailArrowsToggleCustomCheckboxField(t *testing.T) {
+	var saved app.MetadataUpdate
+	model := Model{
+		screen:         screenDetail,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Fields: map[string]string{"reviewed": "false"},
+			FieldDefs: []project.FieldDef{
+				{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+			},
+		}},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			saved = update
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Projects: []project.Project{{Name: "app", Path: "/tmp/app"}}}, nil
+		},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected inline checkbox save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if got := saved.Fields["reviewed"]; got == nil || *got != "true" {
+		t.Fatalf("saved fields = %#v", saved.Fields)
+	}
+}
+
+func TestModelDetailArrowsCycleStatus(t *testing.T) {
+	cfg := config.Default()
+	cfg.Statuses = []string{"active", "parked", "shipped"}
+	var saved app.MetadataUpdate
+	model := Model{
+		config:         cfg,
+		screen:         screenDetail,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Status: ovwformat.StatusFromTags("active", []string{"active"}),
+		}},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			saved = update
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Projects: []project.Project{{Name: "app", Path: "/tmp/app"}}}, nil
+		},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRight})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected inline status save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if saved.Status == nil || *saved.Status != "parked" {
+		t.Fatalf("saved status = %#v, want parked", saved.Status)
+	}
+}
+
+func TestModelDetailShowsInlineChangeHintForStructuredRows(t *testing.T) {
+	cfg := config.Default()
+	cfg.Statuses = []string{"active", "parked"}
+	model := Model{
+		config:           cfg,
+		screen:           screenDetail,
+		width:            80,
+		height:           24,
+		detailSelected:   0,
+		detailShowMarker: true,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Status: ovwformat.StatusFromTags("active", []string{"active"}),
+		}},
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "←→ change") {
+		t.Fatalf("detail view missing inline change hint:\n%s", view)
+	}
+	if strings.Contains(view, "enter edit") {
+		t.Fatalf("structured row should not show enter edit as primary hint:\n%s", view)
 	}
 }
 
@@ -2645,11 +2799,15 @@ func TestModelCommandPaletteOpensConfigEditor(t *testing.T) {
 
 func TestModelCommandPaletteUsesConfiguredActionShortcuts(t *testing.T) {
 	cfg := config.Default()
+	cfg.Keys.Actions.Details = "d"
 	cfg.Keys.Actions.Editor = "e"
 	cfg.Keys.Actions.Runner = "u"
 	model := Model{config: cfg, projects: []project.Project{{Name: "app", Path: "/tmp/app", Scripts: []string{"dev"}}}}
 
 	actions := model.commandActions()
+	if got := shortcutForAction(actions, "Show details"); got != "d" {
+		t.Fatalf("details shortcut = %q, want d", got)
+	}
 	if got := shortcutForAction(actions, "Open in editor"); got != "e" {
 		t.Fatalf("editor shortcut = %q, want e", got)
 	}
@@ -2688,12 +2846,13 @@ func TestModelConfigEditsProjectActionShortcut(t *testing.T) {
 		t.Fatalf("screen = %v, want config keys", model.screen)
 	}
 	view := stripANSI(model.View())
-	for _, want := range []string{"Keyboard shortcuts", "Open editor", "o", "enter edit", "esc done"} {
+	for _, want := range []string{"Keyboard shortcuts", "Show details", "enter", "Open editor", "o", "enter edit", "esc done"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("shortcut view missing %q:\n%s", want, view)
 		}
 	}
 
+	model = updateKey(t, model, "j")
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	if model.screen != screenConfigInput {
@@ -2747,6 +2906,7 @@ func TestModelConfigShortcutInputEscapeReturnsToKeyboardShortcuts(t *testing.T) 
 func TestModelConfigRejectsDuplicateProjectActionShortcut(t *testing.T) {
 	model := Model{config: config.Default(), configDraft: config.Default()}
 	model.openConfigKeys()
+	model = updateKey(t, model, "j")
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	model = updateSpecialKey(t, model, tea.KeyCtrlA)
@@ -5074,6 +5234,45 @@ func TestModelOpenEditorUsesConfiguredShortcut(t *testing.T) {
 	model = updateMsg(t, model, cmd())
 	if gotPath != "/tmp/one" {
 		t.Fatalf("path = %q, want /tmp/one", gotPath)
+	}
+}
+
+func TestModelProjectEnterUsesConfiguredActionShortcut(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.Actions.Details = "d"
+	cfg.Keys.Actions.Terminal = "enter"
+	var gotPath string
+	model := Model{
+		config: cfg,
+		terminal: func(path, name, shell string) tea.Cmd {
+			return func() tea.Msg {
+				gotPath = path
+				return terminalOpenedMsg{message: "Opened terminal " + name}
+			}
+		},
+		projects: []project.Project{{Name: "one", Path: "/tmp/one"}},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected terminal command from configured enter shortcut")
+	}
+	model = updateMsg(t, model, cmd())
+	if gotPath != "/tmp/one" {
+		t.Fatalf("terminal path = %q, want /tmp/one", gotPath)
+	}
+	if model.screen == screenDetail {
+		t.Fatal("enter should not open details when terminal uses enter")
+	}
+
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("details shortcut should not return command")
+	}
+	if model.screen != screenDetail {
+		t.Fatalf("screen = %v, want detail", model.screen)
 	}
 }
 

@@ -36,7 +36,7 @@ func TestDefaultConfigValues(t *testing.T) {
 	if cfg.Stack.Aliases["Cloudflare Workers"] != "CF" {
 		t.Fatalf("Cloudflare alias = %q", cfg.Stack.Aliases["Cloudflare Workers"])
 	}
-	if cfg.Keys.Actions.Editor != "o" || cfg.Keys.Actions.Terminal != "t" || cfg.Keys.Actions.Hide != "x" {
+	if cfg.Keys.Actions.Details != "enter" || cfg.Keys.Actions.Editor != "o" || cfg.Keys.Actions.Terminal != "t" || cfg.Keys.Actions.Hide != "x" {
 		t.Fatalf("action keys = %#v", cfg.Keys.Actions)
 	}
 }
@@ -224,6 +224,22 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				return cfg
 			},
 			want: `invalid keys.actions.terminal "o": already used by editor`,
+		},
+		{
+			name: "enter allowed for action key",
+			edit: func(cfg Config) Config {
+				cfg.Keys.Actions.Details = "d"
+				cfg.Keys.Actions.Terminal = "enter"
+				return cfg
+			},
+		},
+		{
+			name: "duplicate enter action key",
+			edit: func(cfg Config) Config {
+				cfg.Keys.Actions.Terminal = "enter"
+				return cfg
+			},
+			want: `invalid keys.actions.terminal "enter": already used by details`,
 		},
 	}
 	for _, tc := range tests {

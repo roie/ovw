@@ -59,6 +59,7 @@ type KeyConfig struct {
 }
 
 type ActionKeyConfig struct {
+	Details  string `toml:"details"`
 	Editor   string `toml:"editor"`
 	Terminal string `toml:"terminal"`
 	Runner   string `toml:"runner"`
@@ -107,6 +108,7 @@ func Default() Config {
 		},
 		Keys: KeyConfig{
 			Actions: ActionKeyConfig{
+				Details:  "enter",
 				Editor:   "o",
 				Terminal: "t",
 				Runner:   "r",
@@ -331,6 +333,7 @@ func validateActionKeys(keys ActionKeyConfig) error {
 		name string
 		key  string
 	}{
+		{"details", keys.Details},
 		{"editor", keys.Editor},
 		{"terminal", keys.Terminal},
 		{"runner", keys.Runner},
@@ -358,7 +361,7 @@ func validateActionKeys(keys ActionKeyConfig) error {
 
 func reservedActionKey(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(key)) {
-	case "q", "ctrl+c", "?", "esc", "enter", "/", " ", "space",
+	case "q", "ctrl+c", "?", "esc", "/", " ", "space",
 		"up", "down", "left", "right", "h", "j", "k", "l",
 		"ctrl+p", ":", "ctrl+r", "f5",
 		"a", "f", "s", "c",

@@ -155,10 +155,12 @@ func detailEnterHint(rows []detailRow, selected int) string {
 	if rowIndex < 0 {
 		return ""
 	}
-	if rows[rowIndex].EditKind == detailEditCustomCheckbox {
-		return actionHint("enter", "toggle")
+	switch rows[rowIndex].EditKind {
+	case detailEditStatus, detailEditCustomSelect, detailEditCustomCheckbox:
+		return actionHint("←→", "change")
+	default:
+		return actionHint("enter", "edit")
 	}
-	return actionHint("enter", "edit")
 }
 
 func detailModalHasCompactContent(project project.Project) bool {

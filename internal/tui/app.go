@@ -95,6 +95,7 @@ type Model struct {
 	detailYOffset     int
 	detailModalY      int
 	detailSelected    int
+	detailShowMarker  bool
 	detailsExpanded   bool
 	screen            screenMode
 	search            string
@@ -325,10 +326,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isQuitKey(msg.String()) {
 			return m, tea.Quit
 		}
-		if isEnterKey(msg.String()) && m.canOpenDetail() {
+		if m.isDetailsKey(msg.String()) && m.canOpenDetail() {
 			m.screen = screenDetail
 			m.detailModalY = 0
 			m.detailSelected = 0
+			m.detailShowMarker = false
 			m.detailsExpanded = false
 			return m, nil
 		}
@@ -690,13 +692,20 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenTable
 		m.detailModalY = 0
 		m.detailSelected = 0
+		m.detailShowMarker = false
 		m.detailsExpanded = false
 	case isEnterKey(value):
 		return m.editSelectedDetailRow()
+	case isLeftKey(value):
+		return m.changeSelectedDetailRow(-1)
+	case isRightKey(value):
+		return m.changeSelectedDetailRow(1)
 	case isDownKey(value):
 		m = m.moveDetailSelection(1)
+		m.detailShowMarker = true
 	case isUpKey(value):
 		m = m.moveDetailSelection(-1)
+		m.detailShowMarker = true
 	case isExpandKey(value):
 		if m.selectedDetailRowEditKind() == detailEditCustomCheckbox {
 			return m.editSelectedDetailRow()
@@ -740,6 +749,41 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.togglePin()
 	}
 	return m, nil
+}
+
+func (m Model) changeSelectedDetailRow(delta int) (tea.Model, tea.Cmd) {
+	rows := m.currentDetailRows()
+	rowIndex := selectedDetailRowIndex(m.detailSelected, rows)
+	if rowIndex < 0 {
+		return m, nil
+	}
+	row := rows[rowIndex]
+	project, ok := m.currentProject()
+	if !ok {
+		return m, nil
+	}
+	switch row.EditKind {
+	case detailEditStatus:
+		status, message, ok := m.nextDetailStatus(project.Status.Value, delta)
+		if !ok {
+			return m, nil
+		}
+		m.loading = true
+		return m, m.saveStatus(status, message)
+	case detailEditCustomSelect:
+		next, ok := nextOptionValue(row.Options, project.Fields[row.FieldID], delta)
+		if !ok {
+			return m, nil
+		}
+		m.loading = true
+		return m, m.saveCustomField(row.FieldID, next, "Field saved")
+	case detailEditCustomCheckbox:
+		next := toggleCheckboxValue(project.Fields[row.FieldID])
+		m.loading = true
+		return m, m.saveCustomField(row.FieldID, next, "Field saved")
+	default:
+		return m, nil
+	}
 }
 
 func (m Model) editSelectedDetailRow() (tea.Model, tea.Cmd) {
@@ -788,6 +832,28 @@ func (m Model) editSelectedDetailRow() (tea.Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
+}
+
+func (m Model) nextDetailStatus(current string, delta int) (string, string, bool) {
+	options := append([]string{}, m.config.Statuses...)
+	options = append(options, "")
+	if len(options) == 0 {
+		return "", "", false
+	}
+	index := indexOfString(options, current)
+	next := options[wrapPickerSelection(index, len(options), delta)]
+	if next == "" {
+		return "", "Status cleared", true
+	}
+	return next, "Status saved", true
+}
+
+func nextOptionValue(options []string, current string, delta int) (string, bool) {
+	if len(options) == 0 {
+		return "", false
+	}
+	index := indexOfString(options, current)
+	return options[wrapPickerSelection(index, len(options), delta)], true
 }
 
 func (m Model) currentDetailRows() []detailRow {
@@ -1609,7 +1675,14 @@ func (m Model) currentScrollableDetailModal() (string, int) {
 	if !ok {
 		return "", 0
 	}
-	return detailModalViewWithSelectionScroll(detail, true, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.detailSelected)
+	return detailModalViewWithSelectionScroll(detail, true, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.visibleDetailSelection())
+}
+
+func (m Model) visibleDetailSelection() int {
+	if !m.detailShowMarker {
+		return -1
+	}
+	return m.detailSelected
 }
 
 func (m Model) currentScrollableRunner() (string, int) {
@@ -2296,10 +2369,10 @@ func renderShell(m Model) string {
 			switch m.screen {
 			case screenDetail:
 				project, ok := m.currentProject()
-				modal, maxOffset := detailModalViewWithSelectionScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.detailSelected, m.actionKeys())
+				modal, maxOffset := detailModalViewWithSelectionScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.visibleDetailSelection(), m.actionKeys())
 				if m.detailModalY > maxOffset {
 					m.detailModalY = maxOffset
-					modal, _ = detailModalViewWithSelectionScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.detailSelected, m.actionKeys())
+					modal, _ = detailModalViewWithSelectionScroll(project, ok, m.contentWidth(), m.tableHeight(), m.detailModalY, m.detailsExpanded, m.visibleDetailSelection(), m.actionKeys())
 				}
 				content = overlayModal(content, modal, m.contentWidth())
 			case screenAdd:

@@ -120,9 +120,9 @@ func (m Model) commandActions() []commandAction {
 			m.searchCursor = textCursor(m.search, m.searchCursor)
 			return m, nil
 		}},
+		{Label: "Show details", Shortcut: keys.Details, Aliases: []string{"details", "detail"}, Run: commandShowDetails},
 		{Label: "Open in editor", Shortcut: keys.Editor, Aliases: []string{"open", "editor"}, Run: commandOpenSelectedProject},
 		{Label: "Open terminal here", Shortcut: keys.Terminal, Aliases: []string{"terminal", "shell"}, Run: commandOpenSelectedTerminal},
-		{Label: "Show details", Shortcut: "enter", Aliases: []string{"details", "detail"}, Run: commandShowDetails},
 		{Label: "Edit note", Shortcut: keys.Note, Aliases: []string{"note"}, Run: commandEditNote},
 		{Label: "Set status", Shortcut: keys.Status, Aliases: []string{"status"}, Run: commandSetStatus},
 		{Label: m.pinCommandLabel(), Shortcut: keys.Pin, Aliases: []string{"pin", "unpin"}, Run: commandTogglePin},

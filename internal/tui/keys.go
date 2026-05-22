@@ -85,6 +85,9 @@ func isColumnsKey(value string) bool {
 func actionKeys(cfg config.Config) config.ActionKeyConfig {
 	keys := cfg.Keys.Actions
 	defaults := config.Default().Keys.Actions
+	if keys.Details == "" {
+		keys.Details = defaults.Details
+	}
 	if keys.Editor == "" {
 		keys.Editor = defaults.Editor
 	}
@@ -111,6 +114,10 @@ func actionKeys(cfg config.Config) config.ActionKeyConfig {
 
 func (m Model) actionKeys() config.ActionKeyConfig {
 	return actionKeys(m.config)
+}
+
+func (m Model) isDetailsKey(value string) bool {
+	return value == m.actionKeys().Details
 }
 
 func (m Model) isNoteKey(value string) bool {

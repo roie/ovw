@@ -18,7 +18,7 @@ func helpView(actionKeys ...config.ActionKeyConfig) string {
 	entries := []helpEntry{
 		{Key: "↑↓ or j/k", Action: "move"},
 		{Key: "←→ or h/l", Action: "scroll columns"},
-		{Key: "enter", Action: "details"},
+		{Key: keys.Details, Action: "details"},
 		{Key: "esc or q", Action: "back / quit"},
 		{Key: "ctrl+p", Action: "command"},
 		{Key: "/", Action: "search"},
