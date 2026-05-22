@@ -1754,6 +1754,39 @@ func TestModelDetailEditsCustomSelectField(t *testing.T) {
 	}
 }
 
+func TestModelDetailTogglesCustomCheckboxField(t *testing.T) {
+	var saved app.MetadataUpdate
+	model := Model{
+		screen:         screenDetail,
+		detailSelected: 0,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Fields: map[string]string{"reviewed": "false"},
+			FieldDefs: []project.FieldDef{
+				{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+			},
+		}},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			saved = update
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{Projects: []project.Project{{Name: "app", Path: "/tmp/app"}}}, nil
+		},
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected save command")
+	}
+	model = updateMsg(t, model, cmd())
+	if got := saved.Fields["reviewed"]; got == nil || *got != "true" {
+		t.Fatalf("saved fields = %#v", saved.Fields)
+	}
+}
+
 func TestModelDetailVisibilityKeyUnhidesProject(t *testing.T) {
 	var hiddenValue bool
 	model := Model{

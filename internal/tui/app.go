@@ -683,6 +683,9 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isUpKey(value):
 		m = m.moveDetailSelection(-1)
 	case isExpandKey(value):
+		if m.selectedDetailRowEditKind() == detailEditCustomCheckbox {
+			return m.editSelectedDetailRow()
+		}
 		project, ok := m.currentProject()
 		if ok && detailModalHasCompactContent(project) {
 			m.detailsExpanded = !m.detailsExpanded
@@ -759,6 +762,11 @@ func (m Model) editSelectedDetailRow() (tea.Model, tea.Cmd) {
 		m.fieldOptions = append([]string(nil), row.Options...)
 		m.fieldSelected = indexOfString(m.fieldOptions, project.Fields[row.FieldID])
 		return m, nil
+	case detailEditCustomCheckbox:
+		next := toggleCheckboxValue(project.Fields[row.FieldID])
+		m.screen = screenDetail
+		m.loading = true
+		return m, m.saveCustomField(row.FieldID, next, "Field saved")
 	default:
 		return m, nil
 	}
@@ -772,6 +780,15 @@ func (m Model) currentDetailRows() []detailRow {
 	return detailRows(project, projectview.DetailActivity)
 }
 
+func (m Model) selectedDetailRowEditKind() detailEditKind {
+	rows := m.currentDetailRows()
+	rowIndex := selectedDetailRowIndex(m.detailSelected, rows)
+	if rowIndex < 0 {
+		return detailEditNone
+	}
+	return rows[rowIndex].EditKind
+}
+
 func (m Model) moveDetailSelection(delta int) Model {
 	rows := m.currentDetailRows()
 	editable := editableDetailRowIndexes(rows)
@@ -781,6 +798,13 @@ func (m Model) moveDetailSelection(delta int) Model {
 	}
 	m.detailSelected = wrapPickerSelection(clampIndex(m.detailSelected, len(editable)), len(editable), delta)
 	return m
+}
+
+func toggleCheckboxValue(value string) string {
+	if value == "true" {
+		return "false"
+	}
+	return "true"
 }
 
 func (m Model) updateAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
