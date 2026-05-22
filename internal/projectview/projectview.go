@@ -9,8 +9,11 @@ import (
 )
 
 type Field struct {
-	Label string
-	Value string
+	Label   string
+	Value   string
+	ID      string
+	Type    string
+	Options []string
 }
 
 type Options struct {
@@ -22,8 +25,10 @@ type Options struct {
 }
 
 type OptionsField struct {
-	ID    string
-	Label string
+	ID      string
+	Label   string
+	Type    string
+	Options []string
 }
 
 func Title(project project.Project, name string) string {
@@ -71,11 +76,22 @@ func Fields(project project.Project, opts Options) []Field {
 	fieldsToShow := opts.Fields
 	if len(fieldsToShow) == 0 {
 		for _, field := range project.FieldDefs {
-			fieldsToShow = append(fieldsToShow, OptionsField{ID: field.ID, Label: field.Label})
+			fieldsToShow = append(fieldsToShow, OptionsField{
+				ID:      field.ID,
+				Label:   field.Label,
+				Type:    field.Type,
+				Options: append([]string(nil), field.Options...),
+			})
 		}
 	}
 	for _, field := range fieldsToShow {
-		add(field.Label, project.Fields[field.ID])
+		fields = append(fields, Field{
+			Label:   field.Label,
+			Value:   project.Fields[field.ID],
+			ID:      field.ID,
+			Type:    field.Type,
+			Options: append([]string(nil), field.Options...),
+		})
 	}
 	add("Note", project.Note.Display)
 	return fields

@@ -867,7 +867,12 @@ func EnrichWithGitOptions(scanned scanner.Project, cfg config.Config, now time.T
 func projectFieldDefs(cfg config.Config) []project.FieldDef {
 	defs := make([]project.FieldDef, 0, len(cfg.Fields))
 	for _, field := range cfg.Fields {
-		defs = append(defs, project.FieldDef{ID: field.ID, Label: config.FieldLabel(cfg, "field:"+field.ID)})
+		defs = append(defs, project.FieldDef{
+			ID:      field.ID,
+			Label:   config.FieldLabel(cfg, "field:"+field.ID),
+			Type:    field.Type,
+			Options: append([]string(nil), field.Options...),
+		})
 	}
 	return defs
 }

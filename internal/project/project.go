@@ -29,8 +29,10 @@ type Project struct {
 }
 
 type FieldDef struct {
-	ID    string
-	Label string
+	ID      string
+	Label   string
+	Type    string
+	Options []string
 }
 
 func (p Project) LastCommitAt() time.Time {

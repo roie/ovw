@@ -5,7 +5,49 @@ import (
 	"testing"
 
 	ovwformat "ovw/internal/format"
+	"ovw/internal/project"
+	"ovw/internal/projectview"
 )
+
+func TestDetailRowsClassifyEditableMetadata(t *testing.T) {
+	project := project.Project{
+		Path:   "/tmp/app",
+		Status: ovwformat.StatusFromTags("active", []string{"active"}),
+		Note:   ovwformat.NoteInfo{Display: "ship it", Value: "ship it"},
+		Fields: map[string]string{
+			"jira":     "OVW-123",
+			"priority": "high",
+			"reviewed": "true",
+		},
+		FieldDefs: []project.FieldDef{
+			{ID: "jira", Label: "Jira", Type: "text"},
+			{ID: "priority", Label: "Priority", Type: "select", Options: []string{"high", "medium", "low"}},
+			{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+		},
+	}
+
+	rows := detailRows(project, projectview.DetailActivity)
+
+	assertDetailRowKind(t, rows, "Path", detailEditNone)
+	assertDetailRowKind(t, rows, "Status", detailEditStatus)
+	assertDetailRowKind(t, rows, "Note", detailEditNote)
+	assertDetailRowKind(t, rows, "Jira", detailEditCustomText)
+	assertDetailRowKind(t, rows, "Priority", detailEditCustomSelect)
+	assertDetailRowKind(t, rows, "Reviewed", detailEditCustomCheckbox)
+}
+
+func assertDetailRowKind(t *testing.T, rows []detailRow, label string, want detailEditKind) {
+	t.Helper()
+	for _, row := range rows {
+		if row.Label == label {
+			if row.EditKind != want {
+				t.Fatalf("%s edit kind = %v, want %v", label, row.EditKind, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing detail row %q in %#v", label, rows)
+}
 
 func TestDetailSummaryShowsUsefulFieldsAndNoteBlock(t *testing.T) {
 	project := detailTestProject("eventca")

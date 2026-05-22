@@ -109,6 +109,67 @@ func detailModalHasCompactContent(project project.Project) bool {
 	return compacted
 }
 
+type detailEditKind int
+
+const (
+	detailEditNone detailEditKind = iota
+	detailEditNote
+	detailEditStatus
+	detailEditCustomText
+	detailEditCustomSelect
+	detailEditCustomCheckbox
+)
+
+type detailRow struct {
+	Label    string
+	Value    string
+	FieldID  string
+	Options  []string
+	EditKind detailEditKind
+}
+
+func detailRows(project project.Project, activity func(project.Project) string) []detailRow {
+	fields := detailFields(project, activity)
+	rows := make([]detailRow, 0, len(fields))
+	for _, field := range fields {
+		rows = append(rows, detailRow{
+			Label:    field.Label,
+			Value:    field.Value,
+			FieldID:  field.ID,
+			Options:  append([]string(nil), field.Options...),
+			EditKind: detailEditKindForField(field),
+		})
+	}
+	return rows
+}
+
+func detailEditKindForField(field projectview.Field) detailEditKind {
+	if field.ID != "" {
+		return detailCustomEditKind(field.Type)
+	}
+	switch field.Label {
+	case "Note":
+		return detailEditNote
+	case "Status":
+		return detailEditStatus
+	default:
+		return detailEditNone
+	}
+}
+
+func detailCustomEditKind(fieldType string) detailEditKind {
+	switch fieldType {
+	case "text":
+		return detailEditCustomText
+	case "select":
+		return detailEditCustomSelect
+	case "checkbox":
+		return detailEditCustomCheckbox
+	default:
+		return detailEditNone
+	}
+}
+
 func detailFields(project project.Project, activity func(project.Project) string) []projectview.Field {
 	return projectview.Fields(project, detailOptions(nil, activity))
 }
