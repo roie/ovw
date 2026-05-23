@@ -447,14 +447,15 @@ func newSetCommand() *cobra.Command {
 	var note string
 	var pin bool
 	var scriptValues []string
+	var fieldValues []string
 	cmd := &cobra.Command{
 		Use:   "set <project>",
 		Short: "Set project metadata",
-		Long:  "Set project metadata: status, note, pin, or script.",
+		Long:  "Set project metadata: status, note, pin, script, or field.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if status == "" && note == "" && !pin && len(scriptValues) == 0 {
-				return fmt.Errorf("nothing to set; pass --status, --note, --pin, or --script")
+			if status == "" && note == "" && !pin && len(scriptValues) == 0 && len(fieldValues) == 0 {
+				return fmt.Errorf("nothing to set; pass --status, --note, --pin, --script, or --field")
 			}
 			update := app.MetadataUpdate{}
 			if status != "" {
@@ -474,6 +475,20 @@ func newSetCommand() *cobra.Command {
 			if len(scripts) > 0 {
 				update.Scripts = scripts
 			}
+			fields, err := parseFieldAssignments(fieldValues)
+			if err != nil {
+				return err
+			}
+			if len(fields) > 0 {
+				cfg, err := loadCLIConfig()
+				if err != nil {
+					return err
+				}
+				if err := validateFieldAssignments(cfg.Fields, fields); err != nil {
+					return err
+				}
+				update.Fields = fields
+			}
 			result, err := app.UpdateProjectMetadata(args[0], update)
 			if err != nil {
 				return err
@@ -492,6 +507,15 @@ func newSetCommand() *cobra.Command {
 				name, command, _ := strings.Cut(script, "=")
 				fmt.Fprintf(cmd.OutOrStdout(), "Script  %s = %s\n", name, command)
 			}
+			for _, field := range fieldValues {
+				name, value, _ := strings.Cut(field, "=")
+				name = strings.TrimSpace(name)
+				value = strings.TrimSpace(value)
+				if normalized, ok := fields[name]; ok && normalized != nil {
+					value = *normalized
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Field   %s = %s\n", name, value)
+			}
 			return nil
 		},
 	}
@@ -499,6 +523,7 @@ func newSetCommand() *cobra.Command {
 	cmd.Flags().StringVar(&note, "note", "", "set note")
 	cmd.Flags().BoolVar(&pin, "pin", false, "pin project")
 	cmd.Flags().StringArrayVar(&scriptValues, "script", nil, "set script as name=command")
+	cmd.Flags().StringArrayVar(&fieldValues, "field", nil, "set custom field as field=value")
 	cmd.SetUsageTemplate(setUsageTemplate())
 	return cmd
 }
@@ -508,14 +533,15 @@ func newUnsetCommand() *cobra.Command {
 	var clearNote bool
 	var clearPin bool
 	var scriptNames []string
+	var fieldNames []string
 	cmd := &cobra.Command{
 		Use:   "unset <project>",
 		Short: "Clear project metadata",
-		Long:  "Clear project metadata: status, note, pin, or script.",
+		Long:  "Clear project metadata: status, note, pin, script, or field.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !clearStatus && !clearNote && !clearPin && len(scriptNames) == 0 {
-				return fmt.Errorf("nothing to unset; pass --status, --note, --pin, or --script")
+			if !clearStatus && !clearNote && !clearPin && len(scriptNames) == 0 && len(fieldNames) == 0 {
+				return fmt.Errorf("nothing to unset; pass --status, --note, --pin, --script, or --field")
 			}
 			update := app.MetadataUpdate{}
 			if clearStatus {
@@ -537,6 +563,20 @@ func newUnsetCommand() *cobra.Command {
 			if len(scripts) > 0 {
 				update.Scripts = scripts
 			}
+			fields, err := parseFieldNames(fieldNames)
+			if err != nil {
+				return err
+			}
+			if len(fields) > 0 {
+				cfg, err := loadCLIConfig()
+				if err != nil {
+					return err
+				}
+				if err := validateFieldNames(cfg.Fields, fields); err != nil {
+					return err
+				}
+				update.Fields = fields
+			}
 			result, err := app.UpdateProjectMetadata(args[0], update)
 			if err != nil {
 				return err
@@ -554,6 +594,9 @@ func newUnsetCommand() *cobra.Command {
 			for _, script := range scriptNames {
 				fmt.Fprintf(cmd.OutOrStdout(), "Script %s cleared.\n", script)
 			}
+			for _, field := range fieldNames {
+				fmt.Fprintf(cmd.OutOrStdout(), "Field %s cleared.\n", strings.TrimSpace(field))
+			}
 			return nil
 		},
 	}
@@ -561,6 +604,7 @@ func newUnsetCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&clearNote, "note", false, "clear note")
 	cmd.Flags().BoolVar(&clearPin, "pin", false, "unpin project")
 	cmd.Flags().StringArrayVar(&scriptNames, "script", nil, "clear script by name")
+	cmd.Flags().StringArrayVar(&fieldNames, "field", nil, "clear custom field by id")
 	cmd.SetUsageTemplate(unsetUsageTemplate())
 	return cmd
 }
@@ -592,12 +636,126 @@ func parseScriptNames(values []string) (map[string]*string, error) {
 	return scripts, nil
 }
 
+func parseFieldAssignments(values []string) (map[string]*string, error) {
+	fields := map[string]*string{}
+	for _, value := range values {
+		name, fieldValue, ok := strings.Cut(value, "=")
+		name = strings.TrimSpace(name)
+		fieldValue = strings.TrimSpace(fieldValue)
+		if !ok || name == "" || fieldValue == "" {
+			return nil, fmt.Errorf("invalid field %q: expected field=value", value)
+		}
+		valueCopy := fieldValue
+		fields[name] = &valueCopy
+	}
+	return fields, nil
+}
+
+func parseFieldNames(values []string) (map[string]*string, error) {
+	fields := map[string]*string{}
+	for _, value := range values {
+		name := strings.TrimSpace(value)
+		if name == "" {
+			return nil, fmt.Errorf("invalid field name: cannot be empty")
+		}
+		fields[name] = nil
+	}
+	return fields, nil
+}
+
+func loadCLIConfig() (config.Config, error) {
+	paths, err := config.Paths()
+	if err != nil {
+		return config.Config{}, err
+	}
+	return config.Load(paths.Config)
+}
+
+func validateFieldAssignments(defs []config.FieldConfig, values map[string]*string) error {
+	for id, value := range values {
+		def, ok := fieldDefByID(defs, id)
+		if !ok {
+			return unknownFieldError(id)
+		}
+		if value == nil {
+			continue
+		}
+		normalized, err := normalizeFieldValue(def, *value)
+		if err != nil {
+			return err
+		}
+		*value = normalized
+	}
+	return nil
+}
+
+func validateFieldNames(defs []config.FieldConfig, values map[string]*string) error {
+	for id := range values {
+		if _, ok := fieldDefByID(defs, id); !ok {
+			return unknownFieldError(id)
+		}
+	}
+	return nil
+}
+
+func fieldDefByID(defs []config.FieldConfig, id string) (config.FieldConfig, bool) {
+	for _, def := range defs {
+		if def.ID == id {
+			return def, true
+		}
+	}
+	return config.FieldConfig{}, false
+}
+
+func normalizeFieldValue(def config.FieldConfig, value string) (string, error) {
+	switch def.Type {
+	case "text":
+		return value, nil
+	case "select":
+		for _, option := range def.Options {
+			if value == option {
+				return value, nil
+			}
+		}
+		return "", fmt.Errorf("invalid value %q for field %q; expected %s", value, def.ID, humanList(def.Options))
+	case "checkbox":
+		switch strings.ToLower(value) {
+		case "true", "yes", "on", "1":
+			return "true", nil
+		case "false", "no", "off", "0":
+			return "false", nil
+		default:
+			return "", fmt.Errorf("invalid value %q for field %q; expected true or false", value, def.ID)
+		}
+	default:
+		return "", fmt.Errorf("invalid field %q: unsupported type %q", def.ID, def.Type)
+	}
+}
+
+func unknownFieldError(id string) error {
+	return fmt.Errorf("unknown field %q; add it in Settings > Fields or ovw config edit", id)
+}
+
+func humanList(values []string) string {
+	switch len(values) {
+	case 0:
+		return "a configured option"
+	case 1:
+		return values[0]
+	case 2:
+		return values[0] + " or " + values[1]
+	default:
+		return strings.Join(values[:len(values)-1], ", ") + ", or " + values[len(values)-1]
+	}
+}
+
 func setUsageTemplate() string {
 	return `Usage:
   {{.CommandPath}} <project> --status <status>
   {{.CommandPath}} <project> --note <note>
   {{.CommandPath}} <project> --pin
   {{.CommandPath}} <project> --script <name=command>
+  {{.CommandPath}} <project> --field <field=value>
   {{.CommandPath}} <project> --status <status> --note <note>
 
 Examples:
@@ -605,6 +763,7 @@ Examples:
   {{.CommandPath}} myproject --note "currently working on it"
   {{.CommandPath}} myproject --pin
   {{.CommandPath}} myproject --script run="go run ."
+  {{.CommandPath}} myproject --field owner=roie
   {{.CommandPath}} myproject --status shipped --note "released v1"
 
 Flags:
@@ -612,6 +771,7 @@ Flags:
   --note string     set note
   --pin             pin project
   --script string   set script as name=command
+  --field string    set custom field as field=value
   -h, --help        help for set
 `
 }
@@ -622,6 +782,7 @@ func unsetUsageTemplate() string {
   {{.CommandPath}} <project> --note
   {{.CommandPath}} <project> --pin
   {{.CommandPath}} <project> --script <name>
+  {{.CommandPath}} <project> --field <field>
   {{.CommandPath}} <project> --status --note
 
 Examples:
@@ -629,12 +790,14 @@ Examples:
   {{.CommandPath}} myproject --note
   {{.CommandPath}} myproject --pin
   {{.CommandPath}} myproject --script run
+  {{.CommandPath}} myproject --field owner
 
 Flags:
   --status   clear status
   --note     clear note
   --pin      unpin project
   --script string   clear script by name
+  --field string    clear custom field by id
   -h, --help  help for unset
 `
 }

@@ -136,19 +136,22 @@ func TestSetHelpShowsStatusAndNoteUsage(t *testing.T) {
 		t.Fatalf("Execute(set --help) error = %v", err)
 	}
 	for _, want := range []string{
-		"Set project metadata: status, note, pin, or script.",
+		"Set project metadata: status, note, pin, script, or field.",
 		"ovw set <project> --status <status>",
 		"ovw set <project> --note <note>",
 		"ovw set <project> --pin",
 		"ovw set <project> --script <name=command>",
+		"ovw set <project> --field <field=value>",
 		"ovw set myproject --status blocked",
 		"ovw set myproject --note \"currently working on it\"",
 		"ovw set myproject --pin",
 		"ovw set myproject --script run=\"go run .\"",
+		"ovw set myproject --field owner=roie",
 		"--status string   set status",
 		"--note string     set note",
 		"--pin             pin project",
 		"--script string   set script as name=command",
+		"--field string    set custom field as field=value",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("set help missing %q:\n%s", want, out)
@@ -165,19 +168,22 @@ func TestUnsetHelpShowsStatusAndNoteUsage(t *testing.T) {
 		t.Fatalf("Execute(unset --help) error = %v", err)
 	}
 	for _, want := range []string{
-		"Clear project metadata: status, note, pin, or script.",
+		"Clear project metadata: status, note, pin, script, or field.",
 		"ovw unset <project> --status",
 		"ovw unset <project> --note",
 		"ovw unset <project> --pin",
 		"ovw unset <project> --script <name>",
+		"ovw unset <project> --field <field>",
 		"ovw unset myproject --status",
 		"ovw unset myproject --note",
 		"ovw unset myproject --pin",
 		"ovw unset myproject --script run",
+		"ovw unset myproject --field owner",
 		"--status   clear status",
 		"--note     clear note",
 		"--pin      unpin project",
 		"--script string   clear script by name",
+		"--field string    clear custom field by id",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("unset help missing %q:\n%s", want, out)
@@ -843,7 +849,7 @@ func TestSetRequiresStatusOrNote(t *testing.T) {
 	runCommand(t, []string{"add", project})
 
 	_, err := executeCommand([]string{"set", "custom"})
-	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, --pin, or --script") {
+	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, --pin, --script, or --field") {
 		t.Fatalf("set without fields error = %v", err)
 	}
 	if out, _ := executeCommand([]string{"set", "custom"}); strings.Contains(out, "Usage:") {
@@ -893,6 +899,132 @@ func TestSetAndUnsetProjectScript(t *testing.T) {
 	}
 	if _, ok := store.Projects[canonical].Scripts["run"]; ok {
 		t.Fatalf("script was not unset: %#v", store.Projects[canonical].Scripts)
+	}
+}
+
+func TestSetAndUnsetProjectFields(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "custom")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module custom"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	runCommand(t, []string{"add", project})
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(paths.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Fields = []config.FieldConfig{
+		{ID: "owner", Label: "Owner", Type: "text"},
+		{ID: "priority", Label: "Priority", Type: "select", Options: []string{"high", "medium", "low"}},
+		{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+	}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	out := runCommand(t, []string{"set", "custom", "--field", "owner=roie", "--field", "priority=high", "--field", "reviewed=yes"})
+	for _, want := range []string{"Field   owner = roie", "Field   priority = high", "Field   reviewed = true"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("set field output missing %q:\n%s", want, out)
+		}
+	}
+	store, err := metadata.Load(paths.Metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := metadata.CanonicalPath(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := store.Projects[canonical].Fields
+	if fields["owner"] != "roie" || fields["priority"] != "high" || fields["reviewed"] != "true" {
+		t.Fatalf("stored fields = %#v", fields)
+	}
+	show := runCommand(t, []string{"show", "custom"})
+	for _, want := range []string{"Owner     roie", "Priority  high", "Reviewed  [x]"} {
+		if !strings.Contains(show, want) {
+			t.Fatalf("show output missing %q:\n%s", want, show)
+		}
+	}
+	showJSON := runCommand(t, []string{"show", "custom", "--json"})
+	for _, want := range []string{`"fields":`, `"owner": "roie"`, `"priority": "high"`, `"reviewed": "true"`} {
+		if !strings.Contains(showJSON, want) {
+			t.Fatalf("show json missing %q:\n%s", want, showJSON)
+		}
+	}
+
+	out = runCommand(t, []string{"unset", "custom", "--field", "owner", "--field", "reviewed"})
+	for _, want := range []string{"Field owner cleared.", "Field reviewed cleared."} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("unset field output missing %q:\n%s", want, out)
+		}
+	}
+	store, err = metadata.Load(paths.Metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields = store.Projects[canonical].Fields
+	if _, ok := fields["owner"]; ok {
+		t.Fatalf("owner field was not unset: %#v", fields)
+	}
+	if _, ok := fields["reviewed"]; ok {
+		t.Fatalf("reviewed field was not unset: %#v", fields)
+	}
+	if fields["priority"] != "high" {
+		t.Fatalf("priority field = %q, want high", fields["priority"])
+	}
+}
+
+func TestSetProjectFieldValidatesDefinitionAndValue(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "custom")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module custom"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	runCommand(t, []string{"add", project})
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(paths.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Fields = []config.FieldConfig{
+		{ID: "priority", Label: "Priority", Type: "select", Options: []string{"high", "medium", "low"}},
+		{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+	}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = executeCommand([]string{"set", "custom", "--field", "owner=roie"})
+	if err == nil || err.Error() != `unknown field "owner"; add it in Settings > Fields or ovw config edit` {
+		t.Fatalf("unknown field error = %v", err)
+	}
+	_, err = executeCommand([]string{"set", "custom", "--field", "priority=urgent"})
+	if err == nil || err.Error() != `invalid value "urgent" for field "priority"; expected high, medium, or low` {
+		t.Fatalf("select field error = %v", err)
+	}
+	_, err = executeCommand([]string{"set", "custom", "--field", "reviewed=maybe"})
+	if err == nil || err.Error() != `invalid value "maybe" for field "reviewed"; expected true or false` {
+		t.Fatalf("checkbox field error = %v", err)
+	}
+	_, err = executeCommand([]string{"set", "custom", "--field", "priority"})
+	if err == nil || err.Error() != `invalid field "priority": expected field=value` {
+		t.Fatalf("malformed field error = %v", err)
 	}
 }
 
@@ -969,7 +1101,7 @@ func TestUnsetRequiresStatusOrNote(t *testing.T) {
 	runCommand(t, []string{"add", project})
 
 	_, err := executeCommand([]string{"unset", "custom"})
-	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, --pin, or --script") {
+	if err == nil || !strings.Contains(err.Error(), "pass --status, --note, --pin, --script, or --field") {
 		t.Fatalf("unset without fields error = %v", err)
 	}
 }

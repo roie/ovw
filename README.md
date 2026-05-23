@@ -103,10 +103,12 @@ ovw set <name> --status active
 ovw set <name> --note "fix check-in flow"
 ovw set <name> --pin
 ovw set <name> --script run="go run ."
+ovw set <name> --field owner=roie
 ovw unset <name> --status
 ovw unset <name> --note
 ovw unset <name> --pin
 ovw unset <name> --script run
+ovw unset <name> --field owner
 
 ovw --status active          # filter by status
 ovw --path ~/dev/web         # filter by project path
