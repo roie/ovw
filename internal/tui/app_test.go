@@ -2918,8 +2918,12 @@ func TestModelConfigRejectsDuplicateProjectActionShortcut(t *testing.T) {
 	if model.screen != screenConfigInput {
 		t.Fatalf("screen = %v, want to stay in input on invalid shortcut", model.screen)
 	}
-	if !strings.Contains(model.configErr, "already used by editor") {
-		t.Fatalf("configErr = %q, want duplicate shortcut error", model.configErr)
+	if model.configErr != `Shortcut "t" is already used by Open terminal.` {
+		t.Fatalf("configErr = %q, want friendly duplicate shortcut error", model.configErr)
+	}
+	view := stripANSI(model.View())
+	if strings.Contains(view, "keys.actions") {
+		t.Fatalf("shortcut capture view should hide raw config path errors:\n%s", view)
 	}
 }
 

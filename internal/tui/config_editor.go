@@ -1083,16 +1083,51 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) saveConfigShortcut(value string) (tea.Model, tea.Cmd) {
+	value = strings.TrimSpace(value)
+	if label, ok := m.configShortcutOwner(value); ok {
+		m.configErr = fmt.Sprintf("Shortcut %q is already used by %s.", value, label)
+		return m, nil
+	}
 	next := m.configDraft
-	setActionKey(&next.Keys.Actions, m.configInputKind, strings.TrimSpace(value))
+	setActionKey(&next.Keys.Actions, m.configInputKind, value)
 	if err := config.Validate(next); err != nil {
-		m.configErr = err.Error()
+		m.configErr = friendlyConfigShortcutError(value, err)
 		return m, nil
 	}
 	m.configDraft = next
 	m.screen = screenConfigKeys
 	m.configErr = ""
 	return m, nil
+}
+
+func (m Model) configShortcutOwner(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", false
+	}
+	for _, row := range m.configKeyRows() {
+		if row.Kind == m.configInputKind {
+			continue
+		}
+		if strings.TrimSpace(row.Value) == value {
+			return row.Label, true
+		}
+	}
+	return "", false
+}
+
+func friendlyConfigShortcutError(value string, err error) string {
+	message := err.Error()
+	if strings.Contains(message, "key is reserved") {
+		return fmt.Sprintf("Shortcut %q is reserved.", value)
+	}
+	if strings.Contains(message, "expected a key") {
+		return "Press a shortcut to save."
+	}
+	if strings.Contains(message, "already used by") {
+		return fmt.Sprintf("Shortcut %q is already used.", value)
+	}
+	return message
 }
 
 func setActionKey(keys *config.ActionKeyConfig, kind configInputKind, value string) {

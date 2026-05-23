@@ -106,6 +106,33 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoadExistingConfigDefaultsMissingDetailsShortcut(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	text := `
+roots = ["~/dev"]
+
+[keys.actions]
+editor = "o"
+terminal = "t"
+runner = "r"
+note = "n"
+status = "m"
+pin = "p"
+hide = "x"
+`
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if loaded.Keys.Actions.Details != "enter" {
+		t.Fatalf("Details key = %q, want enter", loaded.Keys.Actions.Details)
+	}
+}
+
 func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 	tests := []struct {
 		name string
@@ -312,7 +339,7 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note, field:<id>") {
 		t.Fatalf("default config missing column options comment:\n%s", text)
 	}
-	if !strings.Contains(text, "[keys.actions]") || !strings.Contains(text, `editor = "o"`) || !strings.Contains(text, `hide = "x"`) {
+	if !strings.Contains(text, "[keys.actions]") || !strings.Contains(text, `details = "enter"`) || !strings.Contains(text, `editor = "o"`) || !strings.Contains(text, `hide = "x"`) {
 		t.Fatalf("default config missing keyboard shortcuts:\n%s", text)
 	}
 	if strings.Contains(text, "show_untagged") || strings.Contains(text, "relative_dates") {

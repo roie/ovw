@@ -700,6 +700,7 @@ show_unknown = true
 # ─────────────────────────────────────────
 
 [keys.actions]
+details = "enter"
 editor = "o"
 terminal = "t"
 runner = "r"
