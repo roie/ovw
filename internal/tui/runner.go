@@ -12,6 +12,7 @@ var runnerScriptPriority = []string{"dev", "start", "build", "test", "check", "l
 type runnerScript struct {
 	Name    string
 	Command string
+	Custom  bool
 }
 
 func runnerView(project project.Project, selected int, input string, cursor int, cursorState ...inputCursorState) string {
@@ -36,7 +37,7 @@ func runnerViewWithScroll(project project.Project, selected int, input string, c
 	optionLines := runnerOptionLines(project, scripts, selected, input, adding, showInfo)
 	optionLines, maxOffset := scrollRunnerOptionLines(optionLines, height, offset)
 	lines = append(lines, optionLines...)
-	action := runnerActionHint(len(scripts), strings.TrimSpace(input), adding, showInfo)
+	action := runnerActionHint(scripts, selected, strings.TrimSpace(input), adding, showInfo)
 	if adding {
 		action = actionHint("enter", "save")
 	}
@@ -70,21 +71,27 @@ func runnerOptionLines(project project.Project, scripts []runnerScript, selected
 	return lines
 }
 
-func runnerActionHint(scriptCount int, input string, adding bool, showInfo bool) string {
+func runnerActionHint(scripts []runnerScript, selected int, input string, adding bool, showInfo bool) string {
 	if adding {
 		return actionHint("enter", "save")
 	}
+	scriptCount := len(scripts)
 	if scriptCount == 0 && input == "" {
 		return ""
 	}
 	if scriptCount == 0 {
 		return actionHint("enter", "add")
 	}
-	action := actionHint("enter", "run")
+	actions := []string{actionHint("enter", "run")}
 	if showInfo {
-		return action + " · " + actionHint("space", "collapse")
+		actions = append(actions, actionHint("space", "collapse"))
+	} else {
+		actions = append(actions, actionHint("space", "details"))
 	}
-	return action + " · " + actionHint("space", "details")
+	if selected >= 0 && selected < len(scripts) && scripts[selected].Custom {
+		actions = append(actions, actionHint("del", "delete"))
+	}
+	return strings.Join(actions, " · ")
 }
 
 func runnerScriptDetail(script runnerScript, project project.Project) string {
@@ -167,7 +174,7 @@ func prioritizedScripts(project project.Project) []runnerScript {
 	}
 	sort.Strings(customNames)
 	for _, name := range customNames {
-		ordered = append(ordered, runnerScript{Name: name, Command: project.CustomScripts[name]})
+		ordered = append(ordered, runnerScript{Name: name, Command: project.CustomScripts[name], Custom: true})
 		seen[name] = true
 	}
 	add := func(want string) {

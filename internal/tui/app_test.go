@@ -5146,6 +5146,15 @@ func TestModelRunnerAddsCustomScriptInline(t *testing.T) {
 	if model.message != "Script saved" {
 		t.Fatalf("message = %q, want Script saved", model.message)
 	}
+	if model.screen != screenRunner {
+		t.Fatalf("screen after script save = %v, want runner", model.screen)
+	}
+	if model.runnerInput != "" || model.runnerAddName != "" || model.runnerAdding {
+		t.Fatalf("runner input state after save = input %q addName %q adding %v, want cleared", model.runnerInput, model.runnerAddName, model.runnerAdding)
+	}
+	if !strings.Contains(stripANSI(model.View()), "> run") {
+		t.Fatalf("runner should select saved script:\n%s", stripANSI(model.View()))
+	}
 }
 
 func TestModelRunnerSpaceExpandsScriptDetails(t *testing.T) {
@@ -5173,6 +5182,73 @@ func TestModelRunnerSpaceExpandsScriptDetails(t *testing.T) {
 	view = stripANSI(model.View())
 	if strings.Contains(view, "go run .") || strings.Contains(view, "package script") {
 		t.Fatalf("runner should hide script details after second space:\n%s", view)
+	}
+}
+
+func TestModelRunnerDeletesCustomScriptOnly(t *testing.T) {
+	var deletedScript string
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config:   config.Default(),
+				Projects: []project.Project{{Name: "api", Path: "/tmp/api"}},
+			}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			for name, command := range update.Scripts {
+				if command == nil {
+					deletedScript = name
+				}
+			}
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "api", Path: "/tmp/api", Scripts: []string{"build"}, CustomScripts: map[string]string{"run": "go run ."}}},
+		screen:   screenRunner,
+	}
+
+	view := stripANSI(model.View())
+	if !strings.Contains(view, "del delete") {
+		t.Fatalf("custom script should show delete hint:\n%s", view)
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyDelete})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected delete script command")
+	}
+	model = updateMsg(t, model, cmd())
+	if deletedScript != "run" {
+		t.Fatalf("deleted script = %q, want run", deletedScript)
+	}
+	if model.message != "Script deleted" {
+		t.Fatalf("message = %q, want Script deleted", model.message)
+	}
+	if model.screen != screenRunner {
+		t.Fatalf("screen after script delete = %v, want runner", model.screen)
+	}
+	if strings.Contains(stripANSI(model.View()), "run") {
+		t.Fatalf("runner should no longer show deleted script:\n%s", stripANSI(model.View()))
+	}
+}
+
+func TestModelRunnerDoesNotOfferDeleteForPackageScript(t *testing.T) {
+	model := Model{
+		projects: []project.Project{{Name: "api", Path: "/tmp/api", Scripts: []string{"build"}}},
+		screen:   screenRunner,
+	}
+
+	view := stripANSI(model.View())
+	if strings.Contains(view, "del delete") {
+		t.Fatalf("package script should not show delete hint:\n%s", view)
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyDelete})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("package script delete should not return command")
+	}
+	if model.message != "" {
+		t.Fatalf("message = %q, want empty", model.message)
 	}
 }
 

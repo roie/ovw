@@ -558,6 +558,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.clampSelection()
 		}
 		return m, m.loadSelectedRecent()
+	case runnerMetadataSavedMsg:
+		m.loading = false
+		m.loadErr = nil
+		m.screen = screenRunner
+		m.config = msg.result.Config
+		m.configPaths = msg.result.Paths
+		m.projects = msg.result.Projects
+		m.scanElapsed = msg.result.Elapsed
+		m.showScanElapsed = false
+		m.syncActiveSort()
+		m.recentByPath = map[string][]ovwformat.RecentCommit{}
+		m.filesByPath = map[string][]ovwformat.RecentFile{}
+		m.message = msg.message
+		m.runnerInput = ""
+		m.runnerCursor = 0
+		m.runnerYOffset = 0
+		m.runnerAddName = ""
+		m.runnerAdding = false
+		m.runnerShowInfo = false
+		if msg.preservePath != "" {
+			m.selectProjectPath(msg.preservePath)
+		} else {
+			m.clampSelection()
+		}
+		m.selectRunnerScript(msg.selectScript)
+		return m, m.loadSelectedRecent()
 	case metadataFailedMsg:
 		m.loading = false
 		m.message = "Failed to write metadata: " + msg.err.Error()
@@ -1046,6 +1072,8 @@ func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.runRunnerScript(project, scripts)
+	case value == "delete":
+		return m.deleteRunnerScript(project, scripts)
 	case value == "left":
 		m.runnerCursor = textMoveLeft(m.runnerInput, m.runnerCursor)
 	case value == "right":
@@ -1086,6 +1114,44 @@ func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.runnerShowInfo = false
 	}
 	return m, nil
+}
+
+func (m Model) deleteRunnerScript(project project.Project, scripts []runnerScript) (Model, tea.Cmd) {
+	if m.runnerSelected >= len(scripts) {
+		m.runnerSelected = len(scripts) - 1
+	}
+	if m.runnerSelected < 0 {
+		m.runnerSelected = 0
+	}
+	if len(scripts) == 0 || !scripts[m.runnerSelected].Custom {
+		return m, nil
+	}
+	m.screen = screenTable
+	m.loading = true
+	return m, m.deleteRunnerScriptCommand(project, scripts[m.runnerSelected].Name)
+}
+
+func (m *Model) selectRunnerScript(name string) {
+	project, ok := m.currentProject()
+	if !ok {
+		m.runnerSelected = 0
+		return
+	}
+	scripts := runnerScriptOptions(project, "")
+	if len(scripts) == 0 {
+		m.runnerSelected = 0
+		return
+	}
+	m.runnerSelected = clampIndex(m.runnerSelected, len(scripts))
+	if name == "" {
+		return
+	}
+	for index, script := range scripts {
+		if script.Name == name {
+			m.runnerSelected = index
+			return
+		}
+	}
 }
 
 func (m Model) updateRunnerCommand(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1773,6 +1839,13 @@ type metadataSavedMsg struct {
 	preservePath string
 }
 
+type runnerMetadataSavedMsg struct {
+	message      string
+	result       app.OverviewResult
+	preservePath string
+	selectScript string
+}
+
 type metadataFailedMsg struct {
 	err error
 }
@@ -2117,7 +2190,23 @@ func (m Model) saveRunnerScript(name, command string) tea.Cmd {
 		if err != nil {
 			return overviewLoadFailedMsg{err: err}
 		}
-		return metadataSavedMsg{message: "Script saved", result: result, preservePath: project.Path}
+		return runnerMetadataSavedMsg{message: "Script saved", result: result, preservePath: project.Path, selectScript: name}
+	}
+}
+
+func (m Model) deleteRunnerScriptCommand(project project.Project, name string) tea.Cmd {
+	return func() tea.Msg {
+		if project.Path == "" {
+			return metadataFailedMsg{err: errNoProjectSelected{}}
+		}
+		if _, err := m.updater(project.Path, app.MetadataUpdate{Scripts: map[string]*string{name: nil}}); err != nil {
+			return metadataFailedMsg{err: err}
+		}
+		result, err := m.loader(m.request)
+		if err != nil {
+			return overviewLoadFailedMsg{err: err}
+		}
+		return runnerMetadataSavedMsg{message: "Script deleted", result: result, preservePath: project.Path}
 	}
 }
 
