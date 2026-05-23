@@ -3001,6 +3001,115 @@ func TestModelConfigRejectsDuplicateProjectActionShortcut(t *testing.T) {
 	if strings.Contains(view, "keys.actions") {
 		t.Fatalf("shortcut capture view should hide raw config path errors:\n%s", view)
 	}
+	rawView := model.View()
+	if !strings.Contains(rawView, "\x1b[38;5;203;48;5;"+modalSurfaceColor+"mShortcut") {
+		t.Fatalf("shortcut capture error should keep modal background:\n%q", rawView)
+	}
+}
+
+func TestFriendlyConfigErrorHidesConfigInternals(t *testing.T) {
+	tests := []struct {
+		err  string
+		want string
+	}{
+		{`invalid roots: expected at least one root`, `Add at least one project folder before saving.`},
+		{`invalid roots: root paths cannot be empty`, `Project folders cannot be empty.`},
+		{`invalid max_depth -1: expected 0 or greater`, `Project search depth must be 0 or greater.`},
+		{`invalid stale_days 0: expected 1 or greater`, `Stale days must be 1 or greater.`},
+		{`invalid sort_by "updated": expected activity, updated, name, or status`, `Choose a valid default sort.`},
+		{`invalid sort_dir "down": expected asc or desc`, `Choose ascending or descending sort.`},
+		{`invalid column "wat": expected name, path`, `Choose a valid column.`},
+		{`invalid column_order "wat": expected name, path`, `Choose a valid column order.`},
+		{`invalid column "field:url": custom field is not defined`, `Remove the missing custom field column before saving.`},
+		{`invalid column_order "field:url": custom field is not defined`, `Remove the missing custom field from column order before saving.`},
+		{`invalid fields[0].id: expected lowercase letters, numbers, underscores, or hyphens`, `Use a field label with letters or numbers.`},
+		{`invalid fields[1].id "jira": already used`, `A field with this label already exists.`},
+		{`invalid fields[0].type "number": expected text, select, or checkbox`, `Choose a field type.`},
+		{`invalid fields[0].options: select fields need at least one option`, `Add at least one option before saving.`},
+		{`invalid keys.actions.editor: expected a key`, `Press a shortcut to save.`},
+		{`invalid keys.actions.editor "?": key is reserved`, `This shortcut is reserved.`},
+		{`invalid keys.actions.terminal "o": already used by editor`, `This shortcut is already used.`},
+		{`invalid config /tmp/ovw/config.toml: invalid fields[0].options: select fields need at least one option`, `Add at least one option before saving.`},
+	}
+
+	for _, tc := range tests {
+		got := friendlyConfigError(errors.New(tc.err))
+		if got != tc.want {
+			t.Fatalf("friendlyConfigError(%q) = %q, want %q", tc.err, got, tc.want)
+		}
+		for _, raw := range []string{"fields[", "keys.actions", "max_depth", "stale_days", "sort_by", "sort_dir", "column_order", "invalid config"} {
+			if strings.Contains(got, raw) {
+				t.Fatalf("friendlyConfigError(%q) exposed raw token %q: %q", tc.err, raw, got)
+			}
+		}
+	}
+}
+
+func TestErrorRenderingUsesExpectedSurfaces(t *testing.T) {
+	modalViews := []struct {
+		name string
+		view string
+		text string
+	}{
+		{name: "add project", view: addProjectView("", 0, "missing directory"), text: "missing directory"},
+		{name: "columns", view: columnsView([]string{"name"}, map[string]bool{}, 0, "keep at least one column"), text: "keep at least one column"},
+		{name: "settings", view: configView([]configRow{{Label: "Roots", Value: "1"}}, 0, "Add at least one project folder before saving."), text: "Add at least one project folder"},
+		{name: "shortcut", view: configShortcutCaptureView("Open terminal shortcut", "t", `Shortcut "t" is already used by Pin project.`), text: `Shortcut "t"`},
+		{name: "field", view: configFieldView([]configFieldRow{{Label: "Type", Value: "select"}}, 0, "Add at least one option before saving."), text: "Add at least one option"},
+		{name: "project folders", view: configRootsView(nil, 0, "Project folders cannot be empty."), text: "Project folders cannot be empty."},
+	}
+	for _, tc := range modalViews {
+		if !strings.Contains(stripANSI(tc.view), tc.text) {
+			t.Fatalf("%s modal missing error text:\n%s", tc.name, stripANSI(tc.view))
+		}
+		if !strings.Contains(tc.view, "\x1b[38;5;203;48;5;"+modalSurfaceColor+"m") {
+			t.Fatalf("%s modal error should keep modal background:\n%q", tc.name, tc.view)
+		}
+	}
+
+	inlineViews := []struct {
+		name string
+		view string
+		text string
+	}{
+		{name: "onboarding checked", view: onboardingCheckedView([]string{"/tmp/dev"}, map[string]bool{}, 0, "path does not exist"), text: "path does not exist"},
+		{name: "onboarding setup", view: onboardingSetupView(nil, 0, "path does not exist"), text: "path does not exist"},
+		{name: "onboarding input", view: onboardingInputView("", 0, "path does not exist"), text: "path does not exist"},
+	}
+	for _, tc := range inlineViews {
+		if !strings.Contains(stripANSI(tc.view), tc.text) {
+			t.Fatalf("%s inline view missing error text:\n%s", tc.name, stripANSI(tc.view))
+		}
+		if strings.Contains(tc.view, "48;5;"+modalSurfaceColor) {
+			t.Fatalf("%s inline error should not use modal background:\n%q", tc.name, tc.view)
+		}
+	}
+}
+
+func TestConfigSaveAndOpenErrorsUseFriendlyMessages(t *testing.T) {
+	err := errors.New(`invalid config /tmp/ovw/config.toml: invalid fields[0].options: select fields need at least one option`)
+
+	model := updateMsg(t, Model{screen: screenConfig}, configSavedMsg{err: err})
+	if model.configErr != "Add at least one option before saving." {
+		t.Fatalf("config save error = %q", model.configErr)
+	}
+	if model.screen != screenConfig {
+		t.Fatalf("screen after config save error = %v, want config", model.screen)
+	}
+	if view := stripANSI(model.View()); strings.Contains(view, "fields[") || strings.Contains(view, "invalid config") {
+		t.Fatalf("config save view exposed raw internals:\n%s", view)
+	}
+
+	model = updateMsg(t, Model{screen: screenConfig}, configOpenedMsg{err: err})
+	if model.configErr != "Add at least one option before saving." {
+		t.Fatalf("config open error = %q", model.configErr)
+	}
+	if model.screen != screenConfig {
+		t.Fatalf("screen after config open error = %v, want config", model.screen)
+	}
+	if view := stripANSI(model.View()); strings.Contains(view, "fields[") || strings.Contains(view, "invalid config") {
+		t.Fatalf("config open view exposed raw internals:\n%s", view)
+	}
 }
 
 func TestModelConfigTogglesAndSaves(t *testing.T) {
@@ -3345,8 +3454,18 @@ func TestModelConfigAddsCustomField(t *testing.T) {
 	if model.screen != screenConfigField {
 		t.Fatalf("screen after invalid save = %v, want field editor", model.screen)
 	}
-	if !strings.Contains(model.configErr, "select fields need at least one option") {
+	if model.configErr != "Add at least one option before saving." {
 		t.Fatalf("configErr = %q, want select options error", model.configErr)
+	}
+	view = stripANSI(model.View())
+	for _, notWant := range []string{"fields[", ".options", "select fields need"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("field editor should hide config internals %q:\n%s", notWant, view)
+		}
+	}
+	rawView := model.View()
+	if !strings.Contains(rawView, "\x1b[38;5;203;48;5;"+modalSurfaceColor+"mAdd at least one option") {
+		t.Fatalf("field editor error should keep modal background:\n%q", rawView)
 	}
 
 	for !strings.Contains(stripANSI(model.View()), "> Options") {

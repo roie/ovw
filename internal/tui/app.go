@@ -669,8 +669,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		if msg.err != nil {
 			m.screen = screenConfig
-			m.message = "Failed to write config: " + msg.err.Error()
-			m.configErr = msg.err.Error()
+			m.configErr = friendlyConfigError(msg.err)
+			m.message = "Failed to write config: " + m.configErr
 			return m, nil
 		}
 		m.screen = screenTable
@@ -693,8 +693,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		if msg.err != nil {
 			m.screen = screenConfig
-			m.message = "Failed to open config: " + msg.err.Error()
-			m.configErr = msg.err.Error()
+			m.configErr = friendlyConfigError(msg.err)
+			m.message = "Failed to open config: " + m.configErr
 			return m, nil
 		}
 		m.screen = screenTable

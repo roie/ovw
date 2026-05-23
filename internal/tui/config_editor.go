@@ -229,7 +229,7 @@ func (m Model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.incrementConfigRow()
 	case isConfigSaveKey(value):
 		if err := config.Validate(m.configDraft); err != nil {
-			m.configErr = err.Error()
+			m.configErr = friendlyConfigError(err)
 			return m, nil
 		}
 		m.loading = true
@@ -829,12 +829,61 @@ func (m *Model) saveConfigFieldDraft() bool {
 }
 
 func configFieldErrorMessage(err error) string {
+	return friendlyConfigError(err)
+}
+
+func friendlyConfigError(err error) string {
 	if err == nil {
 		return ""
 	}
-	message := err.Error()
-	if strings.Contains(message, "already used") {
+	message := rawConfigValidationMessage(err.Error())
+	switch {
+	case strings.Contains(message, "invalid roots") && strings.Contains(message, "expected at least one root"):
+		return "Add at least one project folder before saving."
+	case strings.Contains(message, "invalid roots") && strings.Contains(message, "root paths cannot be empty"):
+		return "Project folders cannot be empty."
+	case strings.Contains(message, "invalid max_depth"):
+		return "Project search depth must be 0 or greater."
+	case strings.Contains(message, "invalid stale_days"):
+		return "Stale days must be 1 or greater."
+	case strings.Contains(message, "invalid sort_by"):
+		return "Choose a valid default sort."
+	case strings.Contains(message, "invalid sort_dir"):
+		return "Choose ascending or descending sort."
+	case strings.Contains(message, "invalid column ") && strings.Contains(message, "custom field is not defined"):
+		return "Remove the missing custom field column before saving."
+	case strings.Contains(message, "invalid column_order ") && strings.Contains(message, "custom field is not defined"):
+		return "Remove the missing custom field from column order before saving."
+	case strings.Contains(message, "invalid column "):
+		return "Choose a valid column."
+	case strings.Contains(message, "invalid column_order "):
+		return "Choose a valid column order."
+	case strings.Contains(message, ".options") && strings.Contains(message, "select fields need at least one option"):
+		return "Add at least one option before saving."
+	case strings.Contains(message, ".id") && strings.Contains(message, "already used"):
 		return "A field with this label already exists."
+	case strings.Contains(message, ".id") && strings.Contains(message, "expected lowercase"):
+		return "Use a field label with letters or numbers."
+	case strings.Contains(message, ".type") && strings.Contains(message, "expected text, select, or checkbox"):
+		return "Choose a field type."
+	case strings.Contains(message, "keys.actions") && strings.Contains(message, "key is reserved"):
+		return "This shortcut is reserved."
+	case strings.Contains(message, "keys.actions") && strings.Contains(message, "expected a key"):
+		return "Press a shortcut to save."
+	case strings.Contains(message, "keys.actions") && strings.Contains(message, "already used by"):
+		return "This shortcut is already used."
+	}
+	return message
+}
+
+func rawConfigValidationMessage(message string) string {
+	if strings.HasPrefix(message, "invalid config ") {
+		if index := strings.Index(message, ": invalid "); index >= 0 {
+			return message[index+2:]
+		}
+		if index := strings.Index(message, ": "); index >= 0 {
+			return message[index+2:]
+		}
 	}
 	return message
 }
@@ -1408,7 +1457,7 @@ func configView(rows []configRow, selected int, errText string) string {
 	}
 	lines := modalOptionLines(labels, selected)
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("←→", "change")+" · "+actionHint("ctrl+s", "save"))
 	return modalView("Settings", lines, 64)
@@ -1428,7 +1477,7 @@ func configListView(title string, values []string, selected int, input string, c
 		lines = append(lines, visibleConfigListOptionLines(values, selected, optionHeight)...)
 	}
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", configListFooter(title, len(values)))
 	return modalView(title, lines, 64)
@@ -1481,7 +1530,7 @@ func configListFooter(title string, valueCount int) string {
 func configInputView(title, value, placeholder string, cursor int, errText string, cursorState ...inputCursorState) string {
 	lines := inputModalLines(value, placeholder, 56, cursor, cursorState...)
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("enter", "save"))
 	return modalView(title, lines, 60)
@@ -1493,7 +1542,7 @@ func configShortcutCaptureView(title, current, errText string) string {
 		lines = append(lines, "", "Current  "+modalMuted(current))
 	}
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("esc", "cancel"))
 	return modalView(title, lines, 60)
@@ -1510,7 +1559,7 @@ func configNoteView(rows []configNoteRow, selected int, errText string) string {
 	}
 	lines := modalOptionLines(labels, selected)
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("space", "toggle")+" · "+actionHint("enter", "done"))
 	return modalView("Note display", lines, 72)
@@ -1523,7 +1572,7 @@ func configKeysView(rows []configKeyRow, selected int, errText string) string {
 	}
 	lines := modalOptionLines(labels, selected)
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("esc", "done"))
 	return modalView("Keyboard shortcuts", lines, 64)
@@ -1542,7 +1591,7 @@ func configFieldsView(fields []config.FieldConfig, selected int, input string, c
 		lines = append(lines, modalOptionLines(labels, selected)...)
 	}
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("enter", "add/edit")+" · "+actionHint("del", "delete")+" · "+actionHint("←→", "reorder")+" · "+actionHint("esc", "done"))
 	return modalView("Fields", lines, 72)
@@ -1559,7 +1608,7 @@ func configFieldView(rows []configFieldRow, selected int, errText string) string
 	}
 	lines := modalOptionLines(labels, selected)
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("enter", "edit")+" · "+actionHint("←→", "change")+" · "+actionHint("ctrl+s", "save"))
 	return modalView("Field", lines, 64)
@@ -1569,7 +1618,7 @@ func configRootsView(rows []setupRow, selected int, errText string) string {
 	lines := modalSetupRowLines(rows, selected)
 	lines = append(lines, modalCustomPathLine(selected == len(rows)))
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("space", "toggle")+" · "+actionHint("←→", "expand/collapse")+" · "+actionHint("enter", "done"))
 	return modalView("Project folders", lines, 72)
@@ -1646,7 +1695,7 @@ func modalCustomPathLine(selected bool) string {
 func configRootInputView(value string, cursor int, errText string, cursorState ...inputCursorState) string {
 	lines := inputModalLines(value, "~/Projects", 64, cursor, cursorState...)
 	if errText != "" {
-		lines = append(lines, "", errorStyle.Render(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("enter", "add")+" · "+actionHint("esc", "back"))
 	return modalView("Custom folder", lines, 68)

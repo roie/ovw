@@ -43,7 +43,7 @@ func addProjectView(value string, cursor int, err string, cursorState ...inputCu
 	inputWidth := 52
 	lines := inputModalLines(value, "~/dev/my-project", inputWidth, cursor, cursorState...)
 	if err != "" {
-		lines = append(lines, "", errorStyle.Render(err))
+		lines = append(lines, "", modalError(err))
 	}
 	lines = append(lines, "", actionHint("enter", "save"))
 	return modalView("Add project", lines, 56)
@@ -65,7 +65,7 @@ func onboardingCheckedView(options []string, checked map[string]bool, selected i
 	lines = append(lines, inlineCheckboxLines(options, checked, selected)...)
 	lines = append(lines, onboardingCustomPathLine(selected == len(options)))
 	if err != "" {
-		lines = append(lines, "", errorStyle.Render(err))
+		lines = append(lines, "", inlineError(err))
 	}
 	lines = append(lines, "", inlineActionHint("space", "toggle")+" · "+inlineActionHint("enter", "continue")+" · "+inlineActionHint("q", "quit"))
 	return strings.Join(lines, "\n")
@@ -88,7 +88,7 @@ func onboardingSetupView(rows []setupRow, selected int, err string) string {
 	lines = append(lines, inlineSetupRowLines(rows, selected)...)
 	lines = append(lines, onboardingCustomPathLine(selected == len(rows)))
 	if err != "" {
-		lines = append(lines, "", errorStyle.Render(err))
+		lines = append(lines, "", inlineError(err))
 	}
 	lines = append(lines, "", inlineActionHint("space", "toggle")+" · "+inlineActionHint("←→", "expand/collapse")+" · "+inlineActionHint("enter", "continue")+" · "+inlineActionHint("q", "quit"))
 	return strings.Join(lines, "\n")
@@ -98,7 +98,7 @@ func onboardingInputView(value string, cursor int, err string, cursorState ...in
 	lines := onboardingHeaderLines("Enter a custom project folder")
 	lines = append(lines, inlineInputLines(value, "~/Projects", 52, cursor, cursorState...)...)
 	if err != "" {
-		lines = append(lines, "", errorStyle.Render(err))
+		lines = append(lines, "", inlineError(err))
 	}
 	lines = append(lines, "", inlineActionHint("enter", "continue")+" · "+inlineActionHint("esc", "back"))
 	return strings.Join(lines, "\n")
@@ -376,6 +376,14 @@ func modalHintKey(value string) string {
 
 func modalAccent(value string) string {
 	return modalANSI("38;5;"+accentColor, value)
+}
+
+func modalError(value string) string {
+	return modalANSI("38;5;203", value)
+}
+
+func inlineError(value string) string {
+	return errorStyle.Render(value)
 }
 
 func modalCursor() string {

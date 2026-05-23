@@ -154,7 +154,7 @@ func columnsViewWithConfig(cfg config.Config, order []string, checked map[string
 	}
 	lines := columnCheckboxLines(cfg, order, checked, selected)
 	if errText != "" {
-		lines = append(lines, "", modalMuted(errText))
+		lines = append(lines, "", modalError(errText))
 	}
 	lines = append(lines, "", actionHint("space", "toggle")+" · "+actionHint("←→", "reorder")+" · "+actionHint("enter", "save"))
 	return modalView("Columns", lines, 48)
