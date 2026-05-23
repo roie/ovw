@@ -721,10 +721,32 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.detailShowMarker = false
 		m.detailsExpanded = false
 	case isEnterKey(value):
+		if !m.detailShowMarker {
+			if m.isDetailsKey(value) {
+				m.screen = screenTable
+				m.detailModalY = 0
+				m.detailSelected = 0
+				m.detailsExpanded = false
+			}
+			return m, nil
+		}
 		return m.editSelectedDetailRow()
+	case m.isDetailsKey(value):
+		if !m.detailShowMarker {
+			m.screen = screenTable
+			m.detailModalY = 0
+			m.detailSelected = 0
+			m.detailsExpanded = false
+		}
 	case isLeftKey(value):
+		if !m.detailShowMarker {
+			return m, nil
+		}
 		return m.changeSelectedDetailRow(-1)
 	case isRightKey(value):
+		if !m.detailShowMarker {
+			return m, nil
+		}
 		return m.changeSelectedDetailRow(1)
 	case isDownKey(value):
 		m = m.moveDetailSelection(1)
@@ -733,7 +755,7 @@ func (m Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m = m.moveDetailSelection(-1)
 		m.detailShowMarker = true
 	case isExpandKey(value):
-		if m.selectedDetailRowEditKind() == detailEditCustomCheckbox {
+		if m.detailShowMarker && m.selectedDetailRowEditKind() == detailEditCustomCheckbox {
 			return m.editSelectedDetailRow()
 		}
 		project, ok := m.currentProject()

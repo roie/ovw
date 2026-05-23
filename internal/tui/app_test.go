@@ -1564,7 +1564,7 @@ func TestModelDetailEscapeClosesWithoutTogglingVisibility(t *testing.T) {
 	}
 }
 
-func TestModelDetailEnterWithoutEditableRowKeepsDetailsOpen(t *testing.T) {
+func TestModelDetailEnterWithoutEditableRowClosesDetails(t *testing.T) {
 	model := Model{
 		screen:   screenDetail,
 		projects: []project.Project{{Name: "app", Path: "/tmp/app"}},
@@ -1575,8 +1575,8 @@ func TestModelDetailEnterWithoutEditableRowKeepsDetailsOpen(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("enter without editable row should not return command")
 	}
-	if model.screen != screenDetail {
-		t.Fatalf("screen = %v, want detail", model.screen)
+	if model.screen != screenTable {
+		t.Fatalf("screen = %v, want table", model.screen)
 	}
 }
 
@@ -1667,10 +1667,78 @@ func TestModelDetailOpensWithoutVisibleSelectionMarker(t *testing.T) {
 	}
 }
 
+func TestModelDetailShortcutClosesHiddenSelection(t *testing.T) {
+	model := Model{
+		config: config.Default(),
+		width:  80,
+		height: 20,
+		projects: []project.Project{{
+			Name:   "app",
+			Path:   "/tmp/app",
+			Status: ovwformat.StatusFromTags("active", []string{"active"}),
+			Note:   ovwformat.NoteInfo{Display: "ship it", Value: "ship it"},
+		}},
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	if model.screen != screenDetail {
+		t.Fatalf("screen after first enter = %v, want detail", model.screen)
+	}
+	if model.detailShowMarker {
+		t.Fatal("detail row marker should stay hidden on open")
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	if model.screen != screenTable {
+		t.Fatalf("screen after second enter = %v, want table", model.screen)
+	}
+
+	model.screen = screenDetail
+	model = updateSpecialKey(t, model, tea.KeyDown)
+	if !model.detailShowMarker {
+		t.Fatal("detail row marker should show after navigation")
+	}
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	if model.screen != screenNote {
+		t.Fatalf("screen after selecting note and pressing enter = %v, want note", model.screen)
+	}
+}
+
+func TestModelDetailEnterDoesNotCloseWhenDetailsShortcutIsRemapped(t *testing.T) {
+	cfg := config.Default()
+	cfg.Keys.Actions.Details = "t"
+	model := Model{
+		config: cfg,
+		width:  80,
+		height: 20,
+		projects: []project.Project{{
+			Name: "app",
+			Path: "/tmp/app",
+			Note: ovwformat.NoteInfo{Display: "ship it", Value: "ship it"},
+		}},
+	}
+
+	model = updateKey(t, model, "t")
+	if model.screen != screenDetail {
+		t.Fatalf("screen after t = %v, want detail", model.screen)
+	}
+
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+	if model.screen != screenDetail {
+		t.Fatalf("screen after enter = %v, want detail", model.screen)
+	}
+
+	model = updateKey(t, model, "t")
+	if model.screen != screenTable {
+		t.Fatalf("screen after second t = %v, want table", model.screen)
+	}
+}
+
 func TestModelDetailEnterEditsSelectedBuiltInMetadata(t *testing.T) {
 	model := Model{
-		screen:         screenDetail,
-		detailSelected: 0,
+		screen:           screenDetail,
+		detailSelected:   0,
+		detailShowMarker: true,
 		projects: []project.Project{{
 			Name:   "app",
 			Path:   "/tmp/app",
@@ -1687,6 +1755,7 @@ func TestModelDetailEnterEditsSelectedBuiltInMetadata(t *testing.T) {
 
 	model.screen = screenDetail
 	model.detailSelected = 1
+	model.detailShowMarker = true
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	if model.screen != screenNote {
@@ -1700,8 +1769,9 @@ func TestModelDetailEnterEditsSelectedBuiltInMetadata(t *testing.T) {
 func TestModelDetailEditsCustomTextField(t *testing.T) {
 	var saved app.MetadataUpdate
 	model := Model{
-		screen:         screenDetail,
-		detailSelected: 0,
+		screen:           screenDetail,
+		detailSelected:   0,
+		detailShowMarker: true,
 		projects: []project.Project{{
 			Name:   "app",
 			Path:   "/tmp/app",
@@ -1756,8 +1826,9 @@ func TestModelDetailEditsCustomTextField(t *testing.T) {
 func TestModelDetailEditsCustomSelectField(t *testing.T) {
 	var saved app.MetadataUpdate
 	model := Model{
-		screen:         screenDetail,
-		detailSelected: 0,
+		screen:           screenDetail,
+		detailSelected:   0,
+		detailShowMarker: true,
 		projects: []project.Project{{
 			Name:   "app",
 			Path:   "/tmp/app",
@@ -1798,8 +1869,9 @@ func TestModelDetailEditsCustomSelectField(t *testing.T) {
 
 func TestModelDetailSelectFieldDefaultsToFirstOptionWhenUnset(t *testing.T) {
 	model := Model{
-		screen:         screenDetail,
-		detailSelected: 0,
+		screen:           screenDetail,
+		detailSelected:   0,
+		detailShowMarker: true,
 		projects: []project.Project{{
 			Name: "app",
 			Path: "/tmp/app",
@@ -1823,8 +1895,9 @@ func TestModelDetailSelectFieldDefaultsToFirstOptionWhenUnset(t *testing.T) {
 func TestModelDetailArrowsCycleCustomSelectField(t *testing.T) {
 	var saved app.MetadataUpdate
 	model := Model{
-		screen:         screenDetail,
-		detailSelected: 0,
+		screen:           screenDetail,
+		detailSelected:   0,
+		detailShowMarker: true,
 		projects: []project.Project{{
 			Name:   "app",
 			Path:   "/tmp/app",
@@ -1859,8 +1932,9 @@ func TestModelDetailArrowsCycleCustomSelectField(t *testing.T) {
 func TestModelDetailTogglesCustomCheckboxField(t *testing.T) {
 	var saved app.MetadataUpdate
 	model := Model{
-		screen:         screenDetail,
-		detailSelected: 0,
+		screen:           screenDetail,
+		detailSelected:   0,
+		detailShowMarker: true,
 		projects: []project.Project{{
 			Name:   "app",
 			Path:   "/tmp/app",
@@ -1892,8 +1966,9 @@ func TestModelDetailTogglesCustomCheckboxField(t *testing.T) {
 func TestModelDetailArrowsToggleCustomCheckboxField(t *testing.T) {
 	var saved app.MetadataUpdate
 	model := Model{
-		screen:         screenDetail,
-		detailSelected: 0,
+		screen:           screenDetail,
+		detailSelected:   0,
+		detailShowMarker: true,
 		projects: []project.Project{{
 			Name:   "app",
 			Path:   "/tmp/app",
@@ -1927,9 +2002,10 @@ func TestModelDetailArrowsCycleStatus(t *testing.T) {
 	cfg.Statuses = []string{"active", "parked", "shipped"}
 	var saved app.MetadataUpdate
 	model := Model{
-		config:         cfg,
-		screen:         screenDetail,
-		detailSelected: 0,
+		config:           cfg,
+		screen:           screenDetail,
+		detailSelected:   0,
+		detailShowMarker: true,
 		projects: []project.Project{{
 			Name:   "app",
 			Path:   "/tmp/app",
