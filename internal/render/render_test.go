@@ -99,8 +99,8 @@ func TestTableWidthTruncatesNoteAndSeparator(t *testing.T) {
 			t.Fatalf("line width = %d, want <= 72:\n%s", width, out.String())
 		}
 	}
-	if !strings.Contains(out.String(), "workspaces") {
-		t.Fatalf("wrapped note should keep later words:\n%s", out.String())
+	if !strings.Contains(out.String(), "…") {
+		t.Fatalf("table did not truncate with ellipsis:\n%s", out.String())
 	}
 }
 
@@ -123,8 +123,8 @@ func TestTableTruncatesUnicodeWithoutBreakingUTF8(t *testing.T) {
 	if strings.ContainsRune(got, utf8.RuneError) {
 		t.Fatalf("table output contains replacement rune after truncation:\n%s", got)
 	}
-	if !strings.Contains(got, "🙂") {
-		t.Fatalf("table should keep valid unicode while wrapping:\n%s", got)
+	if !strings.Contains(got, "…") {
+		t.Fatalf("table did not truncate unicode note:\n%s", got)
 	}
 }
 
@@ -201,17 +201,7 @@ func TestTableCollapsesMultilineNotes(t *testing.T) {
 	}
 }
 
-func TestWrapCellByWidthTrimsSpacesAfterANSI(t *testing.T) {
-	got := wrapCellByWidth("\x1b[31m   hello world\x1b[0m", 5)
-	if len(got) < 2 {
-		t.Fatalf("wrapCellByWidth() = %#v, want wrapped parts", got)
-	}
-	if strings.Contains(got[1], "   ") {
-		t.Fatalf("second wrapped part should not keep leading spaces: %#v", got)
-	}
-}
-
-func TestTableWrapsPlainNoteColumn(t *testing.T) {
+func TestTableKeepsPlainNoteToOneRow(t *testing.T) {
 	projects := []project.Project{{
 		Name:         "notes",
 		StackDisplay: "Go",
@@ -225,22 +215,16 @@ func TestTableWrapsPlainNoteColumn(t *testing.T) {
 	}
 	got := out.String()
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
-	if len(lines) < 6 {
-		t.Fatalf("table should render note continuation rows:\n%s", got)
+	if len(lines) != 5 {
+		t.Fatalf("table should render one row per project, got %d lines:\n%s", len(lines)-4, got)
 	}
 	for _, line := range lines[2:] {
 		if width := ansi.StringWidth(line); width > 52 {
 			t.Fatalf("line width = %d, want <= 52:\n%s", width, got)
 		}
 	}
-	if !strings.Contains(got, "instead") {
-		t.Fatalf("wrapped note should keep later words:\n%s", got)
-	}
-	if strings.Contains(got, "instea\n") || strings.Contains(got, "disappea\n") {
-		t.Fatalf("wrapped note should prefer word boundaries:\n%s", got)
-	}
-	if strings.Count(got, "notes") < 2 {
-		t.Fatalf("note continuation rows should repeat project context:\n%s", got)
+	if strings.Count(got, "notes") != 1 {
+		t.Fatalf("table should not repeat project context in continuation rows:\n%s", got)
 	}
 }
 

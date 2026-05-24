@@ -36,8 +36,7 @@ func TableWithWidth(w io.Writer, projects []project.Project, cfg config.Config, 
 	for _, column := range cfg.Columns {
 		headers = append(headers, config.FieldLabel(cfg, column))
 	}
-	widths := applyWidth(headers, rows, cfg, width)
-	rows = wrapNoteRows(rows, cfg, widths)
+	applyWidth(headers, rows, cfg, width)
 	var table bytes.Buffer
 	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, strings.Join(headers, "\t"))
@@ -157,9 +156,9 @@ func tableRows(projects []project.Project, cfg config.Config) []tableRow {
 	return rows
 }
 
-func applyWidth(headers []string, rows []tableRow, cfg config.Config, width int) []int {
+func applyWidth(headers []string, rows []tableRow, cfg config.Config, width int) {
 	if width <= 0 || len(headers) == 0 {
-		return nil
+		return
 	}
 	widths := naturalColumnWidths(headers, rows)
 	available := width - 2*(len(widths)-1)
@@ -170,123 +169,13 @@ func applyWidth(headers []string, rows []tableRow, cfg config.Config, width int)
 	for i := range headers {
 		headers[i] = truncate(headers[i], widths[i])
 	}
-	noteIndex := noteColumnIndex(cfg)
 	for i := range rows {
 		for column := range rows[i].values {
 			if column < len(widths) {
-				if column == noteIndex {
-					continue
-				}
 				rows[i].values[column] = truncate(rows[i].values[column], widths[column])
 			}
 		}
 	}
-	return widths
-}
-
-func wrapNoteRows(rows []tableRow, cfg config.Config, widths []int) []tableRow {
-	noteIndex := noteColumnIndex(cfg)
-	if noteIndex < 0 || noteIndex >= len(widths) || widths[noteIndex] <= 0 {
-		return rows
-	}
-	out := make([]tableRow, 0, len(rows))
-	for _, row := range rows {
-		if noteIndex >= len(row.values) {
-			out = append(out, row)
-			continue
-		}
-		parts := wrapCell(row.values[noteIndex], widths[noteIndex])
-		if len(parts) == 0 {
-			out = append(out, row)
-			continue
-		}
-		row.values[noteIndex] = parts[0]
-		out = append(out, row)
-		for _, part := range parts[1:] {
-			continuation := tableRow{values: append([]string(nil), row.values...)}
-			continuation.values[noteIndex] = part
-			out = append(out, continuation)
-		}
-	}
-	return out
-}
-
-func wrapCell(value string, width int) []string {
-	if value == "" || width <= 0 {
-		return nil
-	}
-	if strings.Contains(value, "\x1b") {
-		return wrapCellByWidth(value, width)
-	}
-	parts := []string{}
-	words := strings.Fields(value)
-	if len(words) == 0 {
-		return nil
-	}
-	line := ""
-	for _, word := range words {
-		if line == "" {
-			for ansi.StringWidth(word) > width {
-				part := ansi.Cut(word, 0, width)
-				if part == "" {
-					break
-				}
-				parts = append(parts, part)
-				word = ansi.Cut(word, ansi.StringWidth(part), ansi.StringWidth(word))
-			}
-			line = word
-			continue
-		}
-		next := line + " " + word
-		if ansi.StringWidth(next) <= width {
-			line = next
-			continue
-		}
-		parts = append(parts, line)
-		line = ""
-		for ansi.StringWidth(word) > width {
-			part := ansi.Cut(word, 0, width)
-			if part == "" {
-				break
-			}
-			parts = append(parts, part)
-			word = ansi.Cut(word, ansi.StringWidth(part), ansi.StringWidth(word))
-		}
-		line = word
-	}
-	if line != "" {
-		parts = append(parts, line)
-	}
-	return parts
-}
-
-func wrapCellByWidth(value string, width int) []string {
-	parts := []string{}
-	for ansi.StringWidth(value) > width {
-		part := ansi.Cut(value, 0, width)
-		if part == "" {
-			break
-		}
-		parts = append(parts, part)
-		value = trimLeadingSpacesANSI(ansi.Cut(value, ansi.StringWidth(part), ansi.StringWidth(value)))
-	}
-	if value != "" {
-		parts = append(parts, value)
-	}
-	return parts
-}
-
-func trimLeadingSpacesANSI(value string) string {
-	prefix := ""
-	for strings.HasPrefix(value, "\x1b[") {
-		end := strings.IndexByte(value, 'm')
-		if end < 0 {
-			break
-		}
-		prefix += value[:end+1]
-		value = value[end+1:]
-	}
-	return prefix + strings.TrimLeft(value, " ")
 }
 
 func naturalColumnWidths(headers []string, rows []tableRow) []int {
