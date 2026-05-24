@@ -206,7 +206,7 @@ func TestDetailModalUsesFallbackTitleWithoutProject(t *testing.T) {
 	}
 }
 
-func TestDetailModalScalesOnWideTerminals(t *testing.T) {
+func TestDetailModalKeepsCompactWidth(t *testing.T) {
 	project := detailTestProject("eventca")
 
 	got := stripANSI(detailModalView(project, true, 120))
@@ -214,14 +214,32 @@ func TestDetailModalScalesOnWideTerminals(t *testing.T) {
 	if len(lines) == 0 {
 		t.Fatalf("detail modal should render lines:\n%s", got)
 	}
-	if width := lipglossWidth(lines[0]); width != 100 {
-		t.Fatalf("wide detail modal width = %d, want cap 100:\n%s", width, got)
+	if width := lipglossWidth(lines[0]); width != 72 {
+		t.Fatalf("wide detail modal width = %d, want cap 72:\n%s", width, got)
 	}
 
-	got = stripANSI(detailModalView(project, true, 84))
+	got = stripANSI(detailModalView(project, true, 30))
 	lines = strings.Split(got, "\n")
-	if width := lipglossWidth(lines[0]); width != 84 {
-		t.Fatalf("detail modal width = %d, want requested width 84:\n%s", width, got)
+	if width := lipglossWidth(lines[0]); width != 30 {
+		t.Fatalf("detail modal width = %d, want requested width 30:\n%s", width, got)
+	}
+}
+
+func TestRecentDetailLinesUseDisplayWidth(t *testing.T) {
+	fileLine := recentFileLine(ovwformat.RecentFile{Path: "src/你好/file.ts", Age: "1h"}, 24)
+	if width := lipglossWidth(fileLine); width != 24 {
+		t.Fatalf("recent file line width = %d, want 24: %q", width, fileLine)
+	}
+	if !strings.HasSuffix(fileLine, "1h") {
+		t.Fatalf("recent file line should keep age suffix: %q", fileLine)
+	}
+
+	commitLine := recentCommitLine(ovwformat.RecentCommit{Hash: "abc1234", Subject: "fix 你好 layout", Age: "2h"}, 28)
+	if width := lipglossWidth(commitLine); width != 28 {
+		t.Fatalf("recent commit line width = %d, want 28: %q", width, commitLine)
+	}
+	if !strings.HasSuffix(commitLine, "2h") {
+		t.Fatalf("recent commit line should keep age suffix: %q", commitLine)
 	}
 }
 

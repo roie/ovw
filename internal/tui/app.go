@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"ovw/internal/app"
@@ -890,6 +891,9 @@ func (m Model) nextDetailStatus(current string, delta int) (string, string, bool
 		return "", "", false
 	}
 	index := indexOfString(options, current)
+	if index < 0 {
+		return current, "", false
+	}
 	next := options[wrapPickerSelection(index, len(options), delta)]
 	if next == "" {
 		return "", "Status cleared", true
@@ -902,6 +906,9 @@ func nextOptionValue(options []string, current string, delta int) (string, bool)
 		return "", false
 	}
 	index := indexOfString(options, current)
+	if index < 0 {
+		return current, false
+	}
 	return options[wrapPickerSelection(index, len(options), delta)], true
 }
 
@@ -1095,7 +1102,7 @@ func (m Model) updateRunner(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.runRunnerScript(project, scripts)
-	case value == "delete":
+	case isDeleteKey(value):
 		return m.deleteRunnerScript(project, scripts)
 	case value == "left":
 		m.runnerCursor = textMoveLeft(m.runnerInput, m.runnerCursor)
@@ -1283,6 +1290,8 @@ func (m Model) updateOnboarding(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateOnboardingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch value := msg.String(); {
+	case isQuitKey(value) && strings.TrimSpace(m.onboardInput) == "":
+		return m, tea.Quit
 	case isEscapeKey(value):
 		m.screen = screenOnboarding
 		m.onboardErr = ""
@@ -1498,7 +1507,7 @@ func indexOfString(values []string, value string) int {
 			return index
 		}
 	}
-	return 0
+	return -1
 }
 
 func inputText(msg tea.KeyMsg) string {
@@ -2001,15 +2010,18 @@ func startEnrichment(scanned []scanner.Project, cfg config.Config, detect portDe
 		}
 		jobs := make(chan scanner.Project)
 		results := make(chan project.Project)
+		var wg sync.WaitGroup
 		workers := app.DefaultEnrichmentWorkers
 		if len(scanned) < workers {
 			workers = len(scanned)
 		}
 		enrichOpts := app.EnrichOptions{DetectUpdated: app.NeedsUpdated(cfg, "")}
 		for i := 0; i < workers; i++ {
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				for scannedProject := range jobs {
-					enriched := app.EnrichWithGitOptions(scannedProject, cfg, now, detector.Detect(scannedProject.Path), enrichOpts)
+					enriched := enrichProjectSafely(scannedProject, cfg, now, detector, enrichOpts)
 					enriched.Ports = portsByPath[scannedProject.Path]
 					results <- enriched
 				}
@@ -2021,9 +2033,15 @@ func startEnrichment(scanned []scanner.Project, cfg config.Config, detect portDe
 			}
 			close(jobs)
 		}()
-		for done := 1; done <= len(scanned); done++ {
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+		done := 0
+		for project := range results {
+			done++
 			out <- enrichmentUpdate{
-				project: <-results,
+				project: project,
 				done:    done,
 				total:   len(scanned),
 				elapsed: time.Since(start),
@@ -2031,6 +2049,22 @@ func startEnrichment(scanned []scanner.Project, cfg config.Config, detect portDe
 		}
 	}()
 	return out
+}
+
+func enrichProjectSafely(scannedProject scanner.Project, cfg config.Config, now time.Time, detector *gitactivity.Detector, enrichOpts app.EnrichOptions) (out project.Project) {
+	defer func() {
+		if recover() != nil {
+			out = project.Project{
+				Name:          scannedProject.Name,
+				Path:          scannedProject.Path,
+				CustomScripts: scannedProject.Scripts,
+				Fields:        scannedProject.Fields,
+				Hidden:        scannedProject.Hidden,
+				Pinned:        scannedProject.Pinned,
+			}
+		}
+	}()
+	return app.EnrichWithGitOptions(scannedProject, cfg, now, detector.Detect(scannedProject.Path), enrichOpts)
 }
 
 func waitForEnrichment(updates <-chan enrichmentUpdate) tea.Cmd {

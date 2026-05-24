@@ -40,11 +40,8 @@ func detailModalViewWithSelectionScroll(project project.Project, ok bool, width 
 	if width <= 0 {
 		width = 72
 	}
-	if width > 100 {
-		width = 100
-	}
-	if width < 32 {
-		width = 32
+	if width > 72 {
+		width = 72
 	}
 	title := "Details"
 	if ok && project.Name != "" {
@@ -392,14 +389,14 @@ func addRecentFiles(lines *[]string, files []ovwformat.RecentFile, width int) {
 }
 
 func recentFileLine(file ovwformat.RecentFile, width int) string {
-	ageWidth := len([]rune(file.Age))
+	ageWidth := lipglossWidth(file.Age)
 	gap := 2
 	pathWidth := width - ageWidth - gap
 	if pathWidth < 8 {
 		return truncateText(file.Path, width)
 	}
 	path := truncateText(file.Path, pathWidth)
-	padding := width - len([]rune(path)) - ageWidth
+	padding := width - lipglossWidth(path) - ageWidth
 	if padding < 1 {
 		padding = 1
 	}
@@ -458,13 +455,17 @@ func recentCommitLine(commit ovwformat.RecentCommit, width int) string {
 	if width <= 0 {
 		return commit.Hash + "  " + commit.Subject + "  " + commit.Age
 	}
-	fixedWidth := len([]rune(commit.Hash)) + len([]rune(commit.Age)) + 4
+	fixedWidth := lipglossWidth(commit.Hash) + lipglossWidth(commit.Age) + 4
 	subjectWidth := width - fixedWidth
 	if subjectWidth < 4 {
 		return truncateText(commit.Hash+"  "+commit.Subject+"  "+commit.Age, width)
 	}
 	subject := truncateText(commit.Subject, subjectWidth)
-	return fmt.Sprintf("%s  %-*s  %s", commit.Hash, subjectWidth, subject, commit.Age)
+	padding := subjectWidth - lipglossWidth(subject)
+	if padding < 0 {
+		padding = 0
+	}
+	return commit.Hash + "  " + subject + strings.Repeat(" ", padding) + "  " + commit.Age
 }
 
 func shortPath(path string) string {

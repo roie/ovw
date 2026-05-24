@@ -506,10 +506,6 @@ func (m Model) updateConfigList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.moveConfigListItem(1)
 		}
-	case value == "left":
-		m.configListCursor = textMoveLeft(m.configListInput, m.configListCursor)
-	case value == "right":
-		m.configListCursor = textMoveRight(m.configListInput, m.configListCursor)
 	case isMoveStartKey(value):
 		m.configListCursor = textMoveStart(m.configListInput, m.configListCursor)
 	case isMoveEndKey(value):

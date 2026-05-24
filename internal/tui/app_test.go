@@ -308,6 +308,25 @@ func TestModelOnboardingCustomPathValidationStaysInInput(t *testing.T) {
 	}
 }
 
+func TestModelOnboardingInputQuitsWhenEmpty(t *testing.T) {
+	model := Model{
+		screen:         screenOnboarding,
+		onboardOptions: []string{"/tmp/dev"},
+		onboardChecked: map[string]bool{},
+	}
+	model.onboardSelected = 1
+	model = updateSpecialKey(t, model, tea.KeyEnter)
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected quit command for empty onboarding input")
+	}
+	if model.onboardInput != "" {
+		t.Fatalf("onboardInput = %q, want empty", model.onboardInput)
+	}
+}
+
 func TestModelOnboardingCustomPathSupportsCursorEditing(t *testing.T) {
 	model := Model{
 		screen:         screenOnboarding,
@@ -4005,6 +4024,21 @@ func TestStartEnrichmentDetectsPortsWhenColumnVisible(t *testing.T) {
 	}
 }
 
+func TestEnrichProjectSafelyReturnsFallbackAfterPanic(t *testing.T) {
+	scannedProject := scanner.Project{
+		Name:   "app",
+		Path:   "/tmp/app",
+		Hidden: true,
+		Pinned: true,
+	}
+
+	got := enrichProjectSafely(scannedProject, config.Default(), time.Now(), nil, app.EnrichOptions{})
+
+	if got.Name != "app" || got.Path != "/tmp/app" || !got.Hidden || !got.Pinned {
+		t.Fatalf("fallback project = %#v", got)
+	}
+}
+
 func TestModelColumnPickerReordersTableColumns(t *testing.T) {
 	cfg := config.Default()
 	cfg.Columns = []string{"name", "stack"}
@@ -5488,6 +5522,38 @@ func TestModelRunnerDeletesCustomScriptOnly(t *testing.T) {
 	}
 }
 
+func TestModelRunnerDeletesCustomScriptWithCtrlD(t *testing.T) {
+	var deletedScript string
+	model := Model{
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			return app.OverviewResult{
+				Config:   config.Default(),
+				Projects: []project.Project{{Name: "api", Path: "/tmp/api"}},
+			}, nil
+		},
+		updater: func(path string, update app.MetadataUpdate) (app.MetadataUpdateResult, error) {
+			for name, command := range update.Scripts {
+				if command == nil {
+					deletedScript = name
+				}
+			}
+			return app.MetadataUpdateResult{Path: path}, nil
+		},
+		projects: []project.Project{{Name: "api", Path: "/tmp/api", CustomScripts: map[string]string{"run": "go run ."}}},
+		screen:   screenRunner,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected delete script command")
+	}
+	model = updateMsg(t, model, cmd())
+	if deletedScript != "run" {
+		t.Fatalf("deleted script = %q, want run", deletedScript)
+	}
+}
+
 func TestModelRunnerDoesNotOfferDeleteForPackageScript(t *testing.T) {
 	model := Model{
 		projects: []project.Project{{Name: "api", Path: "/tmp/api", Scripts: []string{"build"}}},
@@ -5506,6 +5572,33 @@ func TestModelRunnerDoesNotOfferDeleteForPackageScript(t *testing.T) {
 	}
 	if model.message != "" {
 		t.Fatalf("message = %q, want empty", model.message)
+	}
+}
+
+func TestNextDetailStatusIgnoresUnknownCurrentValue(t *testing.T) {
+	model := Model{config: config.Default()}
+
+	next, message, ok := model.nextDetailStatus("removed-status", 1)
+
+	if ok {
+		t.Fatalf("ok = true, want false")
+	}
+	if next != "removed-status" {
+		t.Fatalf("next = %q, want current value", next)
+	}
+	if message != "" {
+		t.Fatalf("message = %q, want empty", message)
+	}
+}
+
+func TestNextOptionValueIgnoresUnknownCurrentValue(t *testing.T) {
+	next, ok := nextOptionValue([]string{"high", "low"}, "archived", 1)
+
+	if ok {
+		t.Fatalf("ok = true, want false")
+	}
+	if next != "archived" {
+		t.Fatalf("next = %q, want current value", next)
 	}
 }
 
