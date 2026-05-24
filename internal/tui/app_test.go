@@ -3318,10 +3318,20 @@ func TestModelConfigResetsToDefaultFromRow(t *testing.T) {
 	model := Model{config: cfg}
 	model.openConfig()
 
-	for !strings.Contains(stripANSI(model.View()), "> Reset settings") {
+	for !strings.Contains(stripANSI(model.View()), "> Reset all settings") {
 		model = updateKey(t, model, "j")
 	}
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+
+	if model.configDraft.ShowUnpushed != cfg.ShowUnpushed {
+		t.Fatalf("first enter should only confirm reset, show unpushed = %v want %v", model.configDraft.ShowUnpushed, cfg.ShowUnpushed)
+	}
+	if !strings.Contains(model.configErr, "Press enter again to confirm reset") {
+		t.Fatalf("configErr = %q, want reset confirmation", model.configErr)
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 
 	if !reflect.DeepEqual(model.configDraft.Roots, cfg.Roots) {
@@ -3532,6 +3542,57 @@ func TestModelConfigFieldsTreatPrintableKeysAsInput(t *testing.T) {
 		{ID: "sprint_doc", Label: "sprint doc", Type: "text"},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("fields = %#v, want %#v", got, want)
+	}
+}
+
+func TestModelConfigFieldsUseJKForNavigationWhenInputIsEmpty(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{
+		{ID: "status_url", Label: "Status URL", Type: "text"},
+		{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+	}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+
+	model = updateKey(t, model, "j")
+	if model.configFieldSel != 1 {
+		t.Fatalf("configFieldSel = %d, want j to move down", model.configFieldSel)
+	}
+	if model.configFieldInput != "" {
+		t.Fatalf("configFieldInput = %q, want empty after navigation", model.configFieldInput)
+	}
+	model.configFieldInput = "pro"
+	model.configFieldCursor = len(model.configFieldInput)
+	model = updateKey(t, model, "j")
+	if model.configFieldInput != "proj" {
+		t.Fatalf("configFieldInput = %q, want j inserted while typing", model.configFieldInput)
+	}
+}
+
+func TestModelConfigFieldsUseHLForReorderWhenInputIsEmpty(t *testing.T) {
+	cfg := config.Default()
+	cfg.Fields = []config.FieldConfig{
+		{ID: "status_url", Label: "Status URL", Type: "text"},
+		{ID: "reviewed", Label: "Reviewed", Type: "checkbox"},
+	}
+	model := Model{config: cfg}
+	model.openConfig()
+	model.openConfigFields()
+	model.configFieldSel = 1
+
+	model = updateKey(t, model, "h")
+	if got, want := model.configDraft.Fields[0].ID, "reviewed"; got != want {
+		t.Fatalf("first field = %q, want %q after h reorder", got, want)
+	}
+	if model.configFieldInput != "" {
+		t.Fatalf("configFieldInput = %q, want empty after reorder", model.configFieldInput)
+	}
+	model.configFieldInput = "ur"
+	model.configFieldCursor = len(model.configFieldInput)
+	model = updateKey(t, model, "l")
+	if model.configFieldInput != "url" {
+		t.Fatalf("configFieldInput = %q, want l inserted while typing", model.configFieldInput)
 	}
 }
 

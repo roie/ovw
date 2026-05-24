@@ -27,17 +27,23 @@ function detectInstallMethod() {
   const userAgent = navigator.userAgent || "";
   const value = `${platform} ${userAgent}`.toLowerCase();
 
+  if (value.includes("android") || value.includes("iphone") || value.includes("ipad") || value.includes("ios")) {
+    return "manual";
+  }
   if (value.includes("win")) {
     return "powershell";
   }
   if (value.includes("linux")) {
     return "curl";
   }
-  return "homebrew";
+  if (value.includes("mac")) {
+    return "homebrew";
+  }
+  return "manual";
 }
 
 function setInstallMethod(method) {
-  const selected = installCommands[method] ? method : "homebrew";
+  const selected = installCommands[method] ? method : "manual";
   tabs.forEach((tab) => {
     const active = tab.dataset.installTab === selected;
     tab.classList.toggle("is-active", active);
@@ -46,6 +52,18 @@ function setInstallMethod(method) {
   command.textContent = installCommands[selected].command;
   detected.textContent = installCommands[selected].label;
   copyButton.textContent = "copy";
+}
+
+function selectCommandText() {
+  const selection = window.getSelection?.();
+  if (!selection || !document.createRange) {
+    return false;
+  }
+  const range = document.createRange();
+  range.selectNodeContents(command);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
 }
 
 tabs.forEach((tab) => {
@@ -57,9 +75,9 @@ copyButton.addEventListener("click", async () => {
     await navigator.clipboard.writeText(command.textContent);
     copyButton.textContent = "copied";
   } catch {
-    copyButton.textContent = "select";
+    copyButton.textContent = selectCommandText() ? "selected" : "copy failed";
   }
-  window.setTimeout(() => {
+  setTimeout(() => {
     copyButton.textContent = "copy";
   }, 1600);
 });

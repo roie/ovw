@@ -32,13 +32,14 @@ func TableWithWidth(w io.Writer, projects []project.Project, cfg config.Config, 
 	}
 	fmt.Fprintf(w, "ovw — %d projects · scanned in %s\n\n", len(projects), ovwformat.Elapsed(elapsed))
 	rows := tableRows(projects, cfg)
-	applyWidth(rows, cfg, width)
-	var table bytes.Buffer
-	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	headers := make([]string, 0, len(cfg.Columns))
 	for _, column := range cfg.Columns {
 		headers = append(headers, config.FieldLabel(cfg, column))
 	}
+	widths := applyWidth(headers, rows, cfg, width)
+	rows = wrapNoteRows(rows, cfg, widths)
+	var table bytes.Buffer
+	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, strings.Join(headers, "\t"))
 	for _, row := range rows {
 		fmt.Fprintln(tw, strings.Join(row.values, "\t"))
@@ -156,51 +157,199 @@ func tableRows(projects []project.Project, cfg config.Config) []tableRow {
 	return rows
 }
 
-func applyWidth(rows []tableRow, cfg config.Config, width int) {
-	noteIndex := -1
-	for i, column := range cfg.Columns {
-		if column == "note" {
-			noteIndex = i
-			break
-		}
+func applyWidth(headers []string, rows []tableRow, cfg config.Config, width int) []int {
+	if width <= 0 || len(headers) == 0 {
+		return nil
 	}
-	if noteIndex < 0 {
-		return
+	widths := naturalColumnWidths(headers, rows)
+	available := width - 2*(len(widths)-1)
+	if available < len(widths) {
+		available = len(widths)
 	}
-	maxNoteWidth := width - nonNoteWidth(rows, cfg, noteIndex)
-	if maxNoteWidth < 8 {
-		maxNoteWidth = 8
+	widths = fitColumnWidths(widths, minimumColumnWidths(headers, cfg), available, noteColumnIndex(cfg))
+	for i := range headers {
+		headers[i] = truncate(headers[i], widths[i])
 	}
+	noteIndex := noteColumnIndex(cfg)
 	for i := range rows {
-		if noteIndex < len(rows[i].values) {
-			rows[i].values[noteIndex] = truncate(rows[i].values[noteIndex], maxNoteWidth)
+		for column := range rows[i].values {
+			if column < len(widths) {
+				if column == noteIndex {
+					continue
+				}
+				rows[i].values[column] = truncate(rows[i].values[column], widths[column])
+			}
 		}
 	}
+	return widths
 }
 
-func nonNoteWidth(rows []tableRow, cfg config.Config, noteIndex int) int {
-	widths := map[int]int{}
-	for i, column := range cfg.Columns {
-		widths[i] = ansi.StringWidth(config.FieldLabel(cfg, column))
+func wrapNoteRows(rows []tableRow, cfg config.Config, widths []int) []tableRow {
+	noteIndex := noteColumnIndex(cfg)
+	if noteIndex < 0 || noteIndex >= len(widths) || widths[noteIndex] <= 0 {
+		return rows
+	}
+	out := make([]tableRow, 0, len(rows))
+	for _, row := range rows {
+		if noteIndex >= len(row.values) {
+			out = append(out, row)
+			continue
+		}
+		parts := wrapCell(row.values[noteIndex], widths[noteIndex])
+		if len(parts) == 0 {
+			out = append(out, row)
+			continue
+		}
+		row.values[noteIndex] = parts[0]
+		out = append(out, row)
+		for _, part := range parts[1:] {
+			continuation := tableRow{values: append([]string(nil), row.values...)}
+			continuation.values[noteIndex] = part
+			out = append(out, continuation)
+		}
+	}
+	return out
+}
+
+func wrapCell(value string, width int) []string {
+	if value == "" || width <= 0 {
+		return nil
+	}
+	parts := []string{}
+	words := strings.Fields(value)
+	if len(words) == 0 {
+		return nil
+	}
+	line := ""
+	for _, word := range words {
+		if line == "" {
+			for ansi.StringWidth(word) > width {
+				part := ansi.Cut(word, 0, width)
+				if part == "" {
+					break
+				}
+				parts = append(parts, part)
+				word = ansi.Cut(word, ansi.StringWidth(part), ansi.StringWidth(word))
+			}
+			line = word
+			continue
+		}
+		next := line + " " + word
+		if ansi.StringWidth(next) <= width {
+			line = next
+			continue
+		}
+		parts = append(parts, line)
+		line = ""
+		for ansi.StringWidth(word) > width {
+			part := ansi.Cut(word, 0, width)
+			if part == "" {
+				break
+			}
+			parts = append(parts, part)
+			word = ansi.Cut(word, ansi.StringWidth(part), ansi.StringWidth(word))
+		}
+		line = word
+	}
+	if line != "" {
+		parts = append(parts, line)
+	}
+	return parts
+}
+
+func naturalColumnWidths(headers []string, rows []tableRow) []int {
+	widths := make([]int, len(headers))
+	for i, header := range headers {
+		widths[i] = ansi.StringWidth(header)
 	}
 	for _, row := range rows {
 		for i, value := range row.values {
-			if i == noteIndex {
-				continue
-			}
-			if valueWidth := ansi.StringWidth(value); valueWidth > widths[i] {
+			if valueWidth := ansi.StringWidth(value); i < len(widths) && valueWidth > widths[i] {
 				widths[i] = valueWidth
 			}
 		}
 	}
-	total := 0
+	return widths
+}
+
+func minimumColumnWidths(headers []string, cfg config.Config) []int {
+	minimums := make([]int, len(headers))
+	for i, header := range headers {
+		minimums[i] = ansi.StringWidth(header)
+		if minimums[i] > 4 {
+			minimums[i] = 4
+		}
+		if minimums[i] < 1 {
+			minimums[i] = 1
+		}
+		if i < len(cfg.Columns) && cfg.Columns[i] == "note" && minimums[i] < 8 {
+			minimums[i] = 8
+		}
+	}
+	return minimums
+}
+
+func noteColumnIndex(cfg config.Config) int {
+	for i, column := range cfg.Columns {
+		if column == "note" {
+			return i
+		}
+	}
+	return -1
+}
+
+func fitColumnWidths(widths []int, minimums []int, available int, noteIndex int) []int {
+	fitted := append([]int(nil), widths...)
+	mins := append([]int(nil), minimums...)
+	for sumWidths(mins) > available {
+		shrunk := false
+		for i := len(mins) - 1; i >= 0 && sumWidths(mins) > available; i-- {
+			if mins[i] > 1 {
+				mins[i]--
+				shrunk = true
+			}
+		}
+		if !shrunk {
+			break
+		}
+	}
+	shrinkColumnWidths(fitted, mins, available, noteIndex)
+	return fitted
+}
+
+func shrinkColumnWidths(widths []int, minimums []int, available int, noteIndex int) {
+	if noteIndex >= 0 && noteIndex < len(widths) {
+		for sumWidths(widths) > available && widths[noteIndex] > minimums[noteIndex] {
+			widths[noteIndex]--
+		}
+	}
+	for sumWidths(widths) > available {
+		index := widestShrinkableColumn(widths, minimums)
+		if index < 0 {
+			return
+		}
+		widths[index]--
+	}
+}
+
+func widestShrinkableColumn(widths []int, minimums []int) int {
+	index := -1
 	for i, width := range widths {
-		if i == noteIndex {
+		if width <= minimums[i] {
 			continue
 		}
+		if index < 0 || width > widths[index] {
+			index = i
+		}
+	}
+	return index
+}
+
+func sumWidths(widths []int) int {
+	total := 0
+	for _, width := range widths {
 		total += width
 	}
-	total += 2 * (len(widths) - 1)
 	return total
 }
 
@@ -211,7 +360,7 @@ func truncate(value string, maxWidth int) string {
 	ellipsis := "…"
 	ellipsisWidth := ansi.StringWidth(ellipsis)
 	if maxWidth <= ellipsisWidth {
-		return ""
+		return ansi.Cut(value, 0, maxWidth)
 	}
 	return ansi.Cut(value, 0, maxWidth-ellipsisWidth) + ellipsis
 }

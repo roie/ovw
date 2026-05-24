@@ -6,14 +6,21 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"ovw/internal/config"
 )
 
 func CandidateRoots(root string) ([]string, error) {
+	return CandidateRootsWithIgnore(root, config.Default().IgnoreDirs)
+}
+
+func CandidateRootsWithIgnore(root string, ignoreDirs []string) ([]string, error) {
+	ignoreDirs = defaultIgnoreDirs(ignoreDirs)
 	seen := map[string]bool{}
 	roots := []string{}
 	add := func(path string) {
 		clean := filepath.Clean(path)
-		if seen[clean] || IgnoredPath(root, clean) {
+		if seen[clean] || IgnoredPathWithIgnore(root, clean, ignoreDirs) {
 			return
 		}
 		if info, err := os.Stat(clean); err == nil && info.IsDir() {
@@ -29,7 +36,7 @@ func CandidateRoots(root string) ([]string, error) {
 	}
 	if hasWorkspaceDeclaration {
 		for _, glob := range globs {
-			for _, match := range ExpandGlob(root, glob) {
+			for _, match := range ExpandGlobWithIgnore(root, glob, ignoreDirs) {
 				add(match)
 			}
 		}
@@ -37,7 +44,7 @@ func CandidateRoots(root string) ([]string, error) {
 	}
 
 	for _, glob := range []string{"apps/*", "packages/*", "web/*", "extension/*", "extensions/*"} {
-		for _, match := range ExpandGlob(root, glob) {
+		for _, match := range ExpandGlobWithIgnore(root, glob, ignoreDirs) {
 			add(match)
 		}
 	}
@@ -79,6 +86,13 @@ func readPNPMWorkspace(path string) ([]string, bool, error) {
 	for _, line := range strings.Split(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if inPackages && strings.HasPrefix(trimmed, "-") {
+			value := cleanGlob(strings.TrimSpace(strings.TrimPrefix(trimmed, "-")))
+			if value != "" && !strings.HasPrefix(value, "!") {
+				globs = append(globs, value)
+			}
 			continue
 		}
 		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
@@ -127,6 +141,11 @@ func readPackageWorkspaces(path string) ([]string, bool, error) {
 }
 
 func ExpandGlob(root, pattern string) []string {
+	return ExpandGlobWithIgnore(root, pattern, config.Default().IgnoreDirs)
+}
+
+func ExpandGlobWithIgnore(root, pattern string, ignoreDirs []string) []string {
+	ignoreDirs = defaultIgnoreDirs(ignoreDirs)
 	pattern = cleanGlob(pattern)
 	if pattern == "" || strings.HasPrefix(pattern, "!") || strings.Contains(pattern, "**") {
 		return nil
@@ -138,7 +157,7 @@ func ExpandGlob(root, pattern string) []string {
 	}
 	out := []string{}
 	for _, match := range matches {
-		if IgnoredPath(root, match) {
+		if IgnoredPathWithIgnore(root, match, ignoreDirs) {
 			continue
 		}
 		if info, err := os.Stat(match); err == nil && info.IsDir() {
@@ -168,6 +187,11 @@ func cleanGlob(value string) string {
 }
 
 func IgnoredPath(root, path string) bool {
+	return IgnoredPathWithIgnore(root, path, config.Default().IgnoreDirs)
+}
+
+func IgnoredPathWithIgnore(root, path string, ignoreDirs []string) bool {
+	ignoreDirs = defaultIgnoreDirs(ignoreDirs)
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
 		return true
@@ -176,24 +200,27 @@ func IgnoredPath(root, path string) bool {
 		return false
 	}
 	for _, part := range strings.Split(filepath.ToSlash(rel), "/") {
-		if ignoredDir(part) {
+		if ignoredDir(part, ignoreDirs) {
 			return true
 		}
 	}
 	return false
 }
 
-func ignoredDir(name string) bool {
-	for _, ignored := range []string{
-		"node_modules", "dist", "build", "target", ".next", ".nuxt",
-		".svelte-kit", ".turbo", ".cache", "coverage", "vendor",
-		".venv", "venv", "__pycache__",
-	} {
+func ignoredDir(name string, ignoreDirs []string) bool {
+	for _, ignored := range ignoreDirs {
 		if name == ignored {
 			return true
 		}
 	}
 	return false
+}
+
+func defaultIgnoreDirs(ignoreDirs []string) []string {
+	if ignoreDirs != nil {
+		return ignoreDirs
+	}
+	return config.Default().IgnoreDirs
 }
 
 func dedupeStrings(values []string) []string {

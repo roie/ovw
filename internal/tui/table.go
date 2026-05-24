@@ -119,13 +119,36 @@ func expandTableRows(rows []tableRow, viewportWidth int) {
 	if currentWidth >= viewportWidth {
 		return
 	}
-	lastIndex := len(rows[0].Cells) - 1
 	extra := viewportWidth - currentWidth
+	increments := distributeTableExtraWidth(len(rows[0].Cells), extra)
 	for rowIndex := range rows {
-		if lastIndex < len(rows[rowIndex].Cells) {
-			rows[rowIndex].Cells[lastIndex].Width += extra
+		for cellIndex, increment := range increments {
+			if cellIndex < len(rows[rowIndex].Cells) {
+				rows[rowIndex].Cells[cellIndex].Width += increment
+			}
 		}
 	}
+}
+
+func distributeTableExtraWidth(columns int, extra int) []int {
+	increments := make([]int, columns)
+	if columns <= 0 || extra <= 0 {
+		return increments
+	}
+	start := 0
+	if columns > 1 {
+		start = 1
+	}
+	for extra > 0 {
+		for index := start; index < len(increments); index++ {
+			if extra == 0 {
+				break
+			}
+			increments[index]++
+			extra--
+		}
+	}
+	return increments
 }
 
 func tableColumnLabel(column string, cfg config.Config, sortBy, dir string) string {

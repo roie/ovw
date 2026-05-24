@@ -109,6 +109,7 @@ func (m *Model) openConfig() {
 	m.configFieldCursor = 0
 	m.configNoteSel = 0
 	m.configKeySel = 0
+	m.configResetArmed = false
 }
 
 func (m Model) configRows() []configRow {
@@ -126,7 +127,7 @@ func (m Model) configRows() []configRow {
 		{Label: "Terminal", Value: terminalSummary(cfg.Shell)},
 		{Label: "Default sort", Value: cfg.SortBy + " " + cfg.SortDir},
 		{Label: "Open settings file", Value: rawConfigPath(m.configPaths.Config)},
-		{Label: "Reset settings", Value: ""},
+		{Label: "Reset all settings", Value: ""},
 	}
 }
 
@@ -221,13 +222,18 @@ func (m Model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.configErr = ""
 	case isDownKey(value):
 		m.configSelected = wrapPickerSelection(m.configSelected, len(rows), 1)
+		m.configResetArmed = false
 	case isUpKey(value):
 		m.configSelected = wrapPickerSelection(m.configSelected, len(rows), -1)
+		m.configResetArmed = false
 	case isLeftKey(value):
+		m.configResetArmed = false
 		m.changeConfigRow()
 	case isRightKey(value):
+		m.configResetArmed = false
 		m.incrementConfigRow()
 	case isConfigSaveKey(value):
+		m.configResetArmed = false
 		if err := config.Validate(m.configDraft); err != nil {
 			m.configErr = friendlyConfigError(err)
 			return m, nil
@@ -263,9 +269,15 @@ func (m Model) editConfigRow() (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, m.openConfigFile()
 	case 12:
+		if !m.configResetArmed {
+			m.configResetArmed = true
+			m.configErr = "Press enter again to confirm reset."
+			return m, nil
+		}
 		roots := append([]string{}, m.configDraft.Roots...)
 		m.configDraft = config.Default()
 		m.configDraft.Roots = roots
+		m.configResetArmed = false
 		m.configErr = ""
 	}
 	m.configErr = ""
@@ -580,7 +592,7 @@ func (m Model) updateConfigShortcutInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateConfigFields(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	count := len(m.configDraft.Fields)
-	if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
+	if m.shouldTreatConfigFieldKeyAsText(msg) {
 		m.configFieldInput, m.configFieldCursor = textInsert(m.configFieldInput, m.configFieldCursor, inputText(msg))
 		m.configErr = ""
 		return m, nil
@@ -634,6 +646,17 @@ func (m Model) updateConfigFields(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.openConfigField(m.configFieldSel)
 	}
 	return m, nil
+}
+
+func (m Model) shouldTreatConfigFieldKeyAsText(msg tea.KeyMsg) bool {
+	if msg.Type != tea.KeyRunes && msg.Type != tea.KeySpace {
+		return false
+	}
+	value := msg.String()
+	if m.configFieldInput == "" && len(m.configDraft.Fields) > 0 && (isDownKey(value) || isUpKey(value) || isLeftKey(value) || isRightKey(value)) {
+		return false
+	}
+	return true
 }
 
 func (m *Model) addConfigFieldFromInput() {

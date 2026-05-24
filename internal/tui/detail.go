@@ -37,8 +37,11 @@ func detailModalViewWithScroll(project project.Project, ok bool, width int, heig
 }
 
 func detailModalViewWithSelectionScroll(project project.Project, ok bool, width int, height int, offset int, expanded bool, selected int, actionKeys ...config.ActionKeyConfig) (string, int) {
-	if width <= 0 || width > 72 {
+	if width <= 0 {
 		width = 72
+	}
+	if width > 100 {
+		width = 100
 	}
 	if width < 32 {
 		width = 32

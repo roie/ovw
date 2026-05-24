@@ -207,6 +207,26 @@ func TestTableViewExpandsToViewport(t *testing.T) {
 	}
 }
 
+func TestExpandTableRowsDistributesExtraWidth(t *testing.T) {
+	rows := []tableRow{{
+		Cells: []tableCell{
+			{Value: "name", Width: 4},
+			{Value: "activity", Width: 8},
+			{Value: "status", Width: 6},
+		},
+	}}
+
+	expandTableRows(rows, 30)
+
+	got := []int{rows[0].Cells[0].Width, rows[0].Cells[1].Width, rows[0].Cells[2].Width}
+	if got[0] != 4 || got[1] <= 8 || got[2] <= 6 {
+		t.Fatalf("extra width should be spread across trailing columns, got %#v", got)
+	}
+	if got[2]-6 == 30-tableLineWidthFromWidths([]int{4, 8, 6}) {
+		t.Fatalf("extra width should not all go to the last column, got %#v", got)
+	}
+}
+
 func stripANSI(value string) string {
 	return ansiPattern.ReplaceAllString(value, "")
 }

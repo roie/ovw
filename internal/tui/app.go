@@ -143,6 +143,7 @@ type Model struct {
 	columnChecked     map[string]bool
 	columnErr         string
 	configSelected    int
+	configResetArmed  bool
 	configDraft       config.Config
 	configErr         string
 	configListField   configListField

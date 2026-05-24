@@ -99,8 +99,8 @@ func TestTableWidthTruncatesNoteAndSeparator(t *testing.T) {
 			t.Fatalf("line width = %d, want <= 72:\n%s", width, out.String())
 		}
 	}
-	if !strings.Contains(out.String(), "…") {
-		t.Fatalf("table did not truncate with ellipsis:\n%s", out.String())
+	if !strings.Contains(out.String(), "workspaces") {
+		t.Fatalf("wrapped note should keep later words:\n%s", out.String())
 	}
 }
 
@@ -123,8 +123,37 @@ func TestTableTruncatesUnicodeWithoutBreakingUTF8(t *testing.T) {
 	if strings.ContainsRune(got, utf8.RuneError) {
 		t.Fatalf("table output contains replacement rune after truncation:\n%s", got)
 	}
+	if !strings.Contains(got, "🙂") {
+		t.Fatalf("table should keep valid unicode while wrapping:\n%s", got)
+	}
+}
+
+func TestTableWidthConstrainsNonNoteColumns(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "path", "stack", "activity", "status", "note"}
+	projects := []project.Project{{
+		Name:         "very-long-project-name-that-will-not-fit",
+		Path:         "/home/roie/dev/playground/very/deep/project/path/that/will/not/fit",
+		StackDisplay: "SvelteKit+Cloudflare Workers+Tailwind+Vite",
+		Activity:     format.ActivityInfo{Display: "12m"},
+		Status:       format.StatusFromTags("", []string{"dirty"}),
+		Note:         format.NoteInfo{Display: "small note"},
+	}}
+	var out bytes.Buffer
+	if err := TableWithWidth(&out, projects, cfg, 100*time.Millisecond, 60); err != nil {
+		t.Fatalf("TableWithWidth() error = %v", err)
+	}
+	got := out.String()
+	for _, line := range strings.Split(strings.TrimRight(got, "\n"), "\n")[2:] {
+		if width := ansi.StringWidth(line); width > 60 {
+			t.Fatalf("line width = %d, want <= 60:\n%s", width, got)
+		}
+	}
 	if !strings.Contains(got, "…") {
-		t.Fatalf("table did not truncate unicode note:\n%s", got)
+		t.Fatalf("table should truncate oversized non-note columns:\n%s", got)
+	}
+	if !strings.Contains(got, "dirty") {
+		t.Fatalf("table should preserve short useful columns:\n%s", got)
 	}
 }
 
@@ -147,6 +176,39 @@ func TestTableCollapsesMultilineNotes(t *testing.T) {
 	}
 	if !strings.Contains(got, "fix: extract carousel - Add SJS") {
 		t.Fatalf("table note missing collapsed text:\n%s", got)
+	}
+}
+
+func TestTableWrapsPlainNoteColumn(t *testing.T) {
+	projects := []project.Project{{
+		Name:         "notes",
+		StackDisplay: "Go",
+		Activity:     format.ActivityInfo{Display: "1h"},
+		Status:       format.StatusFromTags("", []string{"active"}),
+		Note:         format.NoteInfo{Display: "this note should wrap across multiple rows instead of disappearing behind an ellipsis"},
+	}}
+	var out bytes.Buffer
+	if err := TableWithWidth(&out, projects, config.Default(), 100*time.Millisecond, 52); err != nil {
+		t.Fatalf("TableWithWidth() error = %v", err)
+	}
+	got := out.String()
+	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+	if len(lines) < 6 {
+		t.Fatalf("table should render note continuation rows:\n%s", got)
+	}
+	for _, line := range lines[2:] {
+		if width := ansi.StringWidth(line); width > 52 {
+			t.Fatalf("line width = %d, want <= 52:\n%s", width, got)
+		}
+	}
+	if !strings.Contains(got, "instead") {
+		t.Fatalf("wrapped note should keep later words:\n%s", got)
+	}
+	if strings.Contains(got, "instea\n") || strings.Contains(got, "disappea\n") {
+		t.Fatalf("wrapped note should prefer word boundaries:\n%s", got)
+	}
+	if strings.Count(got, "notes") < 2 {
+		t.Fatalf("note continuation rows should repeat project context:\n%s", got)
 	}
 }
 

@@ -206,6 +206,25 @@ func TestDetailModalUsesFallbackTitleWithoutProject(t *testing.T) {
 	}
 }
 
+func TestDetailModalScalesOnWideTerminals(t *testing.T) {
+	project := detailTestProject("eventca")
+
+	got := stripANSI(detailModalView(project, true, 120))
+	lines := strings.Split(got, "\n")
+	if len(lines) == 0 {
+		t.Fatalf("detail modal should render lines:\n%s", got)
+	}
+	if width := lipglossWidth(lines[0]); width != 100 {
+		t.Fatalf("wide detail modal width = %d, want cap 100:\n%s", width, got)
+	}
+
+	got = stripANSI(detailModalView(project, true, 84))
+	lines = strings.Split(got, "\n")
+	if width := lipglossWidth(lines[0]); width != 84 {
+		t.Fatalf("detail modal width = %d, want requested width 84:\n%s", width, got)
+	}
+}
+
 func TestDetailSummaryWrapsNote(t *testing.T) {
 	project := detailTestProject("eventca")
 	project.Note.Display = "chore: add biome and apply repository-wide formatting"

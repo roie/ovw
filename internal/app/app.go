@@ -833,7 +833,7 @@ func EnrichWithGit(scanned scanner.Project, cfg config.Config, now time.Time, gi
 func EnrichWithGitOptions(scanned scanner.Project, cfg config.Config, now time.Time, gitInfo gitactivity.Info, enrichOpts EnrichOptions) project.Project {
 	stackResult, _ := stack.Detect(scanned.Path, cfg.Stack)
 	managers := manager.Detect(scanned.Path)
-	detectedScripts := scripts.Detect(scanned.Path)
+	detectedScripts := scripts.DetectWithIgnore(scanned.Path, cfg.IgnoreDirs)
 	description := projectdescription.Detect(scanned.Path)
 	version := projectversion.Detect(scanned.Path)
 	activity := ovwformat.Activity(gitInfo, cfg, now)
