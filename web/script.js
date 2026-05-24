@@ -21,13 +21,15 @@ const tabs = [...document.querySelectorAll("[data-install-tab]")];
 const command = document.querySelector("[data-command]");
 const detected = document.querySelector("#install-detected");
 const copyButton = document.querySelector("[data-copy]");
+let copyResetTimer;
 
 function detectInstallMethod() {
   const platform = navigator.userAgentData?.platform || navigator.platform || "";
   const userAgent = navigator.userAgent || "";
   const value = `${platform} ${userAgent}`.toLowerCase();
+  const isMobile = navigator.userAgentData?.mobile || navigator.maxTouchPoints > 1;
 
-  if (value.includes("android") || value.includes("iphone") || value.includes("ipad") || value.includes("ios")) {
+  if (value.includes("android") || value.includes("iphone") || value.includes("ipad") || value.includes("ios") || (value.includes("mac") && isMobile)) {
     return "manual";
   }
   if (value.includes("win")) {
@@ -71,13 +73,14 @@ tabs.forEach((tab) => {
 });
 
 copyButton.addEventListener("click", async () => {
+  clearTimeout(copyResetTimer);
   try {
     await navigator.clipboard.writeText(command.textContent);
     copyButton.textContent = "copied";
   } catch {
-    copyButton.textContent = selectCommandText() ? "selected" : "copy failed";
+    copyButton.textContent = selectCommandText() ? "press ctrl+c" : "copy failed";
   }
-  setTimeout(() => {
+  copyResetTimer = setTimeout(() => {
     copyButton.textContent = "copy";
   }, 1600);
 });
