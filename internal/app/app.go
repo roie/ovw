@@ -662,51 +662,63 @@ func UpdateProjectMetadata(target string, update MetadataUpdate) (MetadataUpdate
 	if err != nil {
 		return MetadataUpdateResult{}, err
 	}
-	path, err := ResolveProject(target, state.Config, state.Store)
+	var result MetadataUpdateResult
+	err = metadata.WithLock(state.Paths.Metadata, func() error {
+		store, err := metadata.Load(state.Paths.Metadata)
+		if err != nil {
+			return err
+		}
+		path, err := ResolveProject(target, state.Config, store)
+		if err != nil {
+			return err
+		}
+		entry := store.Projects[path]
+		if update.Status != nil {
+			entry.Status = *update.Status
+		}
+		if update.Note != nil {
+			entry.Note = *update.Note
+		}
+		if update.Pinned != nil {
+			entry.Pinned = *update.Pinned
+		}
+		for name, command := range update.Scripts {
+			if entry.Scripts == nil {
+				entry.Scripts = map[string]string{}
+			}
+			if command == nil {
+				delete(entry.Scripts, name)
+				continue
+			}
+			entry.Scripts[name] = *command
+		}
+		if len(entry.Scripts) == 0 {
+			entry.Scripts = nil
+		}
+		for name, value := range update.Fields {
+			if entry.Fields == nil {
+				entry.Fields = map[string]string{}
+			}
+			if value == nil {
+				delete(entry.Fields, name)
+				continue
+			}
+			entry.Fields[name] = *value
+		}
+		if len(entry.Fields) == 0 {
+			entry.Fields = nil
+		}
+		store.Projects[path] = entry
+		if err := metadata.Write(state.Paths.Metadata, store); err != nil {
+			return err
+		}
+		result = MetadataUpdateResult{Path: path, Entry: entry}
+		return nil
+	})
 	if err != nil {
 		return MetadataUpdateResult{}, err
 	}
-	entry := state.Store.Projects[path]
-	if update.Status != nil {
-		entry.Status = *update.Status
-	}
-	if update.Note != nil {
-		entry.Note = *update.Note
-	}
-	if update.Pinned != nil {
-		entry.Pinned = *update.Pinned
-	}
-	for name, command := range update.Scripts {
-		if entry.Scripts == nil {
-			entry.Scripts = map[string]string{}
-		}
-		if command == nil {
-			delete(entry.Scripts, name)
-			continue
-		}
-		entry.Scripts[name] = *command
-	}
-	if len(entry.Scripts) == 0 {
-		entry.Scripts = nil
-	}
-	for name, value := range update.Fields {
-		if entry.Fields == nil {
-			entry.Fields = map[string]string{}
-		}
-		if value == nil {
-			delete(entry.Fields, name)
-			continue
-		}
-		entry.Fields[name] = *value
-	}
-	if len(entry.Fields) == 0 {
-		entry.Fields = nil
-	}
-	state.Store.Projects[path] = entry
-	if err := metadata.Write(state.Paths.Metadata, state.Store); err != nil {
-		return MetadataUpdateResult{}, err
-	}
-	return MetadataUpdateResult{Path: path, Entry: entry}, nil
+	return result, nil
 }
 
 func AddProject(path string) (AddProjectResult, error) {
@@ -773,17 +785,29 @@ func SetProjectHidden(target string, hidden bool) (MetadataUpdateResult, error) 
 	if err != nil {
 		return MetadataUpdateResult{}, err
 	}
-	path, err := ResolveProject(target, state.Config, state.Store)
+	var result MetadataUpdateResult
+	err = metadata.WithLock(state.Paths.Metadata, func() error {
+		store, err := metadata.Load(state.Paths.Metadata)
+		if err != nil {
+			return err
+		}
+		path, err := ResolveProject(target, state.Config, store)
+		if err != nil {
+			return err
+		}
+		entry := store.Projects[path]
+		entry.Hidden = hidden
+		store.Projects[path] = entry
+		if err := metadata.Write(state.Paths.Metadata, store); err != nil {
+			return err
+		}
+		result = MetadataUpdateResult{Path: path, Entry: entry}
+		return nil
+	})
 	if err != nil {
 		return MetadataUpdateResult{}, err
 	}
-	entry := state.Store.Projects[path]
-	entry.Hidden = hidden
-	state.Store.Projects[path] = entry
-	if err := metadata.Write(state.Paths.Metadata, state.Store); err != nil {
-		return MetadataUpdateResult{}, err
-	}
-	return MetadataUpdateResult{Path: path, Entry: entry}, nil
+	return result, nil
 }
 
 func resolveKnownProject(target string, store metadata.Store) (string, error) {

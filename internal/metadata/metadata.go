@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"ovw/internal/safefile"
 )
 
 type Store struct {
@@ -56,7 +58,11 @@ func Write(path string, store Store) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o644)
+	return safefile.AtomicWriteFile(path, data, 0o644)
+}
+
+func WithLock(path string, fn func() error) error {
+	return safefile.WithLock(path, fn)
 }
 
 func (s *Store) Set(path string, entry Entry) (string, Entry, error) {

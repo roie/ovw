@@ -78,7 +78,7 @@ func tableHeader(columns []string, rows []tableRow, cfg config.Config, sortBy, s
 	cells := make([]tableCell, 0, len(columns))
 	for index, column := range columns {
 		label := tableColumnLabel(column, cfg, sortBy, sortDir)
-		width := len([]rune(label))
+		width := lipglossWidth(label)
 		if len(rows) > 0 && index < len(rows[0].Cells) {
 			width = rows[0].Cells[index].Width
 		}
@@ -90,11 +90,11 @@ func tableHeader(columns []string, rows []tableRow, cfg config.Config, sortBy, s
 func fitTableRows(rows []tableRow, columns []string, cfg config.Config, sortBy, sortDir string) {
 	widths := make([]int, len(columns))
 	for index, column := range columns {
-		widths[index] = len([]rune(tableColumnLabel(column, cfg, sortBy, sortDir)))
+		widths[index] = lipglossWidth(tableColumnLabel(column, cfg, sortBy, sortDir))
 	}
 	for _, row := range rows {
 		for index, cell := range row.Cells {
-			if cellWidth := len([]rune(cell.Value)); cellWidth > widths[index] {
+			if cellWidth := lipglossWidth(cell.Value); cellWidth > widths[index] {
 				widths[index] = cellWidth
 			}
 		}
@@ -192,7 +192,7 @@ func tableLineWidthFromWidths(widths []int) int {
 }
 
 func tablePadRight(value string, width int) string {
-	padding := width - len([]rune(value))
+	padding := width - lipglossWidth(value)
 	if padding <= 0 {
 		return value
 	}
@@ -203,18 +203,18 @@ func tableViewportLine(value string, offset, width int) string {
 	if width <= 0 {
 		return value
 	}
-	runes := []rune(value)
 	if offset < 0 {
 		offset = 0
 	}
-	if offset > len(runes) {
-		offset = len(runes)
+	valueWidth := lipglossWidth(value)
+	if offset > valueWidth {
+		offset = valueWidth
 	}
 	end := offset + width
-	if end > len(runes) {
-		end = len(runes)
+	if end > valueWidth {
+		end = valueWidth
 	}
-	out := string(runes[offset:end])
+	out := ansi.Cut(value, offset, end)
 	return tablePadRight(out, width)
 }
 

@@ -877,6 +877,8 @@ func friendlyConfigError(err error) string {
 		return "Remove the missing custom field column before saving."
 	case strings.Contains(message, "invalid column_order ") && strings.Contains(message, "custom field is not defined"):
 		return "Remove the missing custom field from column order before saving."
+	case strings.Contains(message, "invalid column_order ") && strings.Contains(message, "already used"):
+		return "Remove the duplicate column order before saving."
 	case strings.Contains(message, "invalid column "):
 		return "Choose a valid column."
 	case strings.Contains(message, "invalid column_order "):

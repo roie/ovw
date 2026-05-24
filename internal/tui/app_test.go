@@ -3022,6 +3022,7 @@ func TestFriendlyConfigErrorHidesConfigInternals(t *testing.T) {
 		{`invalid column_order "wat": expected name, path`, `Choose a valid column order.`},
 		{`invalid column "field:url": custom field is not defined`, `Remove the missing custom field column before saving.`},
 		{`invalid column_order "field:url": custom field is not defined`, `Remove the missing custom field from column order before saving.`},
+		{`invalid column_order "name": already used`, `Remove the duplicate column order before saving.`},
 		{`invalid fields[0].id: expected lowercase letters, numbers, underscores, or hyphens`, `Use a field label with letters or numbers.`},
 		{`invalid fields[1].id "jira": already used`, `A field with this label already exists.`},
 		{`invalid fields[0].type "number": expected text, select, or checkbox`, `Choose a field type.`},

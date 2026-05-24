@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"ovw/internal/columns"
+	"ovw/internal/safefile"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -221,6 +222,9 @@ func Validate(cfg Config) error {
 			return err
 		}
 	}
+	if duplicate := duplicateString(cfg.ColumnOrder); duplicate != "" {
+		return fmt.Errorf("invalid column_order %q: already used", duplicate)
+	}
 	if !validSortBy(cfg.SortBy) {
 		return fmt.Errorf("invalid sort_by %q: expected activity, updated, name, or status", cfg.SortBy)
 	}
@@ -231,6 +235,17 @@ func Validate(cfg Config) error {
 		return err
 	}
 	return nil
+}
+
+func duplicateString(values []string) string {
+	seen := map[string]bool{}
+	for _, value := range values {
+		if seen[value] {
+			return value
+		}
+		seen[value] = true
+	}
+	return ""
 }
 
 func validateColumn(cfg Config, name, column string) error {
@@ -374,21 +389,15 @@ func reservedActionKey(key string) bool {
 }
 
 func Write(path string, cfg Config) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
 	data, err := toml.Marshal(cfg)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	return safefile.AtomicWriteFile(path, data, 0o644)
 }
 
 func WriteDefault(path string, roots []string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte(DefaultTemplate(roots)), 0o644)
+	return safefile.AtomicWriteFile(path, []byte(DefaultTemplate(roots)), 0o644)
 }
 
 func DefaultTemplate(roots []string) string {
@@ -509,6 +518,9 @@ func Edit(path string) error {
 }
 
 func ExpandPath(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", errors.New("path cannot be empty")
+	}
 	if path == "~" || strings.HasPrefix(path, "~/") {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -518,6 +530,9 @@ func ExpandPath(path string) (string, error) {
 			return home, nil
 		}
 		return filepath.Join(home, path[2:]), nil
+	}
+	if strings.HasPrefix(path, "~") {
+		return "", fmt.Errorf("unsupported home path %q; use ~/path", path)
 	}
 	return filepath.Abs(path)
 }

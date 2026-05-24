@@ -88,6 +88,13 @@ func readPNPMWorkspace(path string) ([]string, bool, error) {
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
+		if strings.HasPrefix(trimmed, "packages:") {
+			inPackages = true
+			if inline := strings.TrimSpace(strings.TrimPrefix(trimmed, "packages:")); strings.HasPrefix(inline, "[") {
+				globs = append(globs, cleanInlineGlobList(inline)...)
+			}
+			continue
+		}
 		if inPackages && strings.HasPrefix(trimmed, "-") {
 			value := cleanGlob(strings.TrimSpace(strings.TrimPrefix(trimmed, "-")))
 			if value != "" && !strings.HasPrefix(value, "!") {
@@ -96,7 +103,7 @@ func readPNPMWorkspace(path string) ([]string, bool, error) {
 			continue
 		}
 		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
-			inPackages = strings.HasPrefix(trimmed, "packages:")
+			inPackages = false
 			continue
 		}
 		if !inPackages || !strings.HasPrefix(trimmed, "-") {
@@ -177,6 +184,14 @@ func cleanGlobs(values []string) []string {
 		}
 	}
 	return out
+}
+
+func cleanInlineGlobList(value string) []string {
+	value = strings.TrimSpace(value)
+	value = strings.TrimPrefix(value, "[")
+	value = strings.TrimSuffix(value, "]")
+	parts := strings.Split(value, ",")
+	return cleanGlobs(parts)
 }
 
 func cleanGlob(value string) string {

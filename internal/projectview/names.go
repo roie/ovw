@@ -2,6 +2,7 @@ package projectview
 
 import (
 	"path/filepath"
+	"strconv"
 
 	"ovw/internal/project"
 )
@@ -35,5 +36,5 @@ func ProjectKey(project project.Project, index int) string {
 	if index < 0 {
 		return project.Name
 	}
-	return project.Name + "\x00" + string(rune(index))
+	return project.Name + "\x00" + strconv.Itoa(index)
 }

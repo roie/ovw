@@ -173,6 +173,14 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 			want: `invalid column_order "url": expected name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note, or field:<id>`,
 		},
 		{
+			name: "duplicate column order",
+			edit: func(cfg Config) Config {
+				cfg.ColumnOrder = []string{"name", "status", "name"}
+				return cfg
+			},
+			want: `invalid column_order "name": already used`,
+		},
+		{
 			name: "unknown custom field column",
 			edit: func(cfg Config) Config {
 				cfg.Columns = []string{"name", "field:jira"}
@@ -287,6 +295,14 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 				t.Fatalf("Load() error = %v, want %q", err, want)
 			}
 		})
+	}
+}
+
+func TestExpandPathRejectsAmbiguousHomePaths(t *testing.T) {
+	for _, path := range []string{"", "~roie/projects"} {
+		if got, err := ExpandPath(path); err == nil {
+			t.Fatalf("ExpandPath(%q) = %q, nil error; want error", path, got)
+		}
 	}
 }
 

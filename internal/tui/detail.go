@@ -351,7 +351,7 @@ func compactScriptsForWidth(scripts []string, width int) (string, bool) {
 	}
 	for len(selected) > 0 {
 		value := strings.Join(selected, ", ") + " " + marker
-		if len([]rune(value)) <= width {
+		if lipglossWidth(value) <= width {
 			return value, true
 		}
 		selected = selected[:len(selected)-1]

@@ -207,6 +207,30 @@ func TestTableViewExpandsToViewport(t *testing.T) {
 	}
 }
 
+func TestTableViewUsesDisplayWidthForWideUnicode(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "status"}
+	got := tableView([]project.Project{
+		{
+			Name:   "你好",
+			Status: ovwformat.StatusFromTags("active", []string{"active"}),
+		},
+	}, -1, 16, 8, 0, cfg, "name", "asc")
+
+	lines := strings.Split(stripANSI(got), "\n")
+	if len(lines) < 3 {
+		t.Fatalf("table missing lines:\n%s", got)
+	}
+	for _, line := range lines[:3] {
+		if width := lipglossWidth(line); width != 16 {
+			t.Fatalf("line display width = %d, want 16: %q\n%s", width, line, got)
+		}
+	}
+	if !strings.Contains(got, "你好") {
+		t.Fatalf("table should preserve wide unicode name:\n%s", got)
+	}
+}
+
 func TestExpandTableRowsDistributesExtraWidth(t *testing.T) {
 	rows := []tableRow{{
 		Cells: []tableCell{

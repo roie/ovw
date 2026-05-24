@@ -1,6 +1,10 @@
 package textwrap
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/x/ansi"
+)
 
 func Lines(value string, width int) []string {
 	if width <= 0 {
@@ -15,7 +19,7 @@ func Lines(value string, width int) []string {
 }
 
 func line(value string, width int) []string {
-	if len([]rune(value)) <= width {
+	if ansi.StringWidth(value) <= width {
 		return []string{value}
 	}
 	words := strings.Fields(value)
@@ -29,7 +33,7 @@ func line(value string, width int) []string {
 			current = word
 			continue
 		}
-		if len([]rune(current))+1+len([]rune(word)) <= width {
+		if ansi.StringWidth(current)+1+ansi.StringWidth(word) <= width {
 			current += " " + word
 			continue
 		}

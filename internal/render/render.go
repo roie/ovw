@@ -51,7 +51,7 @@ func TableWithWidth(w io.Writer, projects []project.Project, cfg config.Config, 
 	if len(lines) == 0 {
 		return nil
 	}
-	if _, err := io.WriteString(w, lines[0]); err != nil {
+	if _, err := io.WriteString(w, trimLineWidth(lines[0], width)); err != nil {
 		return err
 	}
 	separatorWidth := width
@@ -163,8 +163,8 @@ func applyWidth(headers []string, rows []tableRow, cfg config.Config, width int)
 	}
 	widths := naturalColumnWidths(headers, rows)
 	available := width - 2*(len(widths)-1)
-	if available < len(widths) {
-		available = len(widths)
+	if available < 0 {
+		available = 0
 	}
 	widths = fitColumnWidths(widths, minimumColumnWidths(headers, cfg), available, noteColumnIndex(cfg))
 	for i := range headers {
@@ -215,6 +215,9 @@ func wrapCell(value string, width int) []string {
 	if value == "" || width <= 0 {
 		return nil
 	}
+	if strings.Contains(value, "\x1b") {
+		return wrapCellByWidth(value, width)
+	}
 	parts := []string{}
 	words := strings.Fields(value)
 	if len(words) == 0 {
@@ -257,6 +260,35 @@ func wrapCell(value string, width int) []string {
 	return parts
 }
 
+func wrapCellByWidth(value string, width int) []string {
+	parts := []string{}
+	for ansi.StringWidth(value) > width {
+		part := ansi.Cut(value, 0, width)
+		if part == "" {
+			break
+		}
+		parts = append(parts, part)
+		value = trimLeadingSpacesANSI(ansi.Cut(value, ansi.StringWidth(part), ansi.StringWidth(value)))
+	}
+	if value != "" {
+		parts = append(parts, value)
+	}
+	return parts
+}
+
+func trimLeadingSpacesANSI(value string) string {
+	prefix := ""
+	for strings.HasPrefix(value, "\x1b[") {
+		end := strings.IndexByte(value, 'm')
+		if end < 0 {
+			break
+		}
+		prefix += value[:end+1]
+		value = value[end+1:]
+	}
+	return prefix + strings.TrimLeft(value, " ")
+}
+
 func naturalColumnWidths(headers []string, rows []tableRow) []int {
 	widths := make([]int, len(headers))
 	for i, header := range headers {
@@ -278,9 +310,6 @@ func minimumColumnWidths(headers []string, cfg config.Config) []int {
 		minimums[i] = ansi.StringWidth(header)
 		if minimums[i] > 4 {
 			minimums[i] = 4
-		}
-		if minimums[i] < 1 {
-			minimums[i] = 1
 		}
 		if i < len(cfg.Columns) && cfg.Columns[i] == "note" && minimums[i] < 8 {
 			minimums[i] = 8
@@ -304,7 +333,7 @@ func fitColumnWidths(widths []int, minimums []int, available int, noteIndex int)
 	for sumWidths(mins) > available {
 		shrunk := false
 		for i := len(mins) - 1; i >= 0 && sumWidths(mins) > available; i-- {
-			if mins[i] > 1 {
+			if mins[i] > 0 {
 				mins[i]--
 				shrunk = true
 			}

@@ -157,6 +157,28 @@ func TestTableWidthConstrainsNonNoteColumns(t *testing.T) {
 	}
 }
 
+func TestTableWidthHandlesVeryNarrowTerminals(t *testing.T) {
+	cfg := config.Default()
+	cfg.Columns = []string{"name", "path", "stack", "activity", "status", "note"}
+	projects := []project.Project{{
+		Name:         "narrow",
+		Path:         "/tmp/narrow",
+		StackDisplay: "Go",
+		Activity:     format.ActivityInfo{Display: "1h"},
+		Status:       format.StatusFromTags("", []string{"active"}),
+		Note:         format.NoteInfo{Display: "tiny terminal"},
+	}}
+	var out bytes.Buffer
+	if err := TableWithWidth(&out, projects, cfg, 100*time.Millisecond, 8); err != nil {
+		t.Fatalf("TableWithWidth() error = %v", err)
+	}
+	for _, line := range strings.Split(strings.TrimRight(out.String(), "\n"), "\n")[2:] {
+		if width := ansi.StringWidth(line); width > 8 {
+			t.Fatalf("line width = %d, want <= 8:\n%s", width, out.String())
+		}
+	}
+}
+
 func TestTableCollapsesMultilineNotes(t *testing.T) {
 	projects := []project.Project{{
 		Name:         "instaview",
@@ -176,6 +198,16 @@ func TestTableCollapsesMultilineNotes(t *testing.T) {
 	}
 	if !strings.Contains(got, "fix: extract carousel - Add SJS") {
 		t.Fatalf("table note missing collapsed text:\n%s", got)
+	}
+}
+
+func TestWrapCellByWidthTrimsSpacesAfterANSI(t *testing.T) {
+	got := wrapCellByWidth("\x1b[31m   hello world\x1b[0m", 5)
+	if len(got) < 2 {
+		t.Fatalf("wrapCellByWidth() = %#v, want wrapped parts", got)
+	}
+	if strings.Contains(got[1], "   ") {
+		t.Fatalf("second wrapped part should not keep leading spaces: %#v", got)
 	}
 }
 

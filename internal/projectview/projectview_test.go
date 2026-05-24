@@ -89,6 +89,14 @@ func TestColumnValueMarksPinnedProjectName(t *testing.T) {
 	}
 }
 
+func TestProjectKeyUsesDecimalFallbackIndex(t *testing.T) {
+	got := ProjectKey(project.Project{Name: "app"}, 12345)
+	want := "app\x0012345"
+	if got != want {
+		t.Fatalf("ProjectKey() = %q, want %q", got, want)
+	}
+}
+
 func TestColumnValueShowsPorts(t *testing.T) {
 	proj := project.Project{Ports: []int{3000, 8787}}
 
