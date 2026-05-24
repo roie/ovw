@@ -50,7 +50,10 @@ func NewRootCommand() *cobra.Command {
 			opts.Out = cmd.OutOrStdout()
 			opts.Err = cmd.ErrOrStderr()
 			if len(args) == 1 {
-				if isTemporarySessionArg(args[0]) && !opts.Open {
+				if isTemporarySessionArg(args[0]) {
+					if opts.Open {
+						return fmt.Errorf("pass a project name with --open")
+					}
 					opts.SessionRoot = cwd
 					if !cmd.Flags().Changed("path") {
 						opts.Path = cwd
@@ -335,6 +338,14 @@ func mergeSetupCandidates(candidates, roots []string) []string {
 		}
 		if hasSetupAncestorCandidate(merged, value) {
 			continue
+		}
+		for i := 0; i < len(merged); {
+			if setupCandidateContains(value, merged[i]) {
+				delete(seen, merged[i])
+				merged = append(merged[:i], merged[i+1:]...)
+				continue
+			}
+			i++
 		}
 		seen[value] = true
 		merged = append(merged, value)

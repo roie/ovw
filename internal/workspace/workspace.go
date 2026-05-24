@@ -79,7 +79,7 @@ func readPNPMWorkspace(path string) ([]string, bool, error) {
 		if os.IsNotExist(err) {
 			return nil, false, nil
 		}
-		return nil, false, err
+		return nil, false, nil
 	}
 	globs := []string{}
 	inPackages := false
@@ -123,7 +123,7 @@ func readPackageWorkspaces(path string) ([]string, bool, error) {
 		if os.IsNotExist(err) {
 			return nil, false, nil
 		}
-		return nil, false, err
+		return nil, false, nil
 	}
 	var pkg struct {
 		Workspaces json.RawMessage `json:"workspaces"`

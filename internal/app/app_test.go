@@ -774,6 +774,19 @@ func TestResolveProjectFindsScannedProjectByName(t *testing.T) {
 	}
 }
 
+func TestResolveProjectReturnsScannerError(t *testing.T) {
+	cfg := config.Default()
+	cfg.Roots = []string{"~other/projects"}
+
+	_, err := ResolveProject("missing", cfg, metadata.New())
+	if err == nil {
+		t.Fatal("ResolveProject() error = nil")
+	}
+	if !strings.Contains(err.Error(), "unsupported home path") {
+		t.Fatalf("ResolveProject() error = %v, want scanner error", err)
+	}
+}
+
 func TestUpdateProjectMetadataWritesStore(t *testing.T) {
 	home := t.TempDir()
 	root := t.TempDir()
@@ -932,6 +945,29 @@ func TestAddProjectWritesConfigRoot(t *testing.T) {
 	}
 	if len(cfg.Roots) != 1 || cfg.Roots[0] != project {
 		t.Fatalf("roots = %#v, want %q", cfg.Roots, project)
+	}
+}
+
+func TestAddProjectStoresCanonicalRootForRelativePath(t *testing.T) {
+	home := t.TempDir()
+	parent := t.TempDir()
+	project := filepath.Join(parent, "custom")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Chdir(parent)
+
+	result, err := AddProject("./custom")
+	if err != nil {
+		t.Fatalf("AddProject() error = %v", err)
+	}
+	cfg, err := config.Load(filepath.Join(home, ".config", "ovw", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != result.Path {
+		t.Fatalf("roots = %#v, want canonical %q", cfg.Roots, result.Path)
 	}
 }
 

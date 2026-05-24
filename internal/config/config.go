@@ -510,7 +510,11 @@ func Edit(path string) error {
 	if editor == "" {
 		editor = "vi"
 	}
-	cmd := exec.Command(editor, path)
+	parts := strings.Fields(editor)
+	if len(parts) == 0 {
+		return errors.New("editor is not configured")
+	}
+	cmd := exec.Command(parts[0], append(parts[1:], path)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

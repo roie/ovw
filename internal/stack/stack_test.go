@@ -3,6 +3,7 @@ package stack
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"ovw/internal/config"
@@ -113,6 +114,29 @@ func TestDetectPackageJSONWorkspaces(t *testing.T) {
 		t.Fatalf("Detect() error = %v", err)
 	}
 	if result.Display != "React" {
+		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
+	}
+}
+
+func TestDetectSkipsUnreadablePackageJSON(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod unreadable package.json is not portable on windows")
+	}
+	dir := t.TempDir()
+	packagePath := filepath.Join(dir, "package.json")
+	if err := os.WriteFile(packagePath, []byte(`{"dependencies":{"react":"latest"}}`), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(packagePath, 0o644)
+	})
+	touch(t, filepath.Join(dir, "go.mod"))
+
+	result, err := Detect(dir, config.Default().Stack)
+	if err != nil {
+		t.Fatalf("Detect() error = %v", err)
+	}
+	if result.Display != "Go" {
 		t.Fatalf("display = %q labels=%#v", result.Display, result.Labels)
 	}
 }

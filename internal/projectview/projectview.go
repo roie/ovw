@@ -121,6 +121,9 @@ func DetailActivity(project project.Project) string {
 		return activity.Display
 	}
 	age := activity.LastCommitAge
+	if age == "" {
+		return activity.Display
+	}
 	if age != "now" {
 		age += " ago"
 	}

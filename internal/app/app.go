@@ -247,7 +247,7 @@ func enrichProjects(scanned []scanner.Project, cfg config.Config, now time.Time,
 			for index := range jobs {
 				scannedProject := scanned[index]
 				projectStart := time.Now()
-				enriched := EnrichWithGitOptions(scannedProject, cfg, now, detector.Detect(scannedProject.Path), enrichOpts)
+				enriched := safelyEnrichProject(scannedProject, cfg, now, detector, enrichOpts)
 				results <- result{index: index, project: enriched, duration: time.Since(projectStart)}
 			}
 		}()
@@ -271,6 +271,29 @@ func enrichProjects(scanned []scanner.Project, cfg config.Config, now time.Time,
 		})
 	}
 	return projects, slow
+}
+
+func safelyEnrichProject(scannedProject scanner.Project, cfg config.Config, now time.Time, detector *gitactivity.Detector, enrichOpts EnrichOptions) (out project.Project) {
+	defer func() {
+		if recover() != nil {
+			out = fallbackProject(scannedProject, cfg)
+		}
+	}()
+	return EnrichWithGitOptions(scannedProject, cfg, now, detector.Detect(scannedProject.Path), enrichOpts)
+}
+
+func fallbackProject(scannedProject scanner.Project, cfg config.Config) project.Project {
+	return project.Project{
+		Name:          scannedProject.Name,
+		Path:          scannedProject.Path,
+		CustomScripts: scannedProject.Scripts,
+		Status:        ovwformat.StatusFromTags(scannedProject.Status, nil),
+		Note:          ovwformat.Note(scannedProject.Note, "", gitactivity.Info{}, cfg),
+		Fields:        scannedProject.Fields,
+		FieldDefs:     projectFieldDefs(cfg),
+		Hidden:        scannedProject.Hidden,
+		Pinned:        scannedProject.Pinned,
+	}
 }
 
 func DiscoverOverview(opts Options) (OverviewResult, error) {
@@ -574,7 +597,7 @@ func ResolveProject(target string, cfg config.Config, store metadata.Store) (str
 	}
 	projects, scanErr := scanner.Scan(cfg, store)
 	if scanErr != nil {
-		return "", err
+		return "", scanErr
 	}
 	matches := []string{}
 	for _, project := range projects {
@@ -762,7 +785,7 @@ func AddProject(path string) (AddProjectResult, error) {
 			return AddProjectResult{Path: canonical, AlreadyTracked: true}, nil
 		}
 	}
-	cfg.Roots = append(cfg.Roots, path)
+	cfg.Roots = append(cfg.Roots, canonical)
 	if err := config.Validate(cfg); err != nil {
 		return AddProjectResult{}, err
 	}

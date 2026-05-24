@@ -167,6 +167,31 @@ func TestDetectUsesFastDirtyAndCombinedLogCommands(t *testing.T) {
 	}
 }
 
+func TestDetectorCleansInflightAfterPanic(t *testing.T) {
+	detector := newDetectorWithRunner(func(path string, args ...string) (string, error) {
+		command := strings.Join(args, " ")
+		if command == "rev-parse --show-toplevel" {
+			return "/repo\n", nil
+		}
+		panic("git runner failed")
+	}, time.Second)
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected runner panic")
+			}
+		}()
+		_ = detector.Detect("/repo")
+	}()
+
+	detector.mu.Lock()
+	defer detector.mu.Unlock()
+	if len(detector.inflight) != 0 {
+		t.Fatalf("inflight calls = %#v, want empty after panic", detector.inflight)
+	}
+}
+
 func TestDetectRecentCommitsCapsAtThree(t *testing.T) {
 	dir := gitRepo(t)
 	for _, subject := range []string{"first", "second", "third", "fourth"} {

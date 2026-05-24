@@ -89,6 +89,20 @@ func TestColumnValueMarksPinnedProjectName(t *testing.T) {
 	}
 }
 
+func TestDetailActivityDoesNotAppendAgoToEmptyAge(t *testing.T) {
+	proj := project.Project{
+		Activity: format.ActivityInfo{
+			Display:    "dirty",
+			HasGit:     true,
+			HasCommits: true,
+		},
+	}
+
+	if got := DetailActivity(proj); got != "dirty" {
+		t.Fatalf("DetailActivity() = %q, want dirty", got)
+	}
+}
+
 func TestProjectKeyUsesDecimalFallbackIndex(t *testing.T) {
 	got := ProjectKey(project.Project{Name: "app"}, 12345)
 	want := "app\x0012345"

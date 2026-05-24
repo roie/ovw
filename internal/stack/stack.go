@@ -93,10 +93,7 @@ func detectAtRoot(path string) ([]string, bool, error) {
 func readPackages(path string) (map[string]bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return map[string]bool{}, nil
-		}
-		return nil, err
+		return map[string]bool{}, nil
 	}
 	var pkg struct {
 		Dependencies    map[string]any `json:"dependencies"`

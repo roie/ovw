@@ -691,8 +691,8 @@ func TestAddExpandsQuotedHomePathAndDisplaysShortPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.Roots) != 1 || cfg.Roots[0] != "~/dev/custom" {
-		t.Fatalf("config roots = %#v, want ~/dev/custom", cfg.Roots)
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != project {
+		t.Fatalf("config roots = %#v, want %q", cfg.Roots, project)
 	}
 }
 
@@ -1371,6 +1371,19 @@ func TestOpenRequiresProjectName(t *testing.T) {
 	}
 }
 
+func TestDotOpenRequiresProjectName(t *testing.T) {
+	home := t.TempDir()
+	root := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Chdir(root)
+	writePackage(t, root, `{}`)
+
+	_, err := executeCommand([]string{".", "--open"})
+	if err == nil || err.Error() != "pass a project name with --open" {
+		t.Fatalf("Execute(. --open) error = %v", err)
+	}
+}
+
 func TestOpenAndJSONAreMutuallyExclusive(t *testing.T) {
 	home := t.TempDir()
 	root := filepath.Join(home, "dev")
@@ -1399,6 +1412,14 @@ func TestDetailActivityDoesNotAppendAgoToNow(t *testing.T) {
 	})
 	if got != "now" {
 		t.Fatalf("detailActivity() = %q, want now", got)
+	}
+}
+
+func TestMergeSetupCandidatesDropsChildrenWhenParentAppearsLater(t *testing.T) {
+	got := mergeSetupCandidates([]string{"/tmp/dev/app"}, []string{"/tmp/dev"})
+	want := []string{"/tmp/dev"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("mergeSetupCandidates() = %#v, want %#v", got, want)
 	}
 }
 

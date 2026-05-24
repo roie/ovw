@@ -90,6 +90,7 @@ func (detector *Detector) detectRoot(root string) Info {
 	detector.mu.Unlock()
 
 	info := Info{}
+	defer detector.finishRootCall(root, call, &info)
 	info.HasGit = true
 
 	if branch, err := detector.run(root, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
@@ -113,10 +114,18 @@ func (detector *Detector) detectRoot(root string) Info {
 	detector.mu.Lock()
 	detector.cache[root] = info
 	call.info = info
-	delete(detector.inflight, root)
-	close(call.done)
 	detector.mu.Unlock()
 	return info
+}
+
+func (detector *Detector) finishRootCall(root string, call *rootCall, info *Info) {
+	detector.mu.Lock()
+	if _, ok := detector.inflight[root]; ok {
+		call.info = *info
+		delete(detector.inflight, root)
+		close(call.done)
+	}
+	detector.mu.Unlock()
 }
 
 func applyLastCommit(value string, info *Info) {
