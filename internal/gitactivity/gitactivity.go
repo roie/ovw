@@ -102,8 +102,8 @@ func (detector *Detector) detectRoot(root string) Info {
 	if commit, err := detector.run(root, "log", "-1", "--format=%ct%x00%B"); err == nil {
 		applyLastCommit(commit, &info)
 	}
-	if status, err := detector.run(root, "status", "--porcelain", "--untracked-files=no"); err == nil {
-		info.Dirty = strings.TrimSpace(status) != ""
+	if _, err := detector.run(root, "diff-index", "--quiet", "HEAD", "--"); hasExitCode(err, 1) {
+		info.Dirty = true
 	}
 	if count, err := detector.run(root, "rev-list", "--count", "@{upstream}..HEAD"); err == nil {
 		if n, parseErr := strconv.Atoi(strings.TrimSpace(count)); parseErr == nil {
@@ -116,6 +116,15 @@ func (detector *Detector) detectRoot(root string) Info {
 	call.info = info
 	detector.mu.Unlock()
 	return info
+}
+
+type exitCoder interface {
+	ExitCode() int
+}
+
+func hasExitCode(err error, code int) bool {
+	exitErr, ok := err.(exitCoder)
+	return ok && exitErr.ExitCode() == code
 }
 
 func (detector *Detector) finishRootCall(root string, call *rootCall, info *Info) {

@@ -129,8 +129,8 @@ func TestDetectUsesFastDirtyAndCombinedLogCommands(t *testing.T) {
 			return "main\n", nil
 		case "log -1 --format=%ct%x00%B":
 			return "1762000000\x00initial commit\n\nbody\n", nil
-		case "status --porcelain --untracked-files=no":
-			return " M file.txt\n", nil
+		case "diff-index --quiet HEAD --":
+			return "", exitCodeError(1)
 		case "rev-list --count @{upstream}..HEAD":
 			return "2\n", nil
 		default:
@@ -159,12 +159,22 @@ func TestDetectUsesFastDirtyAndCombinedLogCommands(t *testing.T) {
 		"rev-parse --show-toplevel",
 		"rev-parse --abbrev-ref HEAD",
 		"log -1 --format=%ct%x00%B",
-		"status --porcelain --untracked-files=no",
+		"diff-index --quiet HEAD --",
 		"rev-list --count @{upstream}..HEAD",
 	}
 	if strings.Join(calls, "|") != strings.Join(wantCalls, "|") {
 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
 	}
+}
+
+type exitCodeError int
+
+func (err exitCodeError) Error() string {
+	return "exit status"
+}
+
+func (err exitCodeError) ExitCode() int {
+	return int(err)
 }
 
 func TestDetectorCleansInflightAfterPanic(t *testing.T) {
@@ -238,7 +248,7 @@ func TestDetectorReusesGitInfoForNestedPathsInSameWorktree(t *testing.T) {
 			return "main\n", nil
 		case "log -1 --format=%ct%x00%B":
 			return "1762000000\x00initial commit\n", nil
-		case "status --porcelain --untracked-files=no":
+		case "diff-index --quiet HEAD --":
 			return "", nil
 		case "rev-list --count @{upstream}..HEAD":
 			return "0\n", nil
@@ -282,7 +292,7 @@ func TestDetectorReusesInFlightGitInfoForNestedPathsInSameWorktree(t *testing.T)
 			return "main\n", nil
 		case "log -1 --format=%ct%x00%B":
 			return "1762000000\x00initial commit\n", nil
-		case "status --porcelain --untracked-files=no":
+		case "diff-index --quiet HEAD --":
 			return "", nil
 		case "rev-list --count @{upstream}..HEAD":
 			return "0\n", nil
@@ -340,7 +350,7 @@ func TestDetectorDoesNotReuseParentGitInfoForNestedGitProject(t *testing.T) {
 		switch command {
 		case "log -1 --format=%ct%x00%B":
 			return "1762000000\x00initial commit\n", nil
-		case "status --porcelain --untracked-files=no":
+		case "diff-index --quiet HEAD --":
 			return "", nil
 		case "rev-list --count @{upstream}..HEAD":
 			return "0\n", nil
