@@ -1154,6 +1154,110 @@ func TestModelLoadsRecentFilesForWideSidepaneWithoutGit(t *testing.T) {
 	}
 }
 
+func TestModelLimitsRecentSidepaneItemsFromConfig(t *testing.T) {
+	cfg := config.Default()
+	cfg.RecentCommitsLimit = 2
+	cfg.RecentFilesLimit = 1
+	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
+		return app.OverviewResult{
+			Config: cfg,
+			Projects: []project.Project{
+				{
+					Name:         "app",
+					Path:         "/tmp/app",
+					StackDisplay: "Go",
+					Activity: ovwformat.ActivityInfo{
+						Display:    "12m",
+						HasGit:     true,
+						HasCommits: true,
+					},
+				},
+			},
+		}, nil
+	})
+	model.width = 140
+	model.height = 24
+	model.recent = func(path string, now time.Time) ([]ovwformat.RecentCommit, error) {
+		return []ovwformat.RecentCommit{
+			{Hash: "aaa1111", Subject: "first commit", Age: "1m"},
+			{Hash: "bbb2222", Subject: "second commit", Age: "2m"},
+			{Hash: "ccc3333", Subject: "third commit", Age: "3m"},
+		}, nil
+	}
+	model.recentFiles = func(path string, ignoreDirs []string, now time.Time) ([]ovwformat.RecentFile, error) {
+		return []ovwformat.RecentFile{
+			{Path: "internal/tui/app.go", Age: "4m"},
+			{Path: "internal/tui/detail.go", Age: "5m"},
+		}, nil
+	}
+
+	updated, cmd := model.Update(model.Init()())
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected lazy recent command for wide sidepane")
+	}
+	updated, _ = model.Update(cmd())
+	model = updated.(Model)
+
+	view := stripANSI(model.View())
+	for _, want := range []string{"Recent commits", "aaa1111", "bbb2222", "Recent files", "internal/tui/app.go"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("wide sidepane missing %q:\n%s", want, view)
+		}
+	}
+	for _, notWant := range []string{"ccc3333", "internal/tui/detail.go"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("wide sidepane should respect configured recent limit %q:\n%s", notWant, view)
+		}
+	}
+}
+
+func TestModelSkipsRecentSidepaneSectionsWhenLimitsHidden(t *testing.T) {
+	cfg := config.Default()
+	cfg.RecentCommitsLimit = 0
+	cfg.RecentFilesLimit = 0
+	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
+		return app.OverviewResult{
+			Config: cfg,
+			Projects: []project.Project{
+				{
+					Name:         "app",
+					Path:         "/tmp/app",
+					StackDisplay: "Go",
+					Activity: ovwformat.ActivityInfo{
+						Display:    "12m",
+						HasGit:     true,
+						HasCommits: true,
+					},
+				},
+			},
+		}, nil
+	})
+	model.width = 140
+	model.height = 24
+	model.recent = func(path string, now time.Time) ([]ovwformat.RecentCommit, error) {
+		t.Fatalf("recent commit loader should not run when the limit is hidden")
+		return nil, nil
+	}
+	model.recentFiles = func(path string, ignoreDirs []string, now time.Time) ([]ovwformat.RecentFile, error) {
+		t.Fatalf("recent files loader should not run when the limit is hidden")
+		return nil, nil
+	}
+
+	updated, cmd := model.Update(model.Init()())
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("expected no lazy recent command when both recent limits are hidden")
+	}
+
+	view := stripANSI(model.View())
+	for _, notWant := range []string{"Recent commits", "Recent files"} {
+		if strings.Contains(view, notWant) {
+			t.Fatalf("wide sidepane should hide %q when limit is 0:\n%s", notWant, view)
+		}
+	}
+}
+
 func TestModelDoesNotLoadRecentCommitsForNarrowLayout(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{
@@ -3035,6 +3139,8 @@ func TestFriendlyConfigErrorHidesConfigInternals(t *testing.T) {
 		{`invalid roots: root paths cannot be empty`, `Project folders cannot be empty.`},
 		{`invalid max_depth -1: expected 0 or greater`, `Project search depth must be 0 or greater.`},
 		{`invalid stale_days 0: expected 1 or greater`, `Stale days must be 1 or greater.`},
+		{`invalid recent_commits_limit 51: expected between 0 and 50`, `Recent commits must be between 0 and 50.`},
+		{`invalid recent_files_limit -1: expected between 0 and 50`, `Recent files must be between 0 and 50.`},
 		{`invalid sort_by "updated": expected activity, updated, name, or status`, `Choose a valid default sort.`},
 		{`invalid sort_dir "down": expected asc or desc`, `Choose ascending or descending sort.`},
 		{`invalid column "wat": expected name, path`, `Choose a valid column.`},
@@ -3057,7 +3163,7 @@ func TestFriendlyConfigErrorHidesConfigInternals(t *testing.T) {
 		if got != tc.want {
 			t.Fatalf("friendlyConfigError(%q) = %q, want %q", tc.err, got, tc.want)
 		}
-		for _, raw := range []string{"fields[", "keys.actions", "max_depth", "stale_days", "sort_by", "sort_dir", "column_order", "invalid config"} {
+		for _, raw := range []string{"fields[", "keys.actions", "max_depth", "stale_days", "recent_commits_limit", "recent_files_limit", "sort_by", "sort_dir", "column_order", "invalid config"} {
 			if strings.Contains(got, raw) {
 				t.Fatalf("friendlyConfigError(%q) exposed raw token %q: %q", tc.err, raw, got)
 			}
@@ -3328,6 +3434,46 @@ func TestModelConfigStaleDaysUsesDayLabel(t *testing.T) {
 	}
 	if strings.Contains(view, "1 days") {
 		t.Fatalf("settings should not render plural stale day:\n%s", view)
+	}
+}
+
+func TestModelConfigRecentLimitsUseArrowSteppersAndHiddenLabel(t *testing.T) {
+	cfg := config.Default()
+	cfg.RecentCommitsLimit = 3
+	cfg.RecentFilesLimit = 0
+	model := Model{config: cfg}
+	model.openConfig()
+
+	view := stripANSI(model.View())
+	for _, want := range []string{"Recent commits", "3", "Recent files", "Hidden"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("settings should show recent limits and hidden label %q:\n%s", want, view)
+		}
+	}
+
+	model = selectConfigRow(t, model, "Recent commits")
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if model.configDraft.RecentCommitsLimit != 4 {
+		t.Fatalf("recent commits limit = %d, want 4", model.configDraft.RecentCommitsLimit)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	if model.configDraft.RecentCommitsLimit != 2 {
+		t.Fatalf("recent commits limit = %d, want 2", model.configDraft.RecentCommitsLimit)
+	}
+
+	model = selectConfigRow(t, model, "Recent files")
+	model = updateSpecialKey(t, model, tea.KeyRight)
+	if model.configDraft.RecentFilesLimit != 1 {
+		t.Fatalf("recent files limit = %d, want 1", model.configDraft.RecentFilesLimit)
+	}
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	model = updateSpecialKey(t, model, tea.KeyLeft)
+	if model.configDraft.RecentFilesLimit != 0 {
+		t.Fatalf("recent files limit = %d, want 0", model.configDraft.RecentFilesLimit)
+	}
+	if view := stripANSI(model.View()); !strings.Contains(view, "Recent files") || !strings.Contains(view, "Hidden") {
+		t.Fatalf("recent files limit 0 should render Hidden:\n%s", view)
 	}
 }
 
@@ -6108,6 +6254,18 @@ func updateSpecialKey(t *testing.T, model Model, key tea.KeyType) Model {
 	t.Helper()
 	updated, _ := model.Update(tea.KeyMsg{Type: key})
 	return updated.(Model)
+}
+
+func selectConfigRow(t *testing.T, model Model, label string) Model {
+	t.Helper()
+	for i := 0; i < 40; i++ {
+		if strings.Contains(stripANSI(model.View()), "> "+label) {
+			return model
+		}
+		model = updateKey(t, model, "j")
+	}
+	t.Fatalf("settings row %q was not selectable:\n%s", label, stripANSI(model.View()))
+	return model
 }
 
 func updateMsg(t *testing.T, model Model, msg tea.Msg) Model {

@@ -24,6 +24,12 @@ func TestDefaultConfigValues(t *testing.T) {
 	if cfg.StaleDays != 30 {
 		t.Fatalf("StaleDays = %d", cfg.StaleDays)
 	}
+	if cfg.RecentCommitsLimit != 3 {
+		t.Fatalf("RecentCommitsLimit = %d, want 3", cfg.RecentCommitsLimit)
+	}
+	if cfg.RecentFilesLimit != 5 {
+		t.Fatalf("RecentFilesLimit = %d, want 5", cfg.RecentFilesLimit)
+	}
 	if !reflect.DeepEqual(cfg.Statuses, []string{"active", "parked", "shipped", "idea"}) {
 		t.Fatalf("Statuses = %#v", cfg.Statuses)
 	}
@@ -66,6 +72,8 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	cfg := Default()
 	cfg.Roots = []string{"~/dev"}
 	cfg.StaleDays = 7
+	cfg.RecentCommitsLimit = 9
+	cfg.RecentFilesLimit = 11
 	cfg.ColumnOrder = []string{"name", "path", "stack"}
 	cfg.Fields = []FieldConfig{
 		{ID: "jira", Label: "Jira", Type: "text"},
@@ -88,6 +96,12 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 	if loaded.StaleDays != 7 {
 		t.Fatalf("StaleDays = %d", loaded.StaleDays)
+	}
+	if loaded.RecentCommitsLimit != 9 {
+		t.Fatalf("RecentCommitsLimit = %d, want 9", loaded.RecentCommitsLimit)
+	}
+	if loaded.RecentFilesLimit != 11 {
+		t.Fatalf("RecentFilesLimit = %d, want 11", loaded.RecentFilesLimit)
 	}
 	if !reflect.DeepEqual(loaded.ColumnOrder, cfg.ColumnOrder) {
 		t.Fatalf("ColumnOrder = %#v", loaded.ColumnOrder)
@@ -237,6 +251,22 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 			want: `invalid sort_dir "down": expected asc or desc`,
 		},
 		{
+			name: "negative recent commits limit",
+			edit: func(cfg Config) Config {
+				cfg.RecentCommitsLimit = -1
+				return cfg
+			},
+			want: `invalid recent_commits_limit -1: expected between 0 and 50`,
+		},
+		{
+			name: "too large recent files limit",
+			edit: func(cfg Config) Config {
+				cfg.RecentFilesLimit = 51
+				return cfg
+			},
+			want: `invalid recent_files_limit 51: expected between 0 and 50`,
+		},
+		{
 			name: "empty action key",
 			edit: func(cfg Config) Config {
 				cfg.Keys.Actions.Editor = ""
@@ -351,6 +381,9 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	}
 	if !strings.Contains(text, `columns = ["name", "stack", "activity", "status", "note"]`) {
 		t.Fatalf("default config missing status column:\n%s", text)
+	}
+	if !strings.Contains(text, `recent_commits_limit = 3`) || !strings.Contains(text, `recent_files_limit = 5`) {
+		t.Fatalf("default config missing recent sidepane limits:\n%s", text)
 	}
 	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note, field:<id>") {
 		t.Fatalf("default config missing column options comment:\n%s", text)

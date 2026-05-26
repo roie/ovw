@@ -26,6 +26,8 @@ type configInputKind int
 const (
 	configInputNone configInputKind = iota
 	configInputStaleDays
+	configInputRecentCommits
+	configInputRecentFiles
 	configInputEditor
 	configInputShell
 	configInputKeyDetails
@@ -120,6 +122,8 @@ func (m Model) configRows() []configRow {
 		{Label: "Include nested projects", Value: boolSummary(cfg.ScanNestedProjects)},
 		{Label: "Show unpushed commits", Value: boolSummary(cfg.ShowUnpushed)},
 		{Label: "Mark stale after", Value: daysSummary(cfg.StaleDays)},
+		{Label: "Recent commits", Value: recentLimitSummary(cfg.RecentCommitsLimit)},
+		{Label: "Recent files", Value: recentLimitSummary(cfg.RecentFilesLimit)},
 		{Label: "Fields", Value: fieldsSummary(cfg.Fields)},
 		{Label: "Note display", Value: noteDisplaySummary(cfg)},
 		{Label: "Keyboard shortcuts", Value: actionKeysSummary(cfg.Keys.Actions)},
@@ -168,6 +172,13 @@ func daysSummary(days int) string {
 		return "1 day"
 	}
 	return fmt.Sprintf("%d days", days)
+}
+
+func recentLimitSummary(limit int) string {
+	if limit == 0 {
+		return "Hidden"
+	}
+	return strconv.Itoa(limit)
 }
 
 func noteDisplaySummary(cfg config.Config) string {
@@ -256,19 +267,23 @@ func (m Model) editConfigRow() (tea.Model, tea.Cmd) {
 	case 4:
 		return m.openConfigInput(configInputStaleDays, strconv.Itoa(m.configDraft.StaleDays)), m.startInputCursorBlink()
 	case 5:
-		m.openConfigFields()
+		return m.openConfigInput(configInputRecentCommits, strconv.Itoa(m.configDraft.RecentCommitsLimit)), m.startInputCursorBlink()
 	case 6:
-		m.openConfigNote()
+		return m.openConfigInput(configInputRecentFiles, strconv.Itoa(m.configDraft.RecentFilesLimit)), m.startInputCursorBlink()
 	case 7:
-		m.openConfigKeys()
+		m.openConfigFields()
 	case 8:
-		return m.openConfigInput(configInputEditor, m.configDraft.Editor), m.startInputCursorBlink()
+		m.openConfigNote()
 	case 9:
-		return m.openConfigInput(configInputShell, m.configDraft.Shell), m.startInputCursorBlink()
+		m.openConfigKeys()
+	case 10:
+		return m.openConfigInput(configInputEditor, m.configDraft.Editor), m.startInputCursorBlink()
 	case 11:
+		return m.openConfigInput(configInputShell, m.configDraft.Shell), m.startInputCursorBlink()
+	case 13:
 		m.loading = true
 		return m, m.openConfigFile()
-	case 12:
+	case 14:
 		if !m.configResetArmed {
 			m.configResetArmed = true
 			m.configErr = "Press enter again to confirm reset."
@@ -294,17 +309,25 @@ func (m *Model) changeConfigRow() {
 		if m.configDraft.StaleDays > 1 {
 			m.configDraft.StaleDays--
 		}
+	case 5:
+		if m.configDraft.RecentCommitsLimit > 0 {
+			m.configDraft.RecentCommitsLimit--
+		}
+	case 6:
+		if m.configDraft.RecentFilesLimit > 0 {
+			m.configDraft.RecentFilesLimit--
+		}
 	case 2:
 		m.configDraft.ScanNestedProjects = !m.configDraft.ScanNestedProjects
 	case 3:
 		m.configDraft.ShowUnpushed = !m.configDraft.ShowUnpushed
-	case 5:
-		m.openConfigFields()
-	case 6:
-		m.openConfigNote()
 	case 7:
+		m.openConfigFields()
+	case 8:
+		m.openConfigNote()
+	case 9:
 		m.openConfigKeys()
-	case 10:
+	case 12:
 		m.cycleConfigSort(-1)
 	}
 	m.configErr = ""
@@ -321,15 +344,23 @@ func (m *Model) incrementConfigRow() {
 	case 4:
 		m.configDraft.StaleDays++
 	case 5:
+		if m.configDraft.RecentCommitsLimit < config.MaxRecentLimit {
+			m.configDraft.RecentCommitsLimit++
+		}
+	case 6:
+		if m.configDraft.RecentFilesLimit < config.MaxRecentLimit {
+			m.configDraft.RecentFilesLimit++
+		}
+	case 7:
 		m.openConfigFields()
 		return
-	case 6:
+	case 8:
 		m.openConfigNote()
 		return
-	case 7:
+	case 9:
 		m.openConfigKeys()
 		return
-	case 10:
+	case 12:
 		m.cycleConfigSort(1)
 		return
 	default:
@@ -865,6 +896,10 @@ func friendlyConfigError(err error) string {
 		return "Project search depth must be 0 or greater."
 	case strings.Contains(message, "invalid stale_days"):
 		return "Stale days must be 1 or greater."
+	case strings.Contains(message, "invalid recent_commits_limit"):
+		return "Recent commits must be between 0 and 50."
+	case strings.Contains(message, "invalid recent_files_limit"):
+		return "Recent files must be between 0 and 50."
 	case strings.Contains(message, "invalid sort_by"):
 		return "Choose a valid default sort."
 	case strings.Contains(message, "invalid sort_dir"):
@@ -1129,6 +1164,22 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 		}
 		m.configDraft.StaleDays = days
 		m.screen = screenConfig
+	case configInputRecentCommits:
+		limit, err := parseRecentLimit(value)
+		if err != nil {
+			m.configErr = "recent commits must be between 0 and 50"
+			return m, nil
+		}
+		m.configDraft.RecentCommitsLimit = limit
+		m.screen = screenConfig
+	case configInputRecentFiles:
+		limit, err := parseRecentLimit(value)
+		if err != nil {
+			m.configErr = "recent files must be between 0 and 50"
+			return m, nil
+		}
+		m.configDraft.RecentFilesLimit = limit
+		m.screen = screenConfig
 	case configInputEditor:
 		m.configDraft.Editor = value
 		m.screen = screenConfig
@@ -1150,6 +1201,17 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 	}
 	m.configErr = ""
 	return m, nil
+}
+
+func parseRecentLimit(value string) (int, error) {
+	limit, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, err
+	}
+	if limit < 0 || limit > config.MaxRecentLimit {
+		return 0, fmt.Errorf("recent limit out of range")
+	}
+	return limit, nil
 }
 
 func (m Model) saveConfigShortcut(value string) (tea.Model, tea.Cmd) {
@@ -1345,6 +1407,10 @@ func (m Model) configInputTitle() string {
 	switch m.configInputKind {
 	case configInputStaleDays:
 		return "Mark stale after"
+	case configInputRecentCommits:
+		return "Recent commits"
+	case configInputRecentFiles:
+		return "Recent files"
 	case configInputEditor:
 		return "Editor"
 	case configInputShell:
@@ -1376,6 +1442,10 @@ func (m Model) configInputPlaceholder() string {
 	switch m.configInputKind {
 	case configInputStaleDays:
 		return "30"
+	case configInputRecentCommits:
+		return "3"
+	case configInputRecentFiles:
+		return "5"
 	case configInputEditor:
 		return "code"
 	case configInputShell:

@@ -26,6 +26,8 @@ type Config struct {
 	ProjectMarkers          []string      `toml:"project_markers"`
 	StaleDays               int           `toml:"stale_days"`
 	ShowUnpushed            bool          `toml:"show_unpushed"`
+	RecentCommitsLimit      int           `toml:"recent_commits_limit"`
+	RecentFilesLimit        int           `toml:"recent_files_limit"`
 	NoteFallbackCommit      bool          `toml:"note_fallback_commit"`
 	NoteFallbackDescription bool          `toml:"note_fallback_description"`
 	NoteShowBranch          bool          `toml:"note_show_branch"`
@@ -75,6 +77,12 @@ type FilePaths struct {
 	Metadata string
 }
 
+const (
+	DefaultRecentCommitsLimit = 3
+	DefaultRecentFilesLimit   = 5
+	MaxRecentLimit            = 50
+)
+
 func Default() Config {
 	return Config{
 		Roots:              []string{"~/Code", "~/Projects"},
@@ -90,6 +98,8 @@ func Default() Config {
 		},
 		StaleDays:               30,
 		ShowUnpushed:            true,
+		RecentCommitsLimit:      DefaultRecentCommitsLimit,
+		RecentFilesLimit:        DefaultRecentFilesLimit,
 		NoteFallbackCommit:      true,
 		NoteFallbackDescription: true,
 		NoteShowBranch:          true,
@@ -209,6 +219,12 @@ func Validate(cfg Config) error {
 	if cfg.StaleDays <= 0 {
 		return fmt.Errorf("invalid stale_days %d: expected 1 or greater", cfg.StaleDays)
 	}
+	if err := validateRecentLimit("recent_commits_limit", cfg.RecentCommitsLimit); err != nil {
+		return err
+	}
+	if err := validateRecentLimit("recent_files_limit", cfg.RecentFilesLimit); err != nil {
+		return err
+	}
 	if err := validateFields(cfg.Fields); err != nil {
 		return err
 	}
@@ -233,6 +249,13 @@ func Validate(cfg Config) error {
 	}
 	if err := validateActionKeys(cfg.Keys.Actions); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateRecentLimit(name string, value int) error {
+	if value < 0 || value > MaxRecentLimit {
+		return fmt.Errorf("invalid %s %d: expected between 0 and %d", name, value, MaxRecentLimit)
 	}
 	return nil
 }
@@ -639,6 +662,10 @@ stale_days = 30
 
 # Show unpushed commit count in activity column.
 show_unpushed = true
+
+# Recent detail counts in the wide sidepane. 0 hides a section.
+recent_commits_limit = 3
+recent_files_limit = 5
 
 # ─────────────────────────────────────────
 # Note column

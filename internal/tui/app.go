@@ -202,8 +202,6 @@ func NewWithOptions(opts app.Options) Model {
 		editor:        OpenEditor,
 		terminal:      runTerminal,
 		runner:        runScript,
-		recent:        loadRecentCommits,
-		recentFiles:   loadRecentFiles,
 		configWriter:  config.Write,
 		portDetector:  ports.Detect,
 		activeFilter:  optionsFromRequest(opts),
@@ -2424,44 +2422,67 @@ func (m Model) loadSelectedRecent() tea.Cmd {
 	if !ok {
 		return nil
 	}
+	commitLimit, fileLimit := m.recentLimits()
 	commitsCached := true
-	if project.Activity.HasGit && project.Activity.HasCommits {
+	if commitLimit > 0 && project.Activity.HasGit && project.Activity.HasCommits {
 		_, commitsCached = m.recentByPath[project.Path]
 	}
-	_, filesCached := m.filesByPath[project.Path]
+	filesCached := true
+	if fileLimit > 0 {
+		_, filesCached = m.filesByPath[project.Path]
+	}
 	if commitsCached && filesCached {
 		return nil
 	}
 	path := project.Path
 	loader := m.recent
-	if loader == nil {
-		loader = loadRecentCommits
-	}
 	fileLoader := m.recentFiles
-	if fileLoader == nil {
-		fileLoader = loadRecentFiles
-	}
 	ignoreDirs := append([]string{}, m.config.IgnoreDirs...)
-	loadCommits := project.Activity.HasGit && project.Activity.HasCommits && !commitsCached
-	loadFiles := !filesCached
+	loadCommits := commitLimit > 0 && project.Activity.HasGit && project.Activity.HasCommits && !commitsCached
+	loadFiles := fileLimit > 0 && !filesCached
 	return func() tea.Msg {
 		now := time.Now()
 		var commits []ovwformat.RecentCommit
 		var commitErr error
 		if loadCommits {
-			commits, commitErr = loader(path, now)
+			if loader == nil {
+				commits, commitErr = loadRecentCommitsWithLimit(path, now, commitLimit)
+			} else {
+				commits, commitErr = loader(path, now)
+				commits = limitRecentCommits(commits, commitLimit)
+			}
 		}
 		var files []ovwformat.RecentFile
 		var fileErr error
 		if loadFiles {
-			files, fileErr = fileLoader(path, ignoreDirs, now)
+			if fileLoader == nil {
+				files, fileErr = loadRecentFilesWithLimit(path, ignoreDirs, now, fileLimit)
+			} else {
+				files, fileErr = fileLoader(path, ignoreDirs, now)
+				files = limitRecentFiles(files, fileLimit)
+			}
 		}
 		return recentLoadedMsg{path: path, commits: commits, files: files, commitErr: commitErr, fileErr: fileErr}
 	}
 }
 
+func (m Model) recentLimits() (int, int) {
+	if configLooksUnset(m.config) {
+		return config.DefaultRecentCommitsLimit, config.DefaultRecentFilesLimit
+	}
+	return m.config.RecentCommitsLimit, m.config.RecentFilesLimit
+}
+
+func configLooksUnset(cfg config.Config) bool {
+	return len(cfg.Roots) == 0 && len(cfg.Columns) == 0 && cfg.StaleDays == 0 && cfg.SortBy == "" && cfg.SortDir == ""
+}
+
 func loadRecentCommits(path string, now time.Time) ([]ovwformat.RecentCommit, error) {
-	commits, err := gitactivity.Recent(path, 3)
+	return loadRecentCommitsWithLimit(path, now, config.DefaultRecentCommitsLimit)
+}
+
+func loadRecentCommitsWithLimit(path string, now time.Time, limit int) ([]ovwformat.RecentCommit, error) {
+	commits, err := gitactivity.Recent(path, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -2469,11 +2490,35 @@ func loadRecentCommits(path string, now time.Time) ([]ovwformat.RecentCommit, er
 }
 
 func loadRecentFiles(path string, ignoreDirs []string, now time.Time) ([]ovwformat.RecentFile, error) {
-	files, err := projectfiles.Recent(path, projectfiles.Options{IgnoreDirs: ignoreDirs}, 5)
+	return loadRecentFilesWithLimit(path, ignoreDirs, now, config.DefaultRecentFilesLimit)
+}
+
+func loadRecentFilesWithLimit(path string, ignoreDirs []string, now time.Time, limit int) ([]ovwformat.RecentFile, error) {
+	files, err := projectfiles.Recent(path, projectfiles.Options{IgnoreDirs: ignoreDirs}, limit)
 	if err != nil {
 		return nil, err
 	}
 	return ovwformat.RecentFiles(files, now), nil
+}
+
+func limitRecentCommits(commits []ovwformat.RecentCommit, limit int) []ovwformat.RecentCommit {
+	if limit < 0 {
+		limit = 0
+	}
+	if len(commits) <= limit {
+		return commits
+	}
+	return commits[:limit]
+}
+
+func limitRecentFiles(files []ovwformat.RecentFile, limit int) []ovwformat.RecentFile {
+	if limit < 0 {
+		limit = 0
+	}
+	if len(files) <= limit {
+		return files
+	}
+	return files[:limit]
 }
 
 type errNoProjectSelected struct{}
