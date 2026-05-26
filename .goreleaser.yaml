@@ -37,18 +37,20 @@ archives:
 checksum:
   name_template: checksums.txt
 
-brews:
+homebrew_casks:
   - name: ovw
+    ids:
+      - ovw
     repository:
       owner: roie
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: https://github.com/roie/ovw
     description: A terminal overview for your local projects.
     license: MIT
-    test: |
-      system "#{bin}/ovw", "--version"
+    binaries:
+      - ovw
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
