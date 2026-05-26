@@ -6189,7 +6189,7 @@ func TestModelHelpOpensAndCloses(t *testing.T) {
 		t.Fatalf("screen = %v, want help", model.screen)
 	}
 	view := model.View()
-	for _, want := range []string{"Name", "app", "ovw", "1.2.0", "A terminal overview for your local projects.", "https://github.com/roie/ovw", "search", "add", "filter", "sort", "command", "open editor", "terminal", "note", "status", "pin", "reload", "quit", "esc"} {
+	for _, want := range []string{"Name", "app", "ovw", "1.3.0", "A terminal overview for your local projects.", "https://github.com/roie/ovw", "search", "add", "filter", "sort", "command", "open editor", "terminal", "note", "status", "pin", "reload", "quit", "esc"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("help view missing %q:\n%s", want, view)
 		}
