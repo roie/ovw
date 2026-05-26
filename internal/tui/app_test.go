@@ -2730,6 +2730,44 @@ func TestModelFilterPickerAppliesDirtyFilter(t *testing.T) {
 	}
 }
 
+func TestModelFilterPickerReloadsForHiddenFilter(t *testing.T) {
+	var gotHidden bool
+	model := Model{
+		width:  80,
+		height: 24,
+		loader: func(opts app.Options) (app.OverviewResult, error) {
+			gotHidden = opts.Hidden
+			return app.OverviewResult{
+				Config:   config.Default(),
+				Projects: []project.Project{{Name: "hidden-project", Hidden: true}},
+			}, nil
+		},
+		config:   config.Default(),
+		projects: []project.Project{{Name: "visible-project"}},
+	}
+
+	model = updateKey(t, model, "f")
+	for i := 0; i < 4; i++ {
+		model = updateKey(t, model, "j")
+	}
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("expected hidden filter to reload overview")
+	}
+	model = updateMsg(t, model, cmd())
+	if !gotHidden {
+		t.Fatal("loader Hidden = false, want true")
+	}
+	if model.activeFilter != "hidden" {
+		t.Fatalf("activeFilter = %q, want hidden", model.activeFilter)
+	}
+	visible := model.visibleProjects()
+	if len(visible) != 1 || visible[0].Name != "hidden-project" {
+		t.Fatalf("visible projects = %#v, want only hidden-project", visible)
+	}
+}
+
 func TestModelFilterPickerIncludesConfiguredStatuses(t *testing.T) {
 	cfg := config.Default()
 	cfg.Statuses = []string{"parked", "shipped"}

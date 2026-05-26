@@ -1027,10 +1027,15 @@ func (m Model) updateFilter(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.screen = screenTable
 			return m, nil
 		}
+		wasHidden := m.request.Hidden
 		m.applyFilter(options[m.filterSelected])
 		m.screen = screenTable
 		m.selected = 0
 		m.clampSelection()
+		if wasHidden != m.request.Hidden {
+			m.loading = true
+			return m, m.reloadOverview("", "")
+		}
 		return m, m.loadSelectedRecent()
 	}
 	return m, nil
