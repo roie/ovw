@@ -2,6 +2,7 @@ package ports
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
 	"os"
 	"os/exec"
@@ -10,7 +11,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
+
+const portCommandTimeout = 1200 * time.Millisecond
+
+var commandOutput = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, name, args...).Output()
+}
 
 type procNetEntry struct {
 	Port  int
@@ -50,7 +58,7 @@ func detectLinux(projectPaths []string) map[string][]int {
 }
 
 func detectDarwin(projectPaths []string) map[string][]int {
-	out, err := exec.Command("lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pn").Output()
+	out, err := runPortCommand("lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pn")
 	if err != nil || len(out) == 0 {
 		return map[string][]int{}
 	}
@@ -61,7 +69,7 @@ func detectDarwin(projectPaths []string) map[string][]int {
 
 	cwdByPID := map[int]string{}
 	for pid := range portsByPID {
-		out, err := exec.Command("lsof", "-a", "-p", strconv.Itoa(pid), "-d", "cwd", "-F", "pn").Output()
+		out, err := runPortCommand("lsof", "-a", "-p", strconv.Itoa(pid), "-d", "cwd", "-F", "pn")
 		if err != nil || len(out) == 0 {
 			continue
 		}
@@ -82,11 +90,17 @@ func detectWindows(projectPaths []string) map[string][]int {
     ExecutablePath = if ($p) { $p.ExecutablePath } else { "" }
   }
 } | ConvertTo-Csv -NoTypeInformation`
-	out, err := exec.Command("powershell", "-NoProfile", "-Command", script).Output()
+	out, err := runPortCommand("powershell", "-NoProfile", "-Command", script)
 	if err != nil || len(out) == 0 {
 		return map[string][]int{}
 	}
 	return mapPortHintsToProjects(projectPaths, parsePowerShellPortProcesses(string(out)))
+}
+
+func runPortCommand(name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), portCommandTimeout)
+	defer cancel()
+	return commandOutput(ctx, name, args...)
 }
 
 func listeningPortsByInode() map[string]int {

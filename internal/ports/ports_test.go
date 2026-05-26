@@ -1,8 +1,13 @@
 package ports
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
+	"time"
 )
 
 func TestParseProcNetTCPListenLine(t *testing.T) {
@@ -136,4 +141,63 @@ func TestMapPortHintsToProjectsRejectsWindowsSiblingPathPrefix(t *testing.T) {
 	if len(got) != 0 {
 		t.Fatalf("mapPortHintsToProjects() = %#v, want no matches", got)
 	}
+}
+
+func TestDetectDarwinBoundsCommandLatency(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake command helper uses a POSIX shell")
+	}
+	installSlowPortCommand(t, "lsof", "p100\nn127.0.0.1:3000\n")
+
+	start := time.Now()
+	got := detectDarwin([]string{"/tmp/app"})
+	elapsed := time.Since(start)
+
+	if elapsed > 1800*time.Millisecond {
+		t.Fatalf("detectDarwin() took %s, want bounded command latency", elapsed)
+	}
+	if len(got) != 0 {
+		t.Fatalf("detectDarwin() = %#v, want no ports from timed out command", got)
+	}
+}
+
+func TestDetectWindowsBoundsCommandLatency(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake command helper uses a POSIX shell")
+	}
+	installSlowPortCommand(t, "powershell", "\"OwningProcess\",\"LocalPort\",\"CommandLine\",\"ExecutablePath\"\n")
+
+	start := time.Now()
+	got := detectWindows([]string{"/tmp/app"})
+	elapsed := time.Since(start)
+
+	if elapsed > 1800*time.Millisecond {
+		t.Fatalf("detectWindows() took %s, want bounded command latency", elapsed)
+	}
+	if len(got) != 0 {
+		t.Fatalf("detectWindows() = %#v, want no ports from timed out command", got)
+	}
+}
+
+func installSlowPortCommand(t *testing.T, name, output string) {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, name)
+	script := "#!/bin/sh\nexec \"$OVW_PORTS_HELPER_BINARY\" -test.run=TestPortCommandHelper -- \"$@\"\n"
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	t.Setenv("OVW_PORTS_HELPER", "1")
+	t.Setenv("OVW_PORTS_HELPER_BINARY", os.Args[0])
+	t.Setenv("OVW_PORTS_HELPER_OUTPUT", output)
+}
+
+func TestPortCommandHelper(t *testing.T) {
+	if os.Getenv("OVW_PORTS_HELPER") != "1" {
+		return
+	}
+	time.Sleep(2 * time.Second)
+	fmt.Print(os.Getenv("OVW_PORTS_HELPER_OUTPUT"))
+	os.Exit(0)
 }
