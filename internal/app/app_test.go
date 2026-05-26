@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -968,6 +969,68 @@ func TestAddProjectStoresCanonicalRootForRelativePath(t *testing.T) {
 	}
 	if len(cfg.Roots) != 1 || cfg.Roots[0] != result.Path {
 		t.Fatalf("roots = %#v, want canonical %q", cfg.Roots, result.Path)
+	}
+}
+
+func TestAddProjectPreservesExistingConfig(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "custom")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+
+	paths, err := config.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Roots = []string{"~/dev"}
+	cfg.Columns = []string{"name", "path", "status"}
+	cfg.ColumnOrder = []string{"path", "name", "status"}
+	cfg.IgnoreDirs = []string{"node_modules", "generated"}
+	cfg.RecentCommitsLimit = 7
+	cfg.RecentFilesLimit = 8
+	cfg.Keys.Actions.Sidepane = "ctrl+g"
+	cfg.Fields = []config.FieldConfig{{ID: "owner", Label: "Owner", Type: "text"}}
+	if err := config.Write(paths.Config, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := AddProject(project)
+	if err != nil {
+		t.Fatalf("AddProject() error = %v", err)
+	}
+	if result.AlreadyTracked {
+		t.Fatal("AlreadyTracked = true, want false")
+	}
+	loaded, err := config.Load(paths.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Roots) != 2 || loaded.Roots[0] != "~/dev" || loaded.Roots[1] != result.Path {
+		t.Fatalf("Roots = %#v, want existing root plus %q", loaded.Roots, result.Path)
+	}
+	if !reflect.DeepEqual(loaded.Columns, cfg.Columns) {
+		t.Fatalf("Columns = %#v, want %#v", loaded.Columns, cfg.Columns)
+	}
+	if !reflect.DeepEqual(loaded.ColumnOrder, cfg.ColumnOrder) {
+		t.Fatalf("ColumnOrder = %#v, want %#v", loaded.ColumnOrder, cfg.ColumnOrder)
+	}
+	if !reflect.DeepEqual(loaded.IgnoreDirs, cfg.IgnoreDirs) {
+		t.Fatalf("IgnoreDirs = %#v, want %#v", loaded.IgnoreDirs, cfg.IgnoreDirs)
+	}
+	if loaded.RecentCommitsLimit != cfg.RecentCommitsLimit {
+		t.Fatalf("RecentCommitsLimit = %d, want %d", loaded.RecentCommitsLimit, cfg.RecentCommitsLimit)
+	}
+	if loaded.RecentFilesLimit != cfg.RecentFilesLimit {
+		t.Fatalf("RecentFilesLimit = %d, want %d", loaded.RecentFilesLimit, cfg.RecentFilesLimit)
+	}
+	if loaded.Keys.Actions.Sidepane != cfg.Keys.Actions.Sidepane {
+		t.Fatalf("Sidepane key = %q, want %q", loaded.Keys.Actions.Sidepane, cfg.Keys.Actions.Sidepane)
+	}
+	if !reflect.DeepEqual(loaded.Fields, cfg.Fields) {
+		t.Fatalf("Fields = %#v, want %#v", loaded.Fields, cfg.Fields)
 	}
 }
 

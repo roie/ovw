@@ -764,6 +764,7 @@ func AddProject(path string) (AddProjectResult, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return AddProjectResult{}, err
 	}
+	configExists := err == nil
 	if os.IsNotExist(err) {
 		cfg = config.Default()
 		cfg.Roots = nil
@@ -789,8 +790,14 @@ func AddProject(path string) (AddProjectResult, error) {
 	if err := config.Validate(cfg); err != nil {
 		return AddProjectResult{}, err
 	}
-	if err := config.WriteDefault(paths.Config, cfg.Roots); err != nil {
-		return AddProjectResult{}, err
+	if configExists {
+		if err := config.Write(paths.Config, cfg); err != nil {
+			return AddProjectResult{}, err
+		}
+	} else {
+		if err := config.WriteDefault(paths.Config, cfg.Roots); err != nil {
+			return AddProjectResult{}, err
+		}
 	}
 	return AddProjectResult{Path: canonical}, nil
 }
