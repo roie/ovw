@@ -75,41 +75,17 @@ func newestFiles(files []File, limit int) []File {
 }
 
 func NewestModified(root string, opts Options) (time.Time, bool, error) {
-	ignored := updatedIgnoredDirs(opts)
+	files, err := walk(root, opts)
+	if err != nil {
+		return time.Time{}, false, err
+	}
 	var newest time.Time
 	ok := false
-	var walk func(string) error
-	walk = func(dir string) error {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			return err
+	for _, file := range files {
+		if !ok || file.ModifiedAt.After(newest) {
+			newest = file.ModifiedAt
+			ok = true
 		}
-		for _, entry := range entries {
-			name := entry.Name()
-			path := filepath.Join(dir, name)
-			if entry.IsDir() {
-				if ignored[name] || strings.HasPrefix(name, ".") {
-					continue
-				}
-				if err := walk(path); err != nil {
-					return err
-				}
-				continue
-			}
-			info, err := entry.Info()
-			if err != nil {
-				continue
-			}
-			modified := info.ModTime()
-			if !ok || modified.After(newest) {
-				newest = modified
-				ok = true
-			}
-		}
-		return nil
-	}
-	if err := walk(root); err != nil {
-		return time.Time{}, false, err
 	}
 	return newest, ok, nil
 }

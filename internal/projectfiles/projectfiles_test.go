@@ -218,6 +218,22 @@ func TestNewestModifiedSkipsConfiguredIgnoredDirs(t *testing.T) {
 	}
 }
 
+func TestNewestModifiedRespectsGitignoreRules(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, 5, 12, 12, 0, 0, 0, time.Local)
+	writeFileContentAt(t, root, ".gitignore", "generated/\n", now.Add(-4*time.Minute))
+	writeFileAt(t, root, "src/app.ts", now.Add(-2*time.Minute))
+	writeFileAt(t, root, "generated/client.ts", now)
+
+	got, ok, err := NewestModified(root, Options{})
+	if err != nil {
+		t.Fatalf("NewestModified() error = %v", err)
+	}
+	if !ok || !got.Equal(now.Add(-2*time.Minute)) {
+		t.Fatalf("NewestModified() = %s, %v; want src/app.ts mtime", got, ok)
+	}
+}
+
 func TestNewestModifiedSkipsDotDirsButKeepsDotFiles(t *testing.T) {
 	root := t.TempDir()
 	now := time.Date(2026, 5, 12, 12, 0, 0, 0, time.Local)
