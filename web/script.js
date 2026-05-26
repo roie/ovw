@@ -1,7 +1,7 @@
 const installCommands = {
   homebrew: {
     label: "Recommended for macOS and Linux with Homebrew",
-    command: "brew tap roie/tap\nbrew install ovw",
+    command: "brew install --cask roie/tap/ovw",
   },
   curl: {
     label: "Recommended for macOS and Linux without Homebrew",

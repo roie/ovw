@@ -22,8 +22,14 @@ What needs attention?
 Homebrew:
 
 ```sh
-brew tap roie/tap
-brew install ovw
+brew install --cask roie/tap/ovw
+```
+
+If you installed the old formula before v1.3.0:
+
+```sh
+brew uninstall --formula roie/tap/ovw
+brew install --cask roie/tap/ovw
 ```
 
 macOS and Linux:
@@ -167,7 +173,7 @@ Hiding a project never deletes files.
 Homebrew:
 
 ```sh
-brew uninstall ovw
+brew uninstall --cask ovw
 brew untap roie/tap
 ```
 
