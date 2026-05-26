@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"ovw/internal/columns"
+	"ovw/internal/commandline"
 	"ovw/internal/safefile"
 
 	"github.com/pelletier/go-toml/v2"
@@ -536,7 +537,10 @@ func Edit(path string) error {
 	if editor == "" {
 		editor = "vi"
 	}
-	parts := strings.Fields(editor)
+	parts, err := commandline.Split(editor)
+	if err != nil {
+		return err
+	}
 	if len(parts) == 0 {
 		return errors.New("editor is not configured")
 	}

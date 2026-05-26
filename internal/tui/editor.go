@@ -3,11 +3,15 @@ package tui
 import (
 	"errors"
 	"os/exec"
-	"strings"
+
+	"ovw/internal/commandline"
 )
 
 func OpenEditor(editor, path string) error {
-	parts := strings.Fields(editor)
+	parts, err := commandline.Split(editor)
+	if err != nil {
+		return err
+	}
 	if len(parts) == 0 {
 		return errors.New("editor is not configured")
 	}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -428,6 +429,49 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !reflect.DeepEqual(loaded.Roots, []string{root}) {
 		t.Fatalf("Roots = %#v", loaded.Roots)
 	}
+}
+
+func TestEditAllowsQuotedEditorPathAndArgs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake editor uses a POSIX shell")
+	}
+	editorPath, recordPath := writeConfigEditorRecorder(t)
+	target := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(target, []byte("roots = []\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("EDITOR", quoteConfigCommandPart(editorPath)+" --wait")
+
+	if err := Edit(target); err != nil {
+		t.Fatalf("Edit() error = %v", err)
+	}
+	data, err := os.ReadFile(recordPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "--wait\n"+target+"\n"; got != want {
+		t.Fatalf("editor args = %q, want %q", got, want)
+	}
+}
+
+func writeConfigEditorRecorder(t *testing.T) (string, string) {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "Editor App")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	recordPath := filepath.Join(t.TempDir(), "opened.txt")
+	editorPath := filepath.Join(dir, "editor")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$OVW_EDITOR_RECORD\"\n"
+	if err := os.WriteFile(editorPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OVW_EDITOR_RECORD", recordPath)
+	return editorPath, recordPath
+}
+
+func quoteConfigCommandPart(value string) string {
+	return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
 }
 
 func TestLoadAppliesFieldColumnDefaults(t *testing.T) {
