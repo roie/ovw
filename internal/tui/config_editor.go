@@ -31,6 +31,7 @@ const (
 	configInputEditor
 	configInputShell
 	configInputKeyDetails
+	configInputKeySidepane
 	configInputKeyEditor
 	configInputKeyTerminal
 	configInputKeyRunner
@@ -1001,7 +1002,7 @@ func isConfigSaveKey(value string) bool {
 
 func isConfigKeyInput(kind configInputKind) bool {
 	switch kind {
-	case configInputKeyDetails, configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
+	case configInputKeyDetails, configInputKeySidepane, configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
 		return true
 	default:
 		return false
@@ -1043,6 +1044,7 @@ func (m Model) configKeyRows() []configKeyRow {
 	keys := actionKeys(m.configDraft)
 	return []configKeyRow{
 		{Label: "Show details", Value: keys.Details, Kind: configInputKeyDetails},
+		{Label: "Toggle sidepane", Value: keys.Sidepane, Kind: configInputKeySidepane},
 		{Label: "Open editor", Value: keys.Editor, Kind: configInputKeyEditor},
 		{Label: "Open terminal", Value: keys.Terminal, Kind: configInputKeyTerminal},
 		{Label: "Run script", Value: keys.Runner, Kind: configInputKeyRunner},
@@ -1186,7 +1188,7 @@ func (m Model) saveConfigInput() (tea.Model, tea.Cmd) {
 	case configInputShell:
 		m.configDraft.Shell = value
 		m.screen = screenConfig
-	case configInputKeyDetails, configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
+	case configInputKeyDetails, configInputKeySidepane, configInputKeyEditor, configInputKeyTerminal, configInputKeyRunner, configInputKeyNote, configInputKeyStatus, configInputKeyPin, configInputKeyHide:
 		return m.saveConfigShortcut(value)
 	case configInputFieldLabel:
 		if m.currentConfigField() == nil {
@@ -1266,6 +1268,8 @@ func setActionKey(keys *config.ActionKeyConfig, kind configInputKind, value stri
 	switch kind {
 	case configInputKeyDetails:
 		keys.Details = value
+	case configInputKeySidepane:
+		keys.Sidepane = value
 	case configInputKeyEditor:
 		keys.Editor = value
 	case configInputKeyTerminal:
@@ -1417,6 +1421,8 @@ func (m Model) configInputTitle() string {
 		return "Terminal"
 	case configInputKeyDetails:
 		return "Show details shortcut"
+	case configInputKeySidepane:
+		return "Toggle sidepane shortcut"
 	case configInputKeyEditor:
 		return "Open editor shortcut"
 	case configInputKeyTerminal:
@@ -1452,6 +1458,8 @@ func (m Model) configInputPlaceholder() string {
 		return "empty uses default terminal"
 	case configInputKeyDetails:
 		return "enter"
+	case configInputKeySidepane:
+		return "ctrl+b"
 	case configInputKeyEditor:
 		return "o"
 	case configInputKeyTerminal:

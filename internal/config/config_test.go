@@ -42,7 +42,7 @@ func TestDefaultConfigValues(t *testing.T) {
 	if cfg.Stack.Aliases["Cloudflare Workers"] != "CF" {
 		t.Fatalf("Cloudflare alias = %q", cfg.Stack.Aliases["Cloudflare Workers"])
 	}
-	if cfg.Keys.Actions.Details != "enter" || cfg.Keys.Actions.Editor != "o" || cfg.Keys.Actions.Terminal != "t" || cfg.Keys.Actions.Hide != "x" {
+	if cfg.Keys.Actions.Details != "enter" || cfg.Keys.Actions.Editor != "o" || cfg.Keys.Actions.Terminal != "t" || cfg.Keys.Actions.Hide != "x" || cfg.Keys.Actions.Sidepane != "ctrl+b" {
 		t.Fatalf("action keys = %#v", cfg.Keys.Actions)
 	}
 }
@@ -80,6 +80,7 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 		{ID: "priority", Label: "Priority", Type: "select", Options: []string{"high", "medium", "low"}},
 	}
 	cfg.Keys.Actions.Editor = "e"
+	cfg.Keys.Actions.Sidepane = "ctrl+g"
 	cfg.Stack.Aliases["Cloudflare Workers"] = "Workers"
 
 	if err := Write(path, cfg); err != nil {
@@ -111,6 +112,9 @@ func TestLoadWriteRoundTrip(t *testing.T) {
 	}
 	if loaded.Keys.Actions.Editor != "e" {
 		t.Fatalf("Editor key = %q", loaded.Keys.Actions.Editor)
+	}
+	if loaded.Keys.Actions.Sidepane != "ctrl+g" {
+		t.Fatalf("Sidepane key = %q", loaded.Keys.Actions.Sidepane)
 	}
 	if loaded.Stack.Aliases["Cloudflare Workers"] != "Workers" {
 		t.Fatalf("Alias = %q", loaded.Stack.Aliases["Cloudflare Workers"])
@@ -144,6 +148,9 @@ hide = "x"
 	}
 	if loaded.Keys.Actions.Details != "enter" {
 		t.Fatalf("Details key = %q, want enter", loaded.Keys.Actions.Details)
+	}
+	if loaded.Keys.Actions.Sidepane != "ctrl+b" {
+		t.Fatalf("Sidepane key = %q, want ctrl+b", loaded.Keys.Actions.Sidepane)
 	}
 }
 
@@ -306,6 +313,14 @@ func TestLoadRejectsInvalidConfigValues(t *testing.T) {
 			},
 			want: `invalid keys.actions.terminal "enter": already used by details`,
 		},
+		{
+			name: "duplicate sidepane action key",
+			edit: func(cfg Config) Config {
+				cfg.Keys.Actions.Sidepane = "o"
+				return cfg
+			},
+			want: `invalid keys.actions.sidepane "o": already used by editor`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -388,7 +403,7 @@ func TestEnsureWritesCommentedDefaultConfigThatParses(t *testing.T) {
 	if !strings.Contains(text, "# Options: name, path, stack, manager, scripts, version, ports, branch, updated, activity, status, note, field:<id>") {
 		t.Fatalf("default config missing column options comment:\n%s", text)
 	}
-	if !strings.Contains(text, "[keys.actions]") || !strings.Contains(text, `details = "enter"`) || !strings.Contains(text, `editor = "o"`) || !strings.Contains(text, `hide = "x"`) {
+	if !strings.Contains(text, "[keys.actions]") || !strings.Contains(text, `details = "enter"`) || !strings.Contains(text, `editor = "o"`) || !strings.Contains(text, `sidepane = "ctrl+b"`) || !strings.Contains(text, `hide = "x"`) {
 		t.Fatalf("default config missing keyboard shortcuts:\n%s", text)
 	}
 	if strings.Contains(text, "show_untagged") || strings.Contains(text, "relative_dates") {

@@ -88,6 +88,9 @@ func actionKeys(cfg config.Config) config.ActionKeyConfig {
 	if keys.Details == "" {
 		keys.Details = defaults.Details
 	}
+	if keys.Sidepane == "" {
+		keys.Sidepane = defaults.Sidepane
+	}
 	if keys.Editor == "" {
 		keys.Editor = defaults.Editor
 	}
@@ -118,6 +121,10 @@ func (m Model) actionKeys() config.ActionKeyConfig {
 
 func (m Model) isDetailsKey(value string) bool {
 	return value == m.actionKeys().Details
+}
+
+func (m Model) isSidepaneKey(value string) bool {
+	return value == m.actionKeys().Sidepane
 }
 
 func (m Model) isNoteKey(value string) bool {

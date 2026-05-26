@@ -63,6 +63,7 @@ type KeyConfig struct {
 
 type ActionKeyConfig struct {
 	Details  string `toml:"details"`
+	Sidepane string `toml:"sidepane"`
 	Editor   string `toml:"editor"`
 	Terminal string `toml:"terminal"`
 	Runner   string `toml:"runner"`
@@ -120,6 +121,7 @@ func Default() Config {
 		Keys: KeyConfig{
 			Actions: ActionKeyConfig{
 				Details:  "enter",
+				Sidepane: "ctrl+b",
 				Editor:   "o",
 				Terminal: "t",
 				Runner:   "r",
@@ -379,6 +381,7 @@ func validateActionKeys(keys ActionKeyConfig) error {
 		{"status", keys.Status},
 		{"pin", keys.Pin},
 		{"hide", keys.Hide},
+		{"sidepane", keys.Sidepane},
 	}
 	seen := map[string]string{}
 	for _, value := range values {
@@ -747,6 +750,7 @@ show_unknown = true
 
 [keys.actions]
 details = "enter"
+sidepane = "ctrl+b"
 editor = "o"
 terminal = "t"
 runner = "r"

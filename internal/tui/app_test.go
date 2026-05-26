@@ -1258,6 +1258,70 @@ func TestModelSkipsRecentSidepaneSectionsWhenLimitsHidden(t *testing.T) {
 	}
 }
 
+func TestModelSidepaneShortcutTogglesWideInlineDetail(t *testing.T) {
+	model := Model{
+		screen:       screenTable,
+		width:        140,
+		height:       24,
+		config:       config.Default(),
+		activeFilter: "all",
+		projects: []project.Project{
+			{
+				Name: "one",
+				Path: "/tmp/one",
+				Activity: ovwformat.ActivityInfo{
+					Display:    "12m",
+					HasGit:     true,
+					HasCommits: true,
+				},
+			},
+			{
+				Name: "two",
+				Path: "/tmp/two",
+				Activity: ovwformat.ActivityInfo{
+					Display:    "4m",
+					HasGit:     true,
+					HasCommits: true,
+				},
+			},
+		},
+	}
+
+	if !model.showInlineDetail() {
+		t.Fatal("wide table should show inline sidepane by default")
+	}
+	if view := stripANSI(model.View()); !strings.Contains(view, "/tmp/one") {
+		t.Fatalf("wide table should render sidepane details by default:\n%s", view)
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("hiding sidepane should not trigger recent loading")
+	}
+	if !model.sidepaneHidden || model.showInlineDetail() {
+		t.Fatalf("sidepaneHidden = %v showInlineDetail = %v, want hidden", model.sidepaneHidden, model.showInlineDetail())
+	}
+	if view := stripANSI(model.View()); strings.Contains(view, "/tmp/one") {
+		t.Fatalf("hidden sidepane should not render detail path:\n%s", view)
+	}
+
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyDown})
+	model = updated.(Model)
+	if cmd != nil {
+		t.Fatal("moving selection while sidepane is hidden should not trigger recent loading")
+	}
+
+	updated, cmd = model.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
+	model = updated.(Model)
+	if cmd == nil {
+		t.Fatal("showing sidepane should lazy-load recent detail")
+	}
+	if model.sidepaneHidden || !model.showInlineDetail() {
+		t.Fatalf("sidepaneHidden = %v showInlineDetail = %v, want visible", model.sidepaneHidden, model.showInlineDetail())
+	}
+}
+
 func TestModelDoesNotLoadRecentCommitsForNarrowLayout(t *testing.T) {
 	model := NewWithLoader(func(opts app.Options) (app.OverviewResult, error) {
 		return app.OverviewResult{
@@ -3051,7 +3115,9 @@ func TestModelConfigEditsProjectActionShortcut(t *testing.T) {
 		}
 	}
 
-	model = updateKey(t, model, "j")
+	for !strings.Contains(stripANSI(model.View()), "> Open editor") {
+		model = updateKey(t, model, "j")
+	}
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = updated.(Model)
 	if model.screen != screenConfigInput {
@@ -3076,6 +3142,48 @@ func TestModelConfigEditsProjectActionShortcut(t *testing.T) {
 	model = updateSpecialKey(t, model, tea.KeyEsc)
 	if model.screen != screenConfig {
 		t.Fatalf("screen after leaving shortcuts = %v, want config", model.screen)
+	}
+}
+
+func TestModelConfigEditsSidepaneShortcut(t *testing.T) {
+	model := Model{config: config.Default()}
+	model.openConfig()
+
+	for !strings.Contains(stripANSI(model.View()), "> Keyboard shortcuts") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	view := stripANSI(model.View())
+	for _, want := range []string{"Toggle sidepane", "ctrl+b"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("shortcut view missing sidepane shortcut %q:\n%s", want, view)
+		}
+	}
+
+	for !strings.Contains(stripANSI(model.View()), "> Toggle sidepane") {
+		model = updateKey(t, model, "j")
+	}
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = updated.(Model)
+	if model.screen != screenConfigInput {
+		t.Fatalf("screen = %v, want config input", model.screen)
+	}
+	view = stripANSI(model.View())
+	for _, want := range []string{"Toggle sidepane shortcut", "press shortcut"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("sidepane shortcut capture missing %q:\n%s", want, view)
+		}
+	}
+
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlG})
+	model = updated.(Model)
+
+	if model.screen != screenConfigKeys {
+		t.Fatalf("screen = %v, want config keys after save", model.screen)
+	}
+	if model.configDraft.Keys.Actions.Sidepane != "ctrl+g" {
+		t.Fatalf("sidepane shortcut = %q, want ctrl+g", model.configDraft.Keys.Actions.Sidepane)
 	}
 }
 
@@ -5903,6 +6011,18 @@ func TestModelDetailFooterUsesConfiguredActionShortcuts(t *testing.T) {
 	for _, want := range []string{"e open", "y terminal", "u note", "i status", "z hide", "b pin"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("detail view missing configured shortcut %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestHelpShowsConfiguredSidepaneShortcut(t *testing.T) {
+	keys := config.Default().Keys.Actions
+	keys.Sidepane = "ctrl+g"
+
+	view := stripANSI(helpView(keys))
+	for _, want := range []string{"ctrl+g", "sidepane"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("help view missing sidepane shortcut %q:\n%s", want, view)
 		}
 	}
 }

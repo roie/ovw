@@ -98,6 +98,7 @@ type Model struct {
 	detailSelected    int
 	detailShowMarker  bool
 	detailsExpanded   bool
+	sidepaneHidden    bool
 	screen            screenMode
 	search            string
 	searchCursor      int
@@ -325,6 +326,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if isQuitKey(msg.String()) {
 			return m, tea.Quit
+		}
+		if m.screen == screenTable && m.isSidepaneKey(msg.String()) {
+			return m.toggleSidepane()
 		}
 		if m.isDetailsKey(msg.String()) && m.canOpenDetail() {
 			m.screen = screenDetail
@@ -2920,7 +2924,16 @@ func (m Model) tablePanel(visible []project.Project) string {
 }
 
 func (m Model) showInlineDetail() bool {
-	return m.isTableLayoutScreen() && m.contentWidth() >= 110 && len(m.visibleProjects()) > 0
+	return !m.sidepaneHidden && m.isTableLayoutScreen() && m.contentWidth() >= 110 && len(m.visibleProjects()) > 0
+}
+
+func (m Model) toggleSidepane() (Model, tea.Cmd) {
+	m.sidepaneHidden = !m.sidepaneHidden
+	m.detailYOffset = 0
+	if m.sidepaneHidden {
+		return m, nil
+	}
+	return m, m.loadSelectedRecent()
 }
 
 func (m Model) isTableLayoutScreen() bool {

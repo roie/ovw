@@ -23,6 +23,7 @@ func helpView(actionKeys ...config.ActionKeyConfig) string {
 		{Key: "ctrl+p", Action: "command"},
 		{Key: "/", Action: "search"},
 		{Key: "a", Action: "add"},
+		{Key: keys.Sidepane, Action: "sidepane"},
 		{Key: "f, s", Action: "filter, sort"},
 		{Key: "c", Action: "columns"},
 		{Key: keys.Editor + ", " + keys.Terminal, Action: "open editor, terminal"},
