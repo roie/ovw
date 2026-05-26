@@ -71,7 +71,30 @@ func rootPickerHasOptionAncestor(options []string, path string) bool {
 	return false
 }
 
-func (p rootPicker) visibleRows() []setupRow {
+func (p *rootPicker) visibleRows() []setupRow {
+	p.ensureVisibleChildren()
+	return p.rawVisibleRows()
+}
+
+func (p *rootPicker) ensureVisibleChildren() {
+	for {
+		rows := p.rawVisibleRows()
+		missing := make([]string, 0, len(rows))
+		for _, row := range rows {
+			if _, ok := p.children[row.Path]; !ok {
+				missing = append(missing, row.Path)
+			}
+		}
+		if len(missing) == 0 {
+			return
+		}
+		for _, path := range missing {
+			p.ensureChildren(path)
+		}
+	}
+}
+
+func (p rootPicker) rawVisibleRows() []setupRow {
 	rows := make([]setupRow, 0, len(p.options))
 	for _, option := range p.options {
 		rows = append(rows, p.visibleRowsFor(option, "", 0)...)
@@ -79,7 +102,7 @@ func (p rootPicker) visibleRows() []setupRow {
 	return rows
 }
 
-func (p rootPicker) visiblePaths() []string {
+func (p *rootPicker) visiblePaths() []string {
 	rows := p.visibleRows()
 	paths := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -100,7 +123,7 @@ func (p rootPicker) visibleRowsFor(path, parent string, depth int) []setupRow {
 			Depth:      depth,
 			Checked:    checked,
 			Partial:    !checked && p.hasCheckedDescendant(path),
-			Expandable: !known || len(children) > 0,
+			Expandable: known && len(children) > 0,
 			Expanded:   expanded,
 			Count:      p.pathCount(path),
 		},

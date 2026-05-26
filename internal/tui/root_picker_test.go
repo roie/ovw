@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -80,4 +83,55 @@ func TestRootPickerLeftCollapsesExpandedNestedRowBeforeSelectingParent(t *testin
 	if picker.selected != 0 {
 		t.Fatalf("selected = %d, want parent selected after second left", picker.selected)
 	}
+}
+
+func TestRootPickerDoesNotShowCaretForVisibleLeafFolder(t *testing.T) {
+	root := t.TempDir()
+	branch := filepath.Join(root, "branch")
+	leaf := filepath.Join(root, "leaf")
+	if err := os.MkdirAll(filepath.Join(branch, "child"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(leaf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	picker := rootPicker{
+		options:  []string{branch, leaf},
+		checked:  map[string]bool{branch: true, leaf: true},
+		expanded: map[string]bool{},
+		children: map[string][]string{},
+		counts:   map[string]int{branch: 1, leaf: 0},
+	}
+
+	rows := picker.visibleRows()
+	if len(rows) != 2 {
+		t.Fatalf("visible rows = %#v, want branch and leaf", rows)
+	}
+	if !rows[0].Expandable {
+		t.Fatalf("branch row is not expandable: %#v", rows[0])
+	}
+	if rows[1].Expandable {
+		t.Fatalf("leaf row is expandable: %#v", rows[1])
+	}
+	view := stripANSI(strings.Join(modalSetupRowLines(rows, -1), "\n"))
+	branchLine := lineContaining(view, branch)
+	if !strings.ContainsAny(branchLine, "▸▾") {
+		t.Fatalf("branch line should show a caret: %q", branchLine)
+	}
+	leafLine := lineContaining(view, leaf)
+	if leafLine == "" {
+		t.Fatalf("leaf line missing from view:\n%s", view)
+	}
+	if strings.ContainsAny(leafLine, "▸▾") {
+		t.Fatalf("leaf line should not show a caret: %q", leafLine)
+	}
+}
+
+func lineContaining(text, value string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(line, value) {
+			return line
+		}
+	}
+	return ""
 }
