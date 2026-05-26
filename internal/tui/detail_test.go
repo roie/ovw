@@ -445,7 +445,7 @@ func TestDetailSummaryShowsRecentCommits(t *testing.T) {
 
 	got := stripANSI(detailSummaryView(project, 60))
 	for _, want := range []string{
-		"Recent",
+		"Recent commits",
 		"abc1234  fix modal surface",
 		"12m",
 		"def5678  add recent sidepane",
@@ -455,7 +455,7 @@ func TestDetailSummaryShowsRecentCommits(t *testing.T) {
 			t.Fatalf("detail summary missing recent commit %q:\n%s", want, got)
 		}
 	}
-	mustAppearInOrder(t, got, []string{"Note", "Value note", "Recent"})
+	mustAppearInOrder(t, got, []string{"Note", "Value note", "Recent commits"})
 }
 
 func TestDetailSummaryShowsRecentFiles(t *testing.T) {
@@ -516,7 +516,7 @@ func TestDetailSummaryLimitsFallbackNotePreview(t *testing.T) {
 	if strings.Contains(noteBlock, "This final sentence should not take over") {
 		t.Fatalf("fallback note should be capped in side pane:\n%s", got)
 	}
-	if !strings.Contains(got, "Recent") {
+	if !strings.Contains(got, "Recent commits") {
 		t.Fatalf("recent commits should remain visible after fallback note:\n%s", got)
 	}
 }
@@ -544,7 +544,7 @@ func TestDetailSummaryHidesRecentCommitsWhenEmpty(t *testing.T) {
 	project.Activity.RecentCommits = nil
 
 	got := stripANSI(detailSummaryView(project, 60))
-	if strings.Contains(got, "Recent") {
+	if strings.Contains(got, "Recent commits") {
 		t.Fatalf("detail summary should hide empty recent commits:\n%s", got)
 	}
 }

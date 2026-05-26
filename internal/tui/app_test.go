@@ -1113,7 +1113,7 @@ func TestModelLoadsRecentCommitsOnlyForWideSidepane(t *testing.T) {
 	model = updated.(Model)
 
 	view := stripANSI(model.View())
-	for _, want := range []string{"Recent", "abc1234", "fix lazy recent", "2m"} {
+	for _, want := range []string{"Recent commits", "abc1234", "fix lazy recent", "2m"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("wide sidepane missing %q:\n%s", want, view)
 		}

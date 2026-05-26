@@ -445,7 +445,7 @@ func addRecentCommits(lines *[]string, commits []ovwformat.RecentCommit, width i
 	if len(*lines) > 1 {
 		*lines = append(*lines, "")
 	}
-	*lines = append(*lines, truncateText("Recent", width))
+	*lines = append(*lines, truncateText("Recent commits", width))
 	for _, commit := range commits {
 		*lines = append(*lines, recentCommitLine(commit, width))
 	}
